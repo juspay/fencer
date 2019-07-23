@@ -1,0 +1,31 @@
+cabal-version: 2.4
+
+name: ratelimit
+version: 1.0.0
+synopsis: Port of lyft/ratelimit
+description:
+  Haskell port of <https://github.com/lyft/ratelimit lyft/ratelimit>.
+
+license: BSD-3-Clause
+license-file: LICENSE
+
+author: Artyom Kazak
+maintainer: artyom@monadfix.com
+extra-source-files: CHANGELOG.md
+
+library
+  build-depends:
+    base ^>=4.12.0.0
+  hs-source-dirs:
+    src
+  default-language:
+    Haskell2010
+
+executable ratelimit
+  main-is: Main.hs
+  build-depends:
+    base ^>=4.12.0.0
+  hs-source-dirs:
+    src
+  default-language:
+    Haskell2010
