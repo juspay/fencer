@@ -14,8 +14,18 @@ maintainer: artyom@monadfix.com
 extra-source-files: CHANGELOG.md
 
 library
+  exposed-modules:
+    Ratelimit.Proto
   build-depends:
-    base ^>=4.12.0.0
+    base,
+    vector,
+    text,
+    containers,
+    bytestring,
+    deepseq,
+    proto3-wire,
+    proto3-suite,
+    grpc-haskell
   hs-source-dirs:
     lib
   default-language:
@@ -24,7 +34,7 @@ library
 executable ratelimit
   main-is: Main.hs
   build-depends:
-    base ^>=4.12.0.0
+    base
   hs-source-dirs:
     src
   default-language:

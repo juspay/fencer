@@ -1,16 +1,21 @@
 { mkDerivation, stdenv
-, base, grpc-haskell
+, base, vector, text, containers, bytestring, deepseq, proto3-wire, proto3-suite
+, grpc-haskell
 , configureFlags ? [], enableSharedExecutables ? true, enableSharedLibraries ? true
 }:
 mkDerivation {
   pname = "ratelimit";
   version = "1.0.0";
   src = ./.;
-  isLibrary = false;
+  isLibrary = true;
   isExecutable = true;
   inherit enableSharedExecutables enableSharedLibraries configureFlags;
+  libraryHaskellDepends = [
+    base vector text containers bytestring deepseq proto3-wire proto3-suite
+    grpc-haskell
+  ];
   executableHaskellDepends = [
-    base grpc-haskell
+    base
   ];
   description = "Port of lyft/ratelimit";
   license = stdenv.lib.licenses.bsd3;
