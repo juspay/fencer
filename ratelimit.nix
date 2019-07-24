@@ -1,5 +1,5 @@
 { mkDerivation, stdenv
-, base
+, base, grpc-haskell
 , configureFlags ? [], enableSharedExecutables ? true, enableSharedLibraries ? true
 }:
 mkDerivation {
@@ -10,7 +10,7 @@ mkDerivation {
   isExecutable = true;
   inherit enableSharedExecutables enableSharedLibraries configureFlags;
   executableHaskellDepends = [
-    base
+    base grpc-haskell
   ];
   description = "Port of lyft/ratelimit";
   license = stdenv.lib.licenses.bsd3;

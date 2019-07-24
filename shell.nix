@@ -23,12 +23,36 @@ let
   };
   config = {
     packageOverrides = pkgs: rec {
+      grpc = pkgs.callPackage ./nix/grpc.nix { };
+
       haskellPackages = pkgs.haskellPackages.override {
         overrides = self: super: rec {
           ghc =
             super.ghc // { withPackages = if withHoogle then super.ghc.withHoogle else super.ghc ; };
+
           ghcWithPackages =
             self.ghc.withPackages;
+
+          range-set-list =
+            pkgs.haskell.lib.dontCheck
+              (self.callPackage ./nix/range-set-list.nix { });
+
+          proto3-wire =
+            self.callPackage ./nix/proto3-wire.nix { };
+
+          proto3-suite =
+            pkgs.haskell.lib.dontCheck
+              (self.callPackage ./nix/proto3-suite.nix { });
+
+          # Skip tests for grpc-haskell because they depend on the library
+          # already being built.
+          grpc-haskell =
+            pkgs.haskell.lib.dontCheck
+              (self.callPackage ./nix/grpc-haskell.nix { });
+
+          grpc-haskell-core =
+            self.callPackage ./nix/grpc-haskell-core.nix { };
+
           ratelimit =
             self.callPackage ./ratelimit.nix (pkgs.lib.optionalAttrs static staticAttrs);
         };
