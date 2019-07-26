@@ -15,9 +15,14 @@ extra-source-files: CHANGELOG.md
 
 library
   exposed-modules:
+    Ratelimit.Main
+    Ratelimit.Types
     Ratelimit.Proto
   build-depends:
     base,
+    base-prelude,
+    hashable,
+    stm,
     vector,
     text,
     containers,
@@ -25,11 +30,16 @@ library
     deepseq,
     proto3-wire,
     proto3-suite,
-    grpc-haskell
+    grpc-haskell,
+    stm-containers,
+    focus,
+    named
   hs-source-dirs:
     lib
   default-language:
     Haskell2010
+  default-extensions:
+    NoImplicitPrelude
 
 executable ratelimit
   main-is: Main.hs

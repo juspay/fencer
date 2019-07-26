@@ -1,8 +1,15 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Ratelimit.Types
     (
     -- * Rate limiting rules
       DomainId(..)
     , Domain(..)
+    , RuleKey(..)
+    , RuleValue(..)
     , Descriptor(..)
     , TimeUnit(..)
     , RateLimit(..)
@@ -12,13 +19,17 @@ module Ratelimit.Types
     )
 where
 
+import BasePrelude
+import Data.Hashable (Hashable)
 import Data.Text (Text)
 
 ----------------------------------------------------------------------------
--- Rules
+-- Rate limiting rules
 ----------------------------------------------------------------------------
 
 newtype DomainId = DomainId Text
+    deriving stock (Eq)
+    deriving newtype (Hashable)
 
 data Domain = Domain
     { domainId :: DomainId
@@ -26,8 +37,12 @@ data Domain = Domain
     }
 
 newtype RuleKey = RuleKey Text
+    deriving stock (Eq)
+    deriving newtype (Hashable)
 
 newtype RuleValue = RuleValue Text
+    deriving stock (Eq)
+    deriving newtype (Hashable)
 
 data Descriptor = Descriptor
     { descriptorKey :: RuleKey
@@ -37,6 +52,8 @@ data Descriptor = Descriptor
     }
 
 data TimeUnit = Second | Minute | Hour | Day
+    deriving stock (Eq, Generic)
+    deriving anyclass (Hashable)
 
 data RateLimit = RateLimit
     { rateLimitUnit :: TimeUnit

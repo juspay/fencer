@@ -33,25 +33,41 @@ let
           ghcWithPackages =
             self.ghc.withPackages;
 
+          # We skip tests for most packages to reduce build times.
+
           range-set-list =
             pkgs.haskell.lib.dontCheck
               (self.callPackage ./nix/range-set-list.nix { });
 
+          primitive-extras =
+            pkgs.haskell.lib.dontCheck
+              (self.callPackage ./nix/primitive-extras.nix { });
+
+          stm-hamt =
+            pkgs.haskell.lib.dontCheck
+              (self.callPackage ./nix/stm-hamt.nix { });
+
+          stm-containers =
+            pkgs.haskell.lib.dontCheck
+              (self.callPackage ./nix/stm-containers.nix { });
+
           proto3-wire =
-            self.callPackage ./nix/proto3-wire.nix { };
+            pkgs.haskell.lib.dontCheck
+              (self.callPackage ./nix/proto3-wire.nix { });
 
           proto3-suite =
             pkgs.haskell.lib.dontCheck
               (self.callPackage ./nix/proto3-suite.nix { });
 
+          grpc-haskell-core =
+            pkgs.haskell.lib.dontCheck
+              (self.callPackage ./nix/grpc-haskell-core.nix { });
+
           # Skip tests for grpc-haskell because they depend on the library
-          # already being built.
+          # already being built. This is a known grpc-haskell issue.
           grpc-haskell =
             pkgs.haskell.lib.dontCheck
               (self.callPackage ./nix/grpc-haskell.nix { });
-
-          grpc-haskell-core =
-            self.callPackage ./nix/grpc-haskell-core.nix { };
 
           ratelimit =
             self.callPackage ./ratelimit.nix (pkgs.lib.optionalAttrs static staticAttrs);
