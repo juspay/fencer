@@ -83,14 +83,6 @@ hit (arg #key -> key) (arg #hits -> hits) storage = do
     now <- systemSeconds <$> getSystemTime
     atomically $ StmMap.focus (go now) key (counters storage)
   where
-    -- Return the duration of a 'TimeUnit'.
-    secondsInUnit :: TimeUnit -> Int64
-    secondsInUnit = \case
-        Second -> 1
-        Minute -> 60
-        Hour -> 3600
-        Day -> 86400
-
     -- Increment the counter for the 'key', given current time.
     go :: Int64 -> Focus.Focus Counter STM HitVerdict
     go now = Focus.lookup >>= \case
@@ -99,7 +91,7 @@ hit (arg #key -> key) (arg #hits -> hits) storage = do
             let limit = rateLimitRequestsPerUnit (counterLimit counter)
                 currentSlot =
                     fromIntegral $
-                    now `div` secondsInUnit (rateLimitUnit (counterLimit counter))
+                    now `div` timeUnitToSeconds (rateLimitUnit (counterLimit counter))
             if | currentSlot > counterSlot counter -> do
                      -- The counter is outdated, create a new one.
                      --

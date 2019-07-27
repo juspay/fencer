@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -5,13 +6,16 @@
 
 module Ratelimit.Types
     (
+    -- * Time units
+      TimeUnit(..)
+    , timeUnitToSeconds
+
     -- * Rate limiting rules
-      DomainId(..)
+    , DomainId(..)
     , Domain(..)
     , RuleKey(..)
     , RuleValue(..)
     , Descriptor(..)
-    , TimeUnit(..)
     , RateLimit(..)
 
     -- * Request
@@ -22,6 +26,22 @@ where
 import BasePrelude
 import Data.Hashable (Hashable)
 import Data.Text (Text)
+
+----------------------------------------------------------------------------
+-- Time units
+----------------------------------------------------------------------------
+
+data TimeUnit = Second | Minute | Hour | Day
+    deriving stock (Eq, Generic)
+    deriving anyclass (Hashable)
+
+-- | Return the duration of a 'TimeUnit'.
+timeUnitToSeconds :: TimeUnit -> Int64
+timeUnitToSeconds = \case
+    Second -> 1
+    Minute -> 60
+    Hour -> 3600
+    Day -> 86400
 
 ----------------------------------------------------------------------------
 -- Rate limiting rules
@@ -50,10 +70,6 @@ data Descriptor = Descriptor
     , descriptorRateLimit :: !(Maybe RateLimit)
     , descriptorDescriptors :: !(Maybe [Descriptor])
     }
-
-data TimeUnit = Second | Minute | Hour | Day
-    deriving stock (Eq, Generic)
-    deriving anyclass (Hashable)
 
 data RateLimit = RateLimit
     { rateLimitUnit :: !TimeUnit
