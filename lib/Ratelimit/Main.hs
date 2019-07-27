@@ -32,62 +32,34 @@ import Ratelimit.Types
 import Ratelimit.Counter
 import qualified Ratelimit.Proto as Proto
 
+----------------------------------------------------------------------------
+-- Main
+----------------------------------------------------------------------------
+
+main :: IO ()
+main = do
+    storage <- newStorage
+    let handlers = Proto.RateLimitService
+            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit storage }
+    let options = Grpc.defaultServiceOptions
+    Proto.rateLimitServiceServer handlers options
+
+----------------------------------------------------------------------------
+-- Storage
+----------------------------------------------------------------------------
+
+-- | In-memory storage for the state of the program.
 data Storage = Storage
     { counters :: !(StmMap.Map CounterKey Counter)
     }
 
--- | Convert a 'RateLimit' to the protobuf representation.
-rateLimitToProto :: RateLimit -> Proto.RateLimit
-rateLimitToProto limit = Proto.RateLimit
-    { Proto.rateLimitRequestsPerUnit =
-          fromIntegral (rateLimitRequestsPerUnit limit)
-    , Proto.rateLimitUnit =
-          ProtoSuite.Enumerated . Right $
-          case rateLimitUnit limit of
-              Second -> Proto.RateLimit_UnitSECOND
-              Minute -> Proto.RateLimit_UnitMINUTE
-              Hour -> Proto.RateLimit_UnitHOUR
-              Day -> Proto.RateLimit_UnitDAY
-    }
+-- | Create an empty 'Storage'.
+newStorage :: IO Storage
+newStorage = Storage <$> StmMap.newIO
 
--- | Convert a 'CounterStatus' to the protobuf representation.
-counterStatusToProto
-    :: CounterStatus
-    -> (Proto.RateLimitResponse_Code, Proto.RateLimitResponse_DescriptorStatus)
-counterStatusToProto status =
-    ( code
-    , Proto.RateLimitResponse_DescriptorStatus
-          { Proto.rateLimitResponse_DescriptorStatusCode =
-                ProtoSuite.Enumerated (Right code)
-          , Proto.rateLimitResponse_DescriptorStatusCurrentLimit =
-                Just (rateLimitToProto (counterCurrentLimit status))
-          , Proto.rateLimitResponse_DescriptorStatusLimitRemaining =
-                fromIntegral (counterRemainingLimit status)
-          }
-    )
-  where
-    code = if counterHitsOverLimit status > 0
-        then Proto.RateLimitResponse_CodeOVER_LIMIT
-        else Proto.RateLimitResponse_CodeOK
-
--- | The response that we should return when the rate limit rule was not found.
-ruleNotFoundResponse
-    :: (Proto.RateLimitResponse_Code, Proto.RateLimitResponse_DescriptorStatus)
-ruleNotFoundResponse =
-    ( Proto.RateLimitResponse_CodeOK
-    , Proto.RateLimitResponse_DescriptorStatus
-          { Proto.rateLimitResponse_DescriptorStatusCode =
-                ProtoSuite.Enumerated (Right Proto.RateLimitResponse_CodeOK)
-          , Proto.rateLimitResponse_DescriptorStatusCurrentLimit = Nothing
-          , Proto.rateLimitResponse_DescriptorStatusLimitRemaining = 0
-          }
-    )
-
--- | Unwrap the protobuf representation of a rate limit descriptor.
-rateLimitDescriptorFromProto :: Proto.RateLimitDescriptor -> [(RuleKey, RuleValue)]
-rateLimitDescriptorFromProto (Proto.RateLimitDescriptor xs) =
-    [(RuleKey (TL.toStrict k), RuleValue (TL.toStrict v))
-         | Proto.RateLimitDescriptor_Entry k v <- toList xs]
+----------------------------------------------------------------------------
+-- Handlers
+----------------------------------------------------------------------------
 
 -- | gRPC handler for the "should rate limit?" method.
 shouldRateLimit
@@ -143,10 +115,59 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
         -- status details
         ""
 
-main :: IO ()
-main = do
-    storage <- Storage <$> StmMap.newIO
-    let handlers = Proto.RateLimitService
-            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit storage }
-    let options = Grpc.defaultServiceOptions
-    Proto.rateLimitServiceServer handlers options
+----------------------------------------------------------------------------
+-- Working with protobuf structures
+----------------------------------------------------------------------------
+
+-- | Convert a 'RateLimit' to the protobuf representation.
+rateLimitToProto :: RateLimit -> Proto.RateLimit
+rateLimitToProto limit = Proto.RateLimit
+    { Proto.rateLimitRequestsPerUnit =
+          fromIntegral (rateLimitRequestsPerUnit limit)
+    , Proto.rateLimitUnit =
+          ProtoSuite.Enumerated . Right $
+          case rateLimitUnit limit of
+              Second -> Proto.RateLimit_UnitSECOND
+              Minute -> Proto.RateLimit_UnitMINUTE
+              Hour -> Proto.RateLimit_UnitHOUR
+              Day -> Proto.RateLimit_UnitDAY
+    }
+
+-- | Convert a 'CounterStatus' to the protobuf representation.
+counterStatusToProto
+    :: CounterStatus
+    -> (Proto.RateLimitResponse_Code, Proto.RateLimitResponse_DescriptorStatus)
+counterStatusToProto status =
+    ( code
+    , Proto.RateLimitResponse_DescriptorStatus
+          { Proto.rateLimitResponse_DescriptorStatusCode =
+                ProtoSuite.Enumerated (Right code)
+          , Proto.rateLimitResponse_DescriptorStatusCurrentLimit =
+                Just (rateLimitToProto (counterCurrentLimit status))
+          , Proto.rateLimitResponse_DescriptorStatusLimitRemaining =
+                fromIntegral (counterRemainingLimit status)
+          }
+    )
+  where
+    code = if counterHitsOverLimit status > 0
+        then Proto.RateLimitResponse_CodeOVER_LIMIT
+        else Proto.RateLimitResponse_CodeOK
+
+-- | The response that we should return when the rate limit rule was not found.
+ruleNotFoundResponse
+    :: (Proto.RateLimitResponse_Code, Proto.RateLimitResponse_DescriptorStatus)
+ruleNotFoundResponse =
+    ( Proto.RateLimitResponse_CodeOK
+    , Proto.RateLimitResponse_DescriptorStatus
+          { Proto.rateLimitResponse_DescriptorStatusCode =
+                ProtoSuite.Enumerated (Right Proto.RateLimitResponse_CodeOK)
+          , Proto.rateLimitResponse_DescriptorStatusCurrentLimit = Nothing
+          , Proto.rateLimitResponse_DescriptorStatusLimitRemaining = 0
+          }
+    )
+
+-- | Unwrap the protobuf representation of a rate limit descriptor.
+rateLimitDescriptorFromProto :: Proto.RateLimitDescriptor -> [(RuleKey, RuleValue)]
+rateLimitDescriptorFromProto (Proto.RateLimitDescriptor xs) =
+    [(RuleKey (TL.toStrict k), RuleValue (TL.toStrict v))
+         | Proto.RateLimitDescriptor_Entry k v <- toList xs]
