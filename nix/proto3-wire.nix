@@ -4,11 +4,11 @@
 }:
 mkDerivation {
   pname = "proto3-wire";
-  version = "1.0.0";
+  version = "1.1.0";
   src = fetchgit {
     url = "https://github.com/awakenetworks/proto3-wire.git";
-    sha256 = "0ddza0s9ms51nb5qk97h8wj2p1bqpwwrfdv9fzdc5xf48khzmxki";
-    rev = "43d8220dbc64ef7cc7681887741833a47b61070f";
+    sha256 = "16l1rnnygwk1b2sb3l6klhr6ad0wvry204icxnc81c6rbzbk6rqc";
+    rev = "4f355bbac895d577d8a28f567ab4380f042ccc24";
     fetchSubmodules = true;
   };
   libraryHaskellDepends = [

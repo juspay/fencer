@@ -42,8 +42,7 @@ import Network.GRPC.HighLevel.Server.Unregistered as HsGRPC
  
 data RateLimitService request
      response = RateLimitService{rateLimitServiceShouldRateLimit ::
-                                 request 'HsGRPC.Normal Ratelimit.Proto.RateLimitRequest
-                                   Ratelimit.Proto.RateLimitResponse
+                                 request 'HsGRPC.Normal Ratelimit.Proto.RateLimitRequest Ratelimit.Proto.RateLimitResponse
                                    -> Hs.IO (response 'HsGRPC.Normal Ratelimit.Proto.RateLimitResponse)}
               deriving Hs.Generic
  
@@ -59,7 +58,7 @@ rateLimitServiceServer
        HsGRPC.defaultOptions{HsGRPC.optNormalHandlers =
                                [(HsGRPC.UnaryHandler
                                    (HsGRPC.MethodName
-                                      "/pb.lyft.ratelimit.RateLimitService/ShouldRateLimit")
+                                      "/envoy.service.ratelimit.v2.RateLimitService/ShouldRateLimit")
                                    (HsGRPC.convertGeneratedServerHandler
                                       rateLimitServiceShouldRateLimit))],
                              HsGRPC.optClientStreamHandlers = [],
@@ -79,7 +78,7 @@ rateLimitServiceClient client
       ((Hs.pure (HsGRPC.clientRequest client)) <*>
          (HsGRPC.clientRegisterMethod client
             (HsGRPC.MethodName
-               "/pb.lyft.ratelimit.RateLimitService/ShouldRateLimit")))
+               "/envoy.service.ratelimit.v2.RateLimitService/ShouldRateLimit")))
  
 data RateLimitRequest = RateLimitRequest{rateLimitRequestDomain ::
                                          Hs.Text,
@@ -112,8 +111,7 @@ instance HsProtobuf.Message RateLimitRequest where
               (HsProtobuf.at HsProtobuf.decodeMessageField
                  (HsProtobuf.FieldNumber 1))
               <*>
-              (Hs.coerce
-                 @(_ (HsProtobuf.NestedVec Ratelimit.Proto.RateLimitDescriptor))
+              (Hs.coerce @(_ (HsProtobuf.NestedVec Ratelimit.Proto.RateLimitDescriptor))
                  @(_ (Hs.Vector Ratelimit.Proto.RateLimitDescriptor))
                  (HsProtobuf.at HsProtobuf.decodeMessageField
                     (HsProtobuf.FieldNumber 2)))
@@ -187,6 +185,499 @@ instance HsJSONPB.ToSchema RateLimitRequest where
                                                          rateLimitRequestDescriptors),
                                                         ("hits_addend",
                                                          rateLimitRequestHitsAddend)]}})
+ 
+data RateLimit = RateLimit{rateLimitRequestsPerUnit :: Hs.Word32,
+                           rateLimitUnit :: HsProtobuf.Enumerated Ratelimit.Proto.RateLimit_Unit}
+               deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic, Hs.NFData)
+ 
+instance HsProtobuf.Named RateLimit where
+        nameOf _ = (Hs.fromString "RateLimit")
+ 
+instance HsProtobuf.HasDefault RateLimit
+ 
+instance HsProtobuf.Message RateLimit where
+        encodeMessage _
+          RateLimit{rateLimitRequestsPerUnit = rateLimitRequestsPerUnit,
+                    rateLimitUnit = rateLimitUnit}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   rateLimitRequestsPerUnit),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   rateLimitUnit)])
+        decodeMessage _
+          = (Hs.pure RateLimit) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 2))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.UInt32)
+                (HsProtobuf.Single "requests_per_unit")
+                []
+                ""),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Unit")))
+                (HsProtobuf.Single "unit")
+                []
+                "")]
+ 
+instance HsJSONPB.ToJSONPB RateLimit where
+        toJSONPB (RateLimit f1 f2)
+          = (HsJSONPB.object ["requests_per_unit" .= f1, "unit" .= f2])
+        toEncodingPB (RateLimit f1 f2)
+          = (HsJSONPB.pairs ["requests_per_unit" .= f1, "unit" .= f2])
+ 
+instance HsJSONPB.FromJSONPB RateLimit where
+        parseJSONPB
+          = (HsJSONPB.withObject "RateLimit"
+               (\ obj ->
+                  (Hs.pure RateLimit) <*> obj .: "requests_per_unit" <*>
+                    obj .: "unit"))
+ 
+instance HsJSONPB.ToJSON RateLimit where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON RateLimit where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema RateLimit where
+        declareNamedSchema _
+          = do let declare_requests_per_unit = HsJSONPB.declareSchemaRef
+               rateLimitRequestsPerUnit <- declare_requests_per_unit Proxy.Proxy
+               let declare_unit = HsJSONPB.declareSchemaRef
+               rateLimitUnit <- declare_unit Proxy.Proxy
+               let _ = Hs.pure RateLimit <*>
+                         HsJSONPB.asProxy declare_requests_per_unit
+                         <*> HsJSONPB.asProxy declare_unit
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "RateLimit",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("requests_per_unit",
+                                                         rateLimitRequestsPerUnit),
+                                                        ("unit", rateLimitUnit)]}})
+ 
+data RateLimit_Unit = RateLimit_UnitUNKNOWN
+                    | RateLimit_UnitSECOND
+                    | RateLimit_UnitMINUTE
+                    | RateLimit_UnitHOUR
+                    | RateLimit_UnitDAY
+                    deriving (Hs.Show, Hs.Eq, Hs.Generic, Hs.NFData)
+ 
+instance HsProtobuf.Named RateLimit_Unit where
+        nameOf _ = (Hs.fromString "RateLimit_Unit")
+ 
+instance HsProtobuf.HasDefault RateLimit_Unit
+ 
+instance Hs.Bounded RateLimit_Unit where
+        minBound = RateLimit_UnitUNKNOWN
+        maxBound = RateLimit_UnitDAY
+ 
+instance Hs.Ord RateLimit_Unit where
+        compare x y
+          = Hs.compare (HsProtobuf.fromProtoEnum x)
+              (HsProtobuf.fromProtoEnum y)
+ 
+instance HsProtobuf.ProtoEnum RateLimit_Unit where
+        toProtoEnumMay 0 = Hs.Just RateLimit_UnitUNKNOWN
+        toProtoEnumMay 1 = Hs.Just RateLimit_UnitSECOND
+        toProtoEnumMay 2 = Hs.Just RateLimit_UnitMINUTE
+        toProtoEnumMay 3 = Hs.Just RateLimit_UnitHOUR
+        toProtoEnumMay 4 = Hs.Just RateLimit_UnitDAY
+        toProtoEnumMay _ = Hs.Nothing
+        fromProtoEnum (RateLimit_UnitUNKNOWN) = 0
+        fromProtoEnum (RateLimit_UnitSECOND) = 1
+        fromProtoEnum (RateLimit_UnitMINUTE) = 2
+        fromProtoEnum (RateLimit_UnitHOUR) = 3
+        fromProtoEnum (RateLimit_UnitDAY) = 4
+ 
+instance HsJSONPB.ToJSONPB RateLimit_Unit where
+        toJSONPB x _ = HsJSONPB.enumFieldString x
+        toEncodingPB x _ = HsJSONPB.enumFieldEncoding x
+ 
+instance HsJSONPB.FromJSONPB RateLimit_Unit where
+        parseJSONPB (HsJSONPB.String "UNKNOWN")
+          = Hs.pure RateLimit_UnitUNKNOWN
+        parseJSONPB (HsJSONPB.String "SECOND")
+          = Hs.pure RateLimit_UnitSECOND
+        parseJSONPB (HsJSONPB.String "MINUTE")
+          = Hs.pure RateLimit_UnitMINUTE
+        parseJSONPB (HsJSONPB.String "HOUR") = Hs.pure RateLimit_UnitHOUR
+        parseJSONPB (HsJSONPB.String "DAY") = Hs.pure RateLimit_UnitDAY
+        parseJSONPB v = (HsJSONPB.typeMismatch "RateLimit_Unit" v)
+ 
+instance HsJSONPB.ToJSON RateLimit_Unit where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON RateLimit_Unit where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsProtobuf.Finite RateLimit_Unit
+ 
+data RateLimitResponse = RateLimitResponse{rateLimitResponseOverallCode
+                                           :: HsProtobuf.Enumerated Ratelimit.Proto.RateLimitResponse_Code,
+                                           rateLimitResponseStatuses ::
+                                           Hs.Vector Ratelimit.Proto.RateLimitResponse_DescriptorStatus,
+                                           rateLimitResponseHeaders :: Hs.Vector Ratelimit.Proto.HeaderValue}
+                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic, Hs.NFData)
+ 
+instance HsProtobuf.Named RateLimitResponse where
+        nameOf _ = (Hs.fromString "RateLimitResponse")
+ 
+instance HsProtobuf.HasDefault RateLimitResponse
+ 
+instance HsProtobuf.Message RateLimitResponse where
+        encodeMessage _
+          RateLimitResponse{rateLimitResponseOverallCode =
+                              rateLimitResponseOverallCode,
+                            rateLimitResponseStatuses = rateLimitResponseStatuses,
+                            rateLimitResponseHeaders = rateLimitResponseHeaders}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   rateLimitResponseOverallCode),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   (Hs.coerce @(Hs.Vector Ratelimit.Proto.RateLimitResponse_DescriptorStatus)
+                      @(HsProtobuf.NestedVec Ratelimit.Proto.RateLimitResponse_DescriptorStatus)
+                      rateLimitResponseStatuses)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
+                   (Hs.coerce @(Hs.Vector Ratelimit.Proto.HeaderValue)
+                      @(HsProtobuf.NestedVec Ratelimit.Proto.HeaderValue)
+                      rateLimitResponseHeaders))])
+        decodeMessage _
+          = (Hs.pure RateLimitResponse) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (Hs.coerce
+                 @(_ (HsProtobuf.NestedVec Ratelimit.Proto.RateLimitResponse_DescriptorStatus))
+                 @(_ (Hs.Vector Ratelimit.Proto.RateLimitResponse_DescriptorStatus))
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 2)))
+              <*>
+              (Hs.coerce @(_ (HsProtobuf.NestedVec Ratelimit.Proto.HeaderValue))
+                 @(_ (Hs.Vector Ratelimit.Proto.HeaderValue))
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 3)))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Code")))
+                (HsProtobuf.Single "overall_code")
+                []
+                ""),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Repeated
+                   (HsProtobuf.Named (HsProtobuf.Single "DescriptorStatus")))
+                (HsProtobuf.Single "statuses")
+                []
+                ""),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
+                (HsProtobuf.Repeated
+                   (HsProtobuf.Named (HsProtobuf.Single "HeaderValue")))
+                (HsProtobuf.Single "headers")
+                []
+                "")]
+ 
+instance HsJSONPB.ToJSONPB RateLimitResponse where
+        toJSONPB (RateLimitResponse f1 f2 f3)
+          = (HsJSONPB.object
+               ["overall_code" .= f1, "statuses" .= f2, "headers" .= f3])
+        toEncodingPB (RateLimitResponse f1 f2 f3)
+          = (HsJSONPB.pairs
+               ["overall_code" .= f1, "statuses" .= f2, "headers" .= f3])
+ 
+instance HsJSONPB.FromJSONPB RateLimitResponse where
+        parseJSONPB
+          = (HsJSONPB.withObject "RateLimitResponse"
+               (\ obj ->
+                  (Hs.pure RateLimitResponse) <*> obj .: "overall_code" <*>
+                    obj .: "statuses"
+                    <*> obj .: "headers"))
+ 
+instance HsJSONPB.ToJSON RateLimitResponse where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON RateLimitResponse where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema RateLimitResponse where
+        declareNamedSchema _
+          = do let declare_overall_code = HsJSONPB.declareSchemaRef
+               rateLimitResponseOverallCode <- declare_overall_code Proxy.Proxy
+               let declare_statuses = HsJSONPB.declareSchemaRef
+               rateLimitResponseStatuses <- declare_statuses Proxy.Proxy
+               let declare_headers = HsJSONPB.declareSchemaRef
+               rateLimitResponseHeaders <- declare_headers Proxy.Proxy
+               let _ = Hs.pure RateLimitResponse <*>
+                         HsJSONPB.asProxy declare_overall_code
+                         <*> HsJSONPB.asProxy declare_statuses
+                         <*> HsJSONPB.asProxy declare_headers
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "RateLimitResponse",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("overall_code",
+                                                         rateLimitResponseOverallCode),
+                                                        ("statuses", rateLimitResponseStatuses),
+                                                        ("headers", rateLimitResponseHeaders)]}})
+ 
+data RateLimitResponse_Code = RateLimitResponse_CodeUNKNOWN
+                            | RateLimitResponse_CodeOK
+                            | RateLimitResponse_CodeOVER_LIMIT
+                            deriving (Hs.Show, Hs.Eq, Hs.Generic, Hs.NFData)
+ 
+instance HsProtobuf.Named RateLimitResponse_Code where
+        nameOf _ = (Hs.fromString "RateLimitResponse_Code")
+ 
+instance HsProtobuf.HasDefault RateLimitResponse_Code
+ 
+instance Hs.Bounded RateLimitResponse_Code where
+        minBound = RateLimitResponse_CodeUNKNOWN
+        maxBound = RateLimitResponse_CodeOVER_LIMIT
+ 
+instance Hs.Ord RateLimitResponse_Code where
+        compare x y
+          = Hs.compare (HsProtobuf.fromProtoEnum x)
+              (HsProtobuf.fromProtoEnum y)
+ 
+instance HsProtobuf.ProtoEnum RateLimitResponse_Code where
+        toProtoEnumMay 0 = Hs.Just RateLimitResponse_CodeUNKNOWN
+        toProtoEnumMay 1 = Hs.Just RateLimitResponse_CodeOK
+        toProtoEnumMay 2 = Hs.Just RateLimitResponse_CodeOVER_LIMIT
+        toProtoEnumMay _ = Hs.Nothing
+        fromProtoEnum (RateLimitResponse_CodeUNKNOWN) = 0
+        fromProtoEnum (RateLimitResponse_CodeOK) = 1
+        fromProtoEnum (RateLimitResponse_CodeOVER_LIMIT) = 2
+ 
+instance HsJSONPB.ToJSONPB RateLimitResponse_Code where
+        toJSONPB x _ = HsJSONPB.enumFieldString x
+        toEncodingPB x _ = HsJSONPB.enumFieldEncoding x
+ 
+instance HsJSONPB.FromJSONPB RateLimitResponse_Code where
+        parseJSONPB (HsJSONPB.String "UNKNOWN")
+          = Hs.pure RateLimitResponse_CodeUNKNOWN
+        parseJSONPB (HsJSONPB.String "OK")
+          = Hs.pure RateLimitResponse_CodeOK
+        parseJSONPB (HsJSONPB.String "OVER_LIMIT")
+          = Hs.pure RateLimitResponse_CodeOVER_LIMIT
+        parseJSONPB v = (HsJSONPB.typeMismatch "RateLimitResponse_Code" v)
+ 
+instance HsJSONPB.ToJSON RateLimitResponse_Code where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON RateLimitResponse_Code where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsProtobuf.Finite RateLimitResponse_Code
+ 
+data RateLimitResponse_DescriptorStatus = RateLimitResponse_DescriptorStatus{rateLimitResponse_DescriptorStatusCode
+                                                                             ::
+                                                                             HsProtobuf.Enumerated
+                                                                               Ratelimit.Proto.RateLimitResponse_Code,
+                                                                             rateLimitResponse_DescriptorStatusCurrentLimit
+                                                                             ::
+                                                                             Hs.Maybe Ratelimit.Proto.RateLimit,
+                                                                             rateLimitResponse_DescriptorStatusLimitRemaining
+                                                                             :: Hs.Word32}
+                                        deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic, Hs.NFData)
+ 
+instance HsProtobuf.Named RateLimitResponse_DescriptorStatus where
+        nameOf _ = (Hs.fromString "RateLimitResponse_DescriptorStatus")
+ 
+instance HsProtobuf.HasDefault RateLimitResponse_DescriptorStatus
+ 
+instance HsProtobuf.Message RateLimitResponse_DescriptorStatus
+         where
+        encodeMessage _
+          RateLimitResponse_DescriptorStatus{rateLimitResponse_DescriptorStatusCode
+                                               = rateLimitResponse_DescriptorStatusCode,
+                                             rateLimitResponse_DescriptorStatusCurrentLimit =
+                                               rateLimitResponse_DescriptorStatusCurrentLimit,
+                                             rateLimitResponse_DescriptorStatusLimitRemaining =
+                                               rateLimitResponse_DescriptorStatusLimitRemaining}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   rateLimitResponse_DescriptorStatusCode),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   (Hs.coerce @(Hs.Maybe Ratelimit.Proto.RateLimit)
+                      @(HsProtobuf.Nested Ratelimit.Proto.RateLimit)
+                      rateLimitResponse_DescriptorStatusCurrentLimit)),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
+                   rateLimitResponse_DescriptorStatusLimitRemaining)])
+        decodeMessage _
+          = (Hs.pure RateLimitResponse_DescriptorStatus) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (Hs.coerce @(_ (HsProtobuf.Nested Ratelimit.Proto.RateLimit))
+                 @(_ (Hs.Maybe Ratelimit.Proto.RateLimit))
+                 (HsProtobuf.at HsProtobuf.decodeMessageField
+                    (HsProtobuf.FieldNumber 2)))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 3))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Code")))
+                (HsProtobuf.Single "code")
+                []
+                ""),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim
+                   (HsProtobuf.Named (HsProtobuf.Single "RateLimit")))
+                (HsProtobuf.Single "current_limit")
+                []
+                ""),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
+                (HsProtobuf.Prim HsProtobuf.UInt32)
+                (HsProtobuf.Single "limit_remaining")
+                []
+                "")]
+ 
+instance HsJSONPB.ToJSONPB RateLimitResponse_DescriptorStatus where
+        toJSONPB (RateLimitResponse_DescriptorStatus f1 f2 f3)
+          = (HsJSONPB.object
+               ["code" .= f1, "current_limit" .= f2, "limit_remaining" .= f3])
+        toEncodingPB (RateLimitResponse_DescriptorStatus f1 f2 f3)
+          = (HsJSONPB.pairs
+               ["code" .= f1, "current_limit" .= f2, "limit_remaining" .= f3])
+ 
+instance HsJSONPB.FromJSONPB RateLimitResponse_DescriptorStatus
+         where
+        parseJSONPB
+          = (HsJSONPB.withObject "RateLimitResponse_DescriptorStatus"
+               (\ obj ->
+                  (Hs.pure RateLimitResponse_DescriptorStatus) <*> obj .: "code" <*>
+                    obj .: "current_limit"
+                    <*> obj .: "limit_remaining"))
+ 
+instance HsJSONPB.ToJSON RateLimitResponse_DescriptorStatus where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON RateLimitResponse_DescriptorStatus where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema RateLimitResponse_DescriptorStatus where
+        declareNamedSchema _
+          = do let declare_code = HsJSONPB.declareSchemaRef
+               rateLimitResponse_DescriptorStatusCode <- declare_code Proxy.Proxy
+               let declare_current_limit = HsJSONPB.declareSchemaRef
+               rateLimitResponse_DescriptorStatusCurrentLimit <- declare_current_limit
+                                                                   Proxy.Proxy
+               let declare_limit_remaining = HsJSONPB.declareSchemaRef
+               rateLimitResponse_DescriptorStatusLimitRemaining <- declare_limit_remaining
+                                                                     Proxy.Proxy
+               let _ = Hs.pure RateLimitResponse_DescriptorStatus <*>
+                         HsJSONPB.asProxy declare_code
+                         <*> HsJSONPB.asProxy declare_current_limit
+                         <*> HsJSONPB.asProxy declare_limit_remaining
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "RateLimitResponse_DescriptorStatus",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("code",
+                                                         rateLimitResponse_DescriptorStatusCode),
+                                                        ("current_limit",
+                                                         rateLimitResponse_DescriptorStatusCurrentLimit),
+                                                        ("limit_remaining",
+                                                         rateLimitResponse_DescriptorStatusLimitRemaining)]}})
+ 
+data HeaderValue = HeaderValue{headerValueKey :: Hs.Text,
+                               headerValueValue :: Hs.Text}
+                 deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic, Hs.NFData)
+ 
+instance HsProtobuf.Named HeaderValue where
+        nameOf _ = (Hs.fromString "HeaderValue")
+ 
+instance HsProtobuf.HasDefault HeaderValue
+ 
+instance HsProtobuf.Message HeaderValue where
+        encodeMessage _
+          HeaderValue{headerValueKey = headerValueKey,
+                      headerValueValue = headerValueValue}
+          = (Hs.mconcat
+               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
+                   headerValueKey),
+                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
+                   headerValueValue)])
+        decodeMessage _
+          = (Hs.pure HeaderValue) <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 1))
+              <*>
+              (HsProtobuf.at HsProtobuf.decodeMessageField
+                 (HsProtobuf.FieldNumber 2))
+        dotProto _
+          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
+                (HsProtobuf.Prim HsProtobuf.String)
+                (HsProtobuf.Single "key")
+                []
+                ""),
+             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
+                (HsProtobuf.Prim HsProtobuf.String)
+                (HsProtobuf.Single "value")
+                []
+                "")]
+ 
+instance HsJSONPB.ToJSONPB HeaderValue where
+        toJSONPB (HeaderValue f1 f2)
+          = (HsJSONPB.object ["key" .= f1, "value" .= f2])
+        toEncodingPB (HeaderValue f1 f2)
+          = (HsJSONPB.pairs ["key" .= f1, "value" .= f2])
+ 
+instance HsJSONPB.FromJSONPB HeaderValue where
+        parseJSONPB
+          = (HsJSONPB.withObject "HeaderValue"
+               (\ obj ->
+                  (Hs.pure HeaderValue) <*> obj .: "key" <*> obj .: "value"))
+ 
+instance HsJSONPB.ToJSON HeaderValue where
+        toJSON = HsJSONPB.toAesonValue
+        toEncoding = HsJSONPB.toAesonEncoding
+ 
+instance HsJSONPB.FromJSON HeaderValue where
+        parseJSON = HsJSONPB.parseJSONPB
+ 
+instance HsJSONPB.ToSchema HeaderValue where
+        declareNamedSchema _
+          = do let declare_key = HsJSONPB.declareSchemaRef
+               headerValueKey <- declare_key Proxy.Proxy
+               let declare_value = HsJSONPB.declareSchemaRef
+               headerValueValue <- declare_value Proxy.Proxy
+               let _ = Hs.pure HeaderValue <*> HsJSONPB.asProxy declare_key <*>
+                         HsJSONPB.asProxy declare_value
+               Hs.return
+                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
+                                         Hs.Just "HeaderValue",
+                                       HsJSONPB._namedSchemaSchema =
+                                         Hs.mempty{HsJSONPB._schemaParamSchema =
+                                                     Hs.mempty{HsJSONPB._paramSchemaType =
+                                                                 HsJSONPB.SwaggerObject},
+                                                   HsJSONPB._schemaProperties =
+                                                     HsJSONPB.insOrdFromList
+                                                       [("key", headerValueKey),
+                                                        ("value", headerValueValue)]}})
  
 data RateLimitDescriptor = RateLimitDescriptor{rateLimitDescriptorEntries
                                                :: Hs.Vector Ratelimit.Proto.RateLimitDescriptor_Entry}
@@ -337,400 +828,3 @@ instance HsJSONPB.ToSchema RateLimitDescriptor_Entry where
                                                        [("key", rateLimitDescriptor_EntryKey),
                                                         ("value",
                                                          rateLimitDescriptor_EntryValue)]}})
- 
-data RateLimit = RateLimit{rateLimitRequestsPerUnit :: Hs.Word32,
-                           rateLimitUnit :: HsProtobuf.Enumerated Ratelimit.Proto.RateLimit_Unit}
-               deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic, Hs.NFData)
- 
-instance HsProtobuf.Named RateLimit where
-        nameOf _ = (Hs.fromString "RateLimit")
- 
-instance HsProtobuf.HasDefault RateLimit
- 
-instance HsProtobuf.Message RateLimit where
-        encodeMessage _
-          RateLimit{rateLimitRequestsPerUnit = rateLimitRequestsPerUnit,
-                    rateLimitUnit = rateLimitUnit}
-          = (Hs.mconcat
-               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
-                   rateLimitRequestsPerUnit),
-                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
-                   rateLimitUnit)])
-        decodeMessage _
-          = (Hs.pure RateLimit) <*>
-              (HsProtobuf.at HsProtobuf.decodeMessageField
-                 (HsProtobuf.FieldNumber 1))
-              <*>
-              (HsProtobuf.at HsProtobuf.decodeMessageField
-                 (HsProtobuf.FieldNumber 2))
-        dotProto _
-          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
-                (HsProtobuf.Prim HsProtobuf.UInt32)
-                (HsProtobuf.Single "requests_per_unit")
-                []
-                ""),
-             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
-                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Unit")))
-                (HsProtobuf.Single "unit")
-                []
-                "")]
- 
-instance HsJSONPB.ToJSONPB RateLimit where
-        toJSONPB (RateLimit f1 f2)
-          = (HsJSONPB.object ["requests_per_unit" .= f1, "unit" .= f2])
-        toEncodingPB (RateLimit f1 f2)
-          = (HsJSONPB.pairs ["requests_per_unit" .= f1, "unit" .= f2])
- 
-instance HsJSONPB.FromJSONPB RateLimit where
-        parseJSONPB
-          = (HsJSONPB.withObject "RateLimit"
-               (\ obj ->
-                  (Hs.pure RateLimit) <*> obj .: "requests_per_unit" <*>
-                    obj .: "unit"))
- 
-instance HsJSONPB.ToJSON RateLimit where
-        toJSON = HsJSONPB.toAesonValue
-        toEncoding = HsJSONPB.toAesonEncoding
- 
-instance HsJSONPB.FromJSON RateLimit where
-        parseJSON = HsJSONPB.parseJSONPB
- 
-instance HsJSONPB.ToSchema RateLimit where
-        declareNamedSchema _
-          = do let declare_requests_per_unit = HsJSONPB.declareSchemaRef
-               rateLimitRequestsPerUnit <- declare_requests_per_unit Proxy.Proxy
-               let declare_unit = HsJSONPB.declareSchemaRef
-               rateLimitUnit <- declare_unit Proxy.Proxy
-               let _ = Hs.pure RateLimit <*>
-                         HsJSONPB.asProxy declare_requests_per_unit
-                         <*> HsJSONPB.asProxy declare_unit
-               Hs.return
-                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
-                                         Hs.Just "RateLimit",
-                                       HsJSONPB._namedSchemaSchema =
-                                         Hs.mempty{HsJSONPB._schemaParamSchema =
-                                                     Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
-                                                   HsJSONPB._schemaProperties =
-                                                     HsJSONPB.insOrdFromList
-                                                       [("requests_per_unit",
-                                                         rateLimitRequestsPerUnit),
-                                                        ("unit", rateLimitUnit)]}})
- 
-data RateLimit_Unit = RateLimit_UnitUNKNOWN
-                    | RateLimit_UnitSECOND
-                    | RateLimit_UnitMINUTE
-                    | RateLimit_UnitHOUR
-                    | RateLimit_UnitDAY
-                    deriving (Hs.Show, Hs.Bounded, Hs.Eq, Hs.Ord, Hs.Generic,
-                              Hs.NFData)
- 
-instance HsProtobuf.Named RateLimit_Unit where
-        nameOf _ = (Hs.fromString "RateLimit_Unit")
- 
-instance HsProtobuf.HasDefault RateLimit_Unit
- 
-instance Hs.Enum RateLimit_Unit where
-        toEnum 0 = RateLimit_UnitUNKNOWN
-        toEnum 1 = RateLimit_UnitSECOND
-        toEnum 2 = RateLimit_UnitMINUTE
-        toEnum 3 = RateLimit_UnitHOUR
-        toEnum 4 = RateLimit_UnitDAY
-        toEnum i = (Hs.toEnumError "RateLimit_Unit" i (0 :: Hs.Int, 4))
-        fromEnum (RateLimit_UnitUNKNOWN) = 0
-        fromEnum (RateLimit_UnitSECOND) = 1
-        fromEnum (RateLimit_UnitMINUTE) = 2
-        fromEnum (RateLimit_UnitHOUR) = 3
-        fromEnum (RateLimit_UnitDAY) = 4
-        succ (RateLimit_UnitUNKNOWN) = RateLimit_UnitSECOND
-        succ (RateLimit_UnitSECOND) = RateLimit_UnitMINUTE
-        succ (RateLimit_UnitMINUTE) = RateLimit_UnitHOUR
-        succ (RateLimit_UnitHOUR) = RateLimit_UnitDAY
-        succ _ = Hs.succError "RateLimit_Unit"
-        pred (RateLimit_UnitSECOND) = RateLimit_UnitUNKNOWN
-        pred (RateLimit_UnitMINUTE) = RateLimit_UnitSECOND
-        pred (RateLimit_UnitHOUR) = RateLimit_UnitMINUTE
-        pred (RateLimit_UnitDAY) = RateLimit_UnitHOUR
-        pred _ = Hs.predError "RateLimit_Unit"
- 
-instance HsJSONPB.ToJSONPB RateLimit_Unit where
-        toJSONPB x _ = HsJSONPB.enumFieldString x
-        toEncodingPB x _ = HsJSONPB.enumFieldEncoding x
- 
-instance HsJSONPB.FromJSONPB RateLimit_Unit where
-        parseJSONPB (HsJSONPB.String "UNKNOWN")
-          = Hs.pure RateLimit_UnitUNKNOWN
-        parseJSONPB (HsJSONPB.String "SECOND")
-          = Hs.pure RateLimit_UnitSECOND
-        parseJSONPB (HsJSONPB.String "MINUTE")
-          = Hs.pure RateLimit_UnitMINUTE
-        parseJSONPB (HsJSONPB.String "HOUR") = Hs.pure RateLimit_UnitHOUR
-        parseJSONPB (HsJSONPB.String "DAY") = Hs.pure RateLimit_UnitDAY
-        parseJSONPB v = (HsJSONPB.typeMismatch "RateLimit_Unit" v)
- 
-instance HsJSONPB.ToJSON RateLimit_Unit where
-        toJSON = HsJSONPB.toAesonValue
-        toEncoding = HsJSONPB.toAesonEncoding
- 
-instance HsJSONPB.FromJSON RateLimit_Unit where
-        parseJSON = HsJSONPB.parseJSONPB
- 
-instance HsProtobuf.Finite RateLimit_Unit
- 
-data RateLimitResponse = RateLimitResponse{rateLimitResponseOverallCode
-                                           ::
-                                           HsProtobuf.Enumerated Ratelimit.Proto.RateLimitResponse_Code,
-                                           rateLimitResponseStatuses ::
-                                           Hs.Vector Ratelimit.Proto.RateLimitResponse_DescriptorStatus}
-                       deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic, Hs.NFData)
- 
-instance HsProtobuf.Named RateLimitResponse where
-        nameOf _ = (Hs.fromString "RateLimitResponse")
- 
-instance HsProtobuf.HasDefault RateLimitResponse
- 
-instance HsProtobuf.Message RateLimitResponse where
-        encodeMessage _
-          RateLimitResponse{rateLimitResponseOverallCode =
-                              rateLimitResponseOverallCode,
-                            rateLimitResponseStatuses = rateLimitResponseStatuses}
-          = (Hs.mconcat
-               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
-                   rateLimitResponseOverallCode),
-                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
-                   (Hs.coerce
-                      @(Hs.Vector Ratelimit.Proto.RateLimitResponse_DescriptorStatus)
-                      @(HsProtobuf.NestedVec Ratelimit.Proto.RateLimitResponse_DescriptorStatus)
-                      rateLimitResponseStatuses))])
-        decodeMessage _
-          = (Hs.pure RateLimitResponse) <*>
-              (HsProtobuf.at HsProtobuf.decodeMessageField
-                 (HsProtobuf.FieldNumber 1))
-              <*>
-              (Hs.coerce
-                 @(_ (HsProtobuf.NestedVec Ratelimit.Proto.RateLimitResponse_DescriptorStatus))
-                 @(_ (Hs.Vector Ratelimit.Proto.RateLimitResponse_DescriptorStatus))
-                 (HsProtobuf.at HsProtobuf.decodeMessageField
-                    (HsProtobuf.FieldNumber 2)))
-        dotProto _
-          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
-                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Code")))
-                (HsProtobuf.Single "overall_code")
-                []
-                ""),
-             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
-                (HsProtobuf.Repeated
-                   (HsProtobuf.Named (HsProtobuf.Single "DescriptorStatus")))
-                (HsProtobuf.Single "statuses")
-                []
-                "")]
- 
-instance HsJSONPB.ToJSONPB RateLimitResponse where
-        toJSONPB (RateLimitResponse f1 f2)
-          = (HsJSONPB.object ["overall_code" .= f1, "statuses" .= f2])
-        toEncodingPB (RateLimitResponse f1 f2)
-          = (HsJSONPB.pairs ["overall_code" .= f1, "statuses" .= f2])
- 
-instance HsJSONPB.FromJSONPB RateLimitResponse where
-        parseJSONPB
-          = (HsJSONPB.withObject "RateLimitResponse"
-               (\ obj ->
-                  (Hs.pure RateLimitResponse) <*> obj .: "overall_code" <*>
-                    obj .: "statuses"))
- 
-instance HsJSONPB.ToJSON RateLimitResponse where
-        toJSON = HsJSONPB.toAesonValue
-        toEncoding = HsJSONPB.toAesonEncoding
- 
-instance HsJSONPB.FromJSON RateLimitResponse where
-        parseJSON = HsJSONPB.parseJSONPB
- 
-instance HsJSONPB.ToSchema RateLimitResponse where
-        declareNamedSchema _
-          = do let declare_overall_code = HsJSONPB.declareSchemaRef
-               rateLimitResponseOverallCode <- declare_overall_code Proxy.Proxy
-               let declare_statuses = HsJSONPB.declareSchemaRef
-               rateLimitResponseStatuses <- declare_statuses Proxy.Proxy
-               let _ = Hs.pure RateLimitResponse <*>
-                         HsJSONPB.asProxy declare_overall_code
-                         <*> HsJSONPB.asProxy declare_statuses
-               Hs.return
-                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
-                                         Hs.Just "RateLimitResponse",
-                                       HsJSONPB._namedSchemaSchema =
-                                         Hs.mempty{HsJSONPB._schemaParamSchema =
-                                                     Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
-                                                   HsJSONPB._schemaProperties =
-                                                     HsJSONPB.insOrdFromList
-                                                       [("overall_code",
-                                                         rateLimitResponseOverallCode),
-                                                        ("statuses", rateLimitResponseStatuses)]}})
- 
-data RateLimitResponse_Code = RateLimitResponse_CodeUNKNOWN
-                            | RateLimitResponse_CodeOK
-                            | RateLimitResponse_CodeOVER_LIMIT
-                            deriving (Hs.Show, Hs.Bounded, Hs.Eq, Hs.Ord, Hs.Generic,
-                                      Hs.NFData)
- 
-instance HsProtobuf.Named RateLimitResponse_Code where
-        nameOf _ = (Hs.fromString "RateLimitResponse_Code")
- 
-instance HsProtobuf.HasDefault RateLimitResponse_Code
- 
-instance Hs.Enum RateLimitResponse_Code where
-        toEnum 0 = RateLimitResponse_CodeUNKNOWN
-        toEnum 1 = RateLimitResponse_CodeOK
-        toEnum 2 = RateLimitResponse_CodeOVER_LIMIT
-        toEnum i
-          = (Hs.toEnumError "RateLimitResponse_Code" i (0 :: Hs.Int, 2))
-        fromEnum (RateLimitResponse_CodeUNKNOWN) = 0
-        fromEnum (RateLimitResponse_CodeOK) = 1
-        fromEnum (RateLimitResponse_CodeOVER_LIMIT) = 2
-        succ (RateLimitResponse_CodeUNKNOWN) = RateLimitResponse_CodeOK
-        succ (RateLimitResponse_CodeOK) = RateLimitResponse_CodeOVER_LIMIT
-        succ _ = Hs.succError "RateLimitResponse_Code"
-        pred (RateLimitResponse_CodeOK) = RateLimitResponse_CodeUNKNOWN
-        pred (RateLimitResponse_CodeOVER_LIMIT) = RateLimitResponse_CodeOK
-        pred _ = Hs.predError "RateLimitResponse_Code"
- 
-instance HsJSONPB.ToJSONPB RateLimitResponse_Code where
-        toJSONPB x _ = HsJSONPB.enumFieldString x
-        toEncodingPB x _ = HsJSONPB.enumFieldEncoding x
- 
-instance HsJSONPB.FromJSONPB RateLimitResponse_Code where
-        parseJSONPB (HsJSONPB.String "UNKNOWN")
-          = Hs.pure RateLimitResponse_CodeUNKNOWN
-        parseJSONPB (HsJSONPB.String "OK")
-          = Hs.pure RateLimitResponse_CodeOK
-        parseJSONPB (HsJSONPB.String "OVER_LIMIT")
-          = Hs.pure RateLimitResponse_CodeOVER_LIMIT
-        parseJSONPB v = (HsJSONPB.typeMismatch "RateLimitResponse_Code" v)
- 
-instance HsJSONPB.ToJSON RateLimitResponse_Code where
-        toJSON = HsJSONPB.toAesonValue
-        toEncoding = HsJSONPB.toAesonEncoding
- 
-instance HsJSONPB.FromJSON RateLimitResponse_Code where
-        parseJSON = HsJSONPB.parseJSONPB
- 
-instance HsProtobuf.Finite RateLimitResponse_Code
- 
-data RateLimitResponse_DescriptorStatus = RateLimitResponse_DescriptorStatus{rateLimitResponse_DescriptorStatusCode
-                                                                             ::
-                                                                             HsProtobuf.Enumerated
-                                                                               Ratelimit.Proto.RateLimitResponse_Code,
-                                                                             rateLimitResponse_DescriptorStatusCurrentLimit
-                                                                             ::
-                                                                             Hs.Maybe
-                                                                               Ratelimit.Proto.RateLimit,
-                                                                             rateLimitResponse_DescriptorStatusLimitRemaining
-                                                                             :: Hs.Word32}
-                                        deriving (Hs.Show, Hs.Eq, Hs.Ord, Hs.Generic, Hs.NFData)
- 
-instance HsProtobuf.Named RateLimitResponse_DescriptorStatus where
-        nameOf _ = (Hs.fromString "RateLimitResponse_DescriptorStatus")
- 
-instance HsProtobuf.HasDefault RateLimitResponse_DescriptorStatus
- 
-instance HsProtobuf.Message RateLimitResponse_DescriptorStatus
-         where
-        encodeMessage _
-          RateLimitResponse_DescriptorStatus{rateLimitResponse_DescriptorStatusCode
-                                               = rateLimitResponse_DescriptorStatusCode,
-                                             rateLimitResponse_DescriptorStatusCurrentLimit =
-                                               rateLimitResponse_DescriptorStatusCurrentLimit,
-                                             rateLimitResponse_DescriptorStatusLimitRemaining =
-                                               rateLimitResponse_DescriptorStatusLimitRemaining}
-          = (Hs.mconcat
-               [(HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 1)
-                   rateLimitResponse_DescriptorStatusCode),
-                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 2)
-                   (Hs.coerce @(Hs.Maybe Ratelimit.Proto.RateLimit)
-                      @(HsProtobuf.Nested Ratelimit.Proto.RateLimit)
-                      rateLimitResponse_DescriptorStatusCurrentLimit)),
-                (HsProtobuf.encodeMessageField (HsProtobuf.FieldNumber 3)
-                   rateLimitResponse_DescriptorStatusLimitRemaining)])
-        decodeMessage _
-          = (Hs.pure RateLimitResponse_DescriptorStatus) <*>
-              (HsProtobuf.at HsProtobuf.decodeMessageField
-                 (HsProtobuf.FieldNumber 1))
-              <*>
-              (Hs.coerce @(_ (HsProtobuf.Nested Ratelimit.Proto.RateLimit))
-                 @(_ (Hs.Maybe Ratelimit.Proto.RateLimit))
-                 (HsProtobuf.at HsProtobuf.decodeMessageField
-                    (HsProtobuf.FieldNumber 2)))
-              <*>
-              (HsProtobuf.at HsProtobuf.decodeMessageField
-                 (HsProtobuf.FieldNumber 3))
-        dotProto _
-          = [(HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 1)
-                (HsProtobuf.Prim (HsProtobuf.Named (HsProtobuf.Single "Code")))
-                (HsProtobuf.Single "code")
-                []
-                ""),
-             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 2)
-                (HsProtobuf.Prim
-                   (HsProtobuf.Named (HsProtobuf.Single "RateLimit")))
-                (HsProtobuf.Single "current_limit")
-                []
-                ""),
-             (HsProtobuf.DotProtoField (HsProtobuf.FieldNumber 3)
-                (HsProtobuf.Prim HsProtobuf.UInt32)
-                (HsProtobuf.Single "limit_remaining")
-                []
-                "")]
- 
-instance HsJSONPB.ToJSONPB RateLimitResponse_DescriptorStatus where
-        toJSONPB (RateLimitResponse_DescriptorStatus f1 f2 f3)
-          = (HsJSONPB.object
-               ["code" .= f1, "current_limit" .= f2, "limit_remaining" .= f3])
-        toEncodingPB (RateLimitResponse_DescriptorStatus f1 f2 f3)
-          = (HsJSONPB.pairs
-               ["code" .= f1, "current_limit" .= f2, "limit_remaining" .= f3])
- 
-instance HsJSONPB.FromJSONPB RateLimitResponse_DescriptorStatus
-         where
-        parseJSONPB
-          = (HsJSONPB.withObject "RateLimitResponse_DescriptorStatus"
-               (\ obj ->
-                  (Hs.pure RateLimitResponse_DescriptorStatus) <*> obj .: "code" <*>
-                    obj .: "current_limit"
-                    <*> obj .: "limit_remaining"))
- 
-instance HsJSONPB.ToJSON RateLimitResponse_DescriptorStatus where
-        toJSON = HsJSONPB.toAesonValue
-        toEncoding = HsJSONPB.toAesonEncoding
- 
-instance HsJSONPB.FromJSON RateLimitResponse_DescriptorStatus where
-        parseJSON = HsJSONPB.parseJSONPB
- 
-instance HsJSONPB.ToSchema RateLimitResponse_DescriptorStatus where
-        declareNamedSchema _
-          = do let declare_code = HsJSONPB.declareSchemaRef
-               rateLimitResponse_DescriptorStatusCode <- declare_code Proxy.Proxy
-               let declare_current_limit = HsJSONPB.declareSchemaRef
-               rateLimitResponse_DescriptorStatusCurrentLimit <- declare_current_limit
-                                                                   Proxy.Proxy
-               let declare_limit_remaining = HsJSONPB.declareSchemaRef
-               rateLimitResponse_DescriptorStatusLimitRemaining <- declare_limit_remaining
-                                                                     Proxy.Proxy
-               let _ = Hs.pure RateLimitResponse_DescriptorStatus <*>
-                         HsJSONPB.asProxy declare_code
-                         <*> HsJSONPB.asProxy declare_current_limit
-                         <*> HsJSONPB.asProxy declare_limit_remaining
-               Hs.return
-                 (HsJSONPB.NamedSchema{HsJSONPB._namedSchemaName =
-                                         Hs.Just "RateLimitResponse_DescriptorStatus",
-                                       HsJSONPB._namedSchemaSchema =
-                                         Hs.mempty{HsJSONPB._schemaParamSchema =
-                                                     Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
-                                                   HsJSONPB._schemaProperties =
-                                                     HsJSONPB.insOrdFromList
-                                                       [("code",
-                                                         rateLimitResponse_DescriptorStatusCode),
-                                                        ("current_limit",
-                                                         rateLimitResponse_DescriptorStatusCurrentLimit),
-                                                        ("limit_remaining",
-                                                         rateLimitResponse_DescriptorStatusLimitRemaining)]}})

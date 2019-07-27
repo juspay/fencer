@@ -102,8 +102,8 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
                   if Proto.RateLimitResponse_CodeOVER_LIMIT `elem` codes
                       then Proto.RateLimitResponse_CodeOVER_LIMIT
                       else Proto.RateLimitResponse_CodeOK
-            , Proto.rateLimitResponseStatuses =
-                  V.fromList statuses
+            , Proto.rateLimitResponseStatuses = V.fromList statuses
+            , Proto.rateLimitResponseHeaders = mempty
             }
     pure $ Grpc.ServerNormalResponse
         -- answer
