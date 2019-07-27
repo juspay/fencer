@@ -17,9 +17,6 @@ module Ratelimit.Types
     , RuleValue(..)
     , Descriptor(..)
     , RateLimit(..)
-
-    -- * Request
-    , Request
     )
 where
 
@@ -74,13 +71,4 @@ data Descriptor = Descriptor
 data RateLimit = RateLimit
     { rateLimitUnit :: !TimeUnit
     , rateLimitRequestsPerUnit :: !Word
-    }
-
-----------------------------------------------------------------------------
--- Request
-----------------------------------------------------------------------------
-
-data Request = Request
-    { requestDomain :: !DomainId
-    , requestDescriptor :: ![(RuleKey, RuleValue)]
     }
