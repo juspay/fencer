@@ -16,6 +16,7 @@ extra-source-files: CHANGELOG.md
 library
   exposed-modules:
     Ratelimit.Main
+    Ratelimit.Counter
     Ratelimit.Types
     Ratelimit.Proto
   build-depends:

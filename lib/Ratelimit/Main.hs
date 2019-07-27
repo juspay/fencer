@@ -29,106 +29,12 @@ import qualified Network.GRPC.HighLevel.Generated as Grpc
 import qualified Proto3.Suite.Types as ProtoSuite
 
 import Ratelimit.Types
+import Ratelimit.Counter
 import qualified Ratelimit.Proto as Proto
-
-data CounterKey = CounterKey
-    { counterKeyDomain :: !DomainId
-    , counterKeyDescriptor :: ![(RuleKey, RuleValue)]
-    }
-    deriving stock (Eq, Generic)
-    deriving anyclass (Hashable)
 
 data Storage = Storage
     { counters :: !(StmMap.Map CounterKey Counter)
     }
-
-data Counter = Counter
-    { counterHits :: !Word
-    , counterSlot :: !Word
-    , counterLimit :: !RateLimit
-    }
-
--- | Verdict returned from the rate limiter.
-data HitVerdict
-    = HitStatus
-          { -- | The current limit, returned for convenience.
-            statusCurrentLimit :: !RateLimit
-            -- | How many hits can be taken before the limit is reached.
-            -- Will be 0 if the limit has been reached already.
-          , statusRemainingLimit :: !Word
-            -- | How many hits went over limit. Will be 0 if the limit has
-            -- not been reached.
-          , statusHitsOverLimit :: !Word
-          }
-    | HitUnknownRule
-
--- | Handle a request to the rate limiter: increment the relevant counter
--- and return the verdict.
---
--- If the counter does not exist, 'hit' will fail with 'HitUnknownRule'. Our
--- invariant is that all rate limiting rules that we know of have exactly
--- one counter corresponding to them. If the counter does not exist, the
--- rule does not exist.
---
--- The counter is always incremented, even if the limit has been reached.
--- This matches the behavior of @lyft/ratelimit@.
-hit
-    :: "key" :! CounterKey
-    -> "hits" :! Word
-    -> Storage
-    -> IO HitVerdict
-hit (arg #key -> key) (arg #hits -> hits) storage = do
-    -- TODO: this doesn't handle leap seconds well. We should handle
-    -- leap seconds for (at least) the per-second intervals.
-    now <- systemSeconds <$> getSystemTime
-    atomically $ StmMap.focus (go now) key (counters storage)
-  where
-    -- Increment the counter for the 'key', given current time.
-    go :: Int64 -> Focus.Focus Counter STM HitVerdict
-    go now = Focus.lookup >>= \case
-        Nothing -> pure HitUnknownRule
-        Just counter -> do
-            let limit = rateLimitRequestsPerUnit (counterLimit counter)
-                currentSlot =
-                    fromIntegral $
-                    now `div` timeUnitToSeconds (rateLimitUnit (counterLimit counter))
-            if | currentSlot > counterSlot counter -> do
-                     -- The counter is outdated, create a new one.
-                     --
-                     -- Note that we only create a new counter if the if the
-                     -- counter time slot is /older/ than our request's time
-                     -- slot. If it's newer, we can simply pretend that the
-                     -- request came later than it actually did.
-                     Focus.insert $ counter
-                         { counterHits = hits
-                         , counterSlot = currentSlot }
-                     pure $ if hits <= limit
-                         then HitStatus
-                                  { statusCurrentLimit = counterLimit counter
-                                  , statusRemainingLimit = limit - hits
-                                  , statusHitsOverLimit = 0 }
-                         else HitStatus
-                                  { statusCurrentLimit = counterLimit counter
-                                  , statusRemainingLimit = 0
-                                  , statusHitsOverLimit = hits - limit }
-               | otherwise -> do
-                     -- Increment the counter.
-                     let newHits = counterHits counter + hits
-                     Focus.insert $ counter
-                         { counterHits = newHits }
-                     -- Take care to count the hits correctly: if the
-                     -- counter was already over limit, we should report
-                     -- only the new hits as being over limit, i.e. we are
-                     -- allowed to report at most 'hits' hits.
-                     pure $ if newHits <= limit
-                         then HitStatus
-                                  { statusCurrentLimit = counterLimit counter
-                                  , statusRemainingLimit = limit - newHits
-                                  , statusHitsOverLimit = 0 }
-                         else HitStatus
-                                  { statusCurrentLimit = counterLimit counter
-                                  , statusRemainingLimit = 0
-                                  , statusHitsOverLimit = min hits (newHits - limit) }
 
 -- | Convert a 'RateLimit' to the protobuf representation.
 rateLimitToProto :: RateLimit -> Proto.RateLimit
@@ -144,9 +50,9 @@ rateLimitToProto limit = Proto.RateLimit
               Day -> Proto.RateLimit_UnitDAY
     }
 
--- | Convert a 'HitVerdict' to the protobuf representation.
-hitVerdictToProto :: HitVerdict -> Proto.RateLimitResponse
-hitVerdictToProto verdict =
+-- | Convert a 'CounterStatus' to the protobuf representation.
+counterStatusToProto :: Maybe CounterStatus -> Proto.RateLimitResponse
+counterStatusToProto status =
     Proto.RateLimitResponse
         { Proto.rateLimitResponseOverallCode =
               ProtoSuite.Enumerated (Right code)
@@ -162,19 +68,20 @@ hitVerdictToProto verdict =
                     }
         }
   where
-    code = case verdict of
-        HitUnknownRule -> Proto.RateLimitResponse_CodeOK
-        HitStatus{statusHitsOverLimit}
-            | statusHitsOverLimit > 0 -> Proto.RateLimitResponse_CodeOVER_LIMIT
+    code = case status of
+        Nothing -> Proto.RateLimitResponse_CodeOK
+        Just CounterStatus{counterHitsOverLimit}
+            | counterHitsOverLimit > 0 -> Proto.RateLimitResponse_CodeOVER_LIMIT
             | otherwise -> Proto.RateLimitResponse_CodeOK
 
-    currentLimit = case verdict of
-        HitUnknownRule -> Nothing
-        HitStatus{statusCurrentLimit} -> Just (rateLimitToProto statusCurrentLimit)
+    currentLimit = case status of
+        Nothing -> Nothing
+        Just CounterStatus{counterCurrentLimit} ->
+            Just (rateLimitToProto counterCurrentLimit)
 
-    limitRemaining = case verdict of
-        HitUnknownRule -> 0
-        HitStatus{statusRemainingLimit} -> statusRemainingLimit
+    limitRemaining = case status of
+        Nothing -> 0
+        Just CounterStatus{counterRemainingLimit} -> counterRemainingLimit
 
 -- | gRPC handler for the "should rate limit?" method.
 shouldRateLimit
@@ -197,11 +104,19 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
     -- specified by the caller in the request.
     let hits :: Word
         hits = max 1 (fromIntegral (Proto.rateLimitRequestHitsAddend request))
-    -- Record hits, get a verdict, and return it.
-    verdict <- hit (#key key) (#hits hits) storage
+    -- TODO: this doesn't handle leap seconds well. We should handle
+    -- leap seconds for (at least) the per-second intervals.
+    now <- systemSeconds <$> getSystemTime
+    let focus = Focus.lookup >>= \case
+            Nothing -> pure Nothing
+            Just counter ->
+                let (newCounter, status) =
+                        updateCounter (#now now) (#hits hits) counter
+                in Focus.insert newCounter >> pure (Just status)
+    status <- atomically $ StmMap.focus focus key (counters storage)
     pure $ Grpc.ServerNormalResponse
         -- answer
-        (hitVerdictToProto verdict)
+        (counterStatusToProto status)
         -- metadata
         mempty
         -- status
