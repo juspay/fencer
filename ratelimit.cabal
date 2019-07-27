@@ -22,6 +22,8 @@ library
     base,
     base-prelude,
     hashable,
+    monad-loops,
+    time,
     stm,
     vector,
     text,

@@ -32,8 +32,8 @@ newtype DomainId = DomainId Text
     deriving newtype (Hashable)
 
 data Domain = Domain
-    { domainId :: DomainId
-    , domainDescriptors :: [Descriptor]
+    { domainId :: !DomainId
+    , domainDescriptors :: ![Descriptor]
     }
 
 newtype RuleKey = RuleKey Text
@@ -45,10 +45,10 @@ newtype RuleValue = RuleValue Text
     deriving newtype (Hashable)
 
 data Descriptor = Descriptor
-    { descriptorKey :: RuleKey
-    , descriptorValue :: Maybe RuleValue
-    , descriptorRateLimit :: Maybe RateLimit
-    , descriptorDescriptors :: Maybe [Descriptor]
+    { descriptorKey :: !RuleKey
+    , descriptorValue :: !(Maybe RuleValue)
+    , descriptorRateLimit :: !(Maybe RateLimit)
+    , descriptorDescriptors :: !(Maybe [Descriptor])
     }
 
 data TimeUnit = Second | Minute | Hour | Day
@@ -56,8 +56,8 @@ data TimeUnit = Second | Minute | Hour | Day
     deriving anyclass (Hashable)
 
 data RateLimit = RateLimit
-    { rateLimitUnit :: TimeUnit
-    , rateLimitRequestsPerUnit :: Word
+    { rateLimitUnit :: !TimeUnit
+    , rateLimitRequestsPerUnit :: !Word
     }
 
 ----------------------------------------------------------------------------
@@ -65,6 +65,6 @@ data RateLimit = RateLimit
 ----------------------------------------------------------------------------
 
 data Request = Request
-    { requestDomain :: DomainId
-    , requestDescriptor :: [(RuleKey, RuleValue)]
+    { requestDomain :: !DomainId
+    , requestDescriptor :: ![(RuleKey, RuleValue)]
     }

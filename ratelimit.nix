@@ -1,6 +1,7 @@
 { mkDerivation, stdenv
 , base, stm, vector, text, containers, bytestring, deepseq, proto3-wire, proto3-suite
-, hashable, base-prelude, grpc-haskell, stm-containers, focus, named
+, hashable, base-prelude, grpc-haskell, stm-containers, focus, named, monad-loops
+, time
 , configureFlags ? [], enableSharedExecutables ? true, enableSharedLibraries ? true
 }:
 mkDerivation {
@@ -12,7 +13,8 @@ mkDerivation {
   inherit enableSharedExecutables enableSharedLibraries configureFlags;
   libraryHaskellDepends = [
     base stm vector text containers bytestring deepseq proto3-wire proto3-suite
-    hashable base-prelude grpc-haskell stm-containers focus named
+    hashable base-prelude grpc-haskell stm-containers focus named monad-loops
+    time
   ];
   executableHaskellDepends = [
     base
