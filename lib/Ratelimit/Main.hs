@@ -52,7 +52,7 @@ rateLimitToProto limit = Proto.RateLimit
 
 -- | Convert a 'CounterStatus' to the protobuf representation.
 counterStatusToProto
-    :: Maybe CounterStatus
+    :: CounterStatus
     -> (Proto.RateLimitResponse_Code, Proto.RateLimitResponse_DescriptorStatus)
 counterStatusToProto status =
     ( code
@@ -60,26 +60,28 @@ counterStatusToProto status =
           { Proto.rateLimitResponse_DescriptorStatusCode =
                 ProtoSuite.Enumerated (Right code)
           , Proto.rateLimitResponse_DescriptorStatusCurrentLimit =
-                currentLimit
+                Just (rateLimitToProto (counterCurrentLimit status))
           , Proto.rateLimitResponse_DescriptorStatusLimitRemaining =
-                fromIntegral limitRemaining
+                fromIntegral (counterRemainingLimit status)
           }
     )
   where
-    code = case status of
-        Nothing -> Proto.RateLimitResponse_CodeOK
-        Just CounterStatus{counterHitsOverLimit}
-            | counterHitsOverLimit > 0 -> Proto.RateLimitResponse_CodeOVER_LIMIT
-            | otherwise -> Proto.RateLimitResponse_CodeOK
+    code = if counterHitsOverLimit status > 0
+        then Proto.RateLimitResponse_CodeOVER_LIMIT
+        else Proto.RateLimitResponse_CodeOK
 
-    currentLimit = case status of
-        Nothing -> Nothing
-        Just CounterStatus{counterCurrentLimit} ->
-            Just (rateLimitToProto counterCurrentLimit)
-
-    limitRemaining = case status of
-        Nothing -> 0
-        Just CounterStatus{counterRemainingLimit} -> counterRemainingLimit
+-- | The response that we should return when the rate limit rule was not found.
+ruleNotFoundResponse
+    :: (Proto.RateLimitResponse_Code, Proto.RateLimitResponse_DescriptorStatus)
+ruleNotFoundResponse =
+    ( Proto.RateLimitResponse_CodeOK
+    , Proto.RateLimitResponse_DescriptorStatus
+          { Proto.rateLimitResponse_DescriptorStatusCode =
+                ProtoSuite.Enumerated (Right Proto.RateLimitResponse_CodeOK)
+          , Proto.rateLimitResponse_DescriptorStatusCurrentLimit = Nothing
+          , Proto.rateLimitResponse_DescriptorStatusLimitRemaining = 0
+          }
+    )
 
 -- | Unwrap the protobuf representation of a rate limit descriptor.
 rateLimitDescriptorFromProto :: Proto.RateLimitDescriptor -> [(RuleKey, RuleValue)]
@@ -118,7 +120,7 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
     -- TODO: this might retry way too often if we touch too many keys. Need
     -- to figure out whether it's safe to do each operation independently.
     (codes, statuses) <-
-        fmap (unzip . map counterStatusToProto) $
+        fmap (unzip . map (maybe ruleNotFoundResponse counterStatusToProto)) $
         atomically $
         mapM (\key -> StmMap.focus focus key (counters storage)) keys
     let answer = Proto.RateLimitResponse
