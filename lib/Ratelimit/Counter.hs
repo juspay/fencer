@@ -7,6 +7,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
+-- | Rate limit counters and logic for updating them.
 module Ratelimit.Counter
     ( CounterKey(..)
     , Counter(..)
@@ -21,6 +22,7 @@ import Named
 
 import Ratelimit.Types
 
+-- | A key that identifies a counter.
 data CounterKey = CounterKey
     { counterKeyDomain :: !DomainId
     , counterKeyDescriptor :: ![(RuleKey, RuleValue)]
@@ -28,14 +30,24 @@ data CounterKey = CounterKey
     deriving stock (Eq, Generic)
     deriving anyclass (Hashable)
 
+-- | A rate limit requests ("hits") counter.
+--
+-- We keep one counter per rate limit rule.
 data Counter = Counter
-    { counterHits :: !Word
+    { -- | How many hits the counter has already recorded in the current
+      -- time slot.
+      counterHits :: !Word
+      -- | The time slot that the counter is valid for. For example, if
+      -- 'counterSlot' is 13000 and the 'counterLimit' unit is 'Day', the
+      -- counter is valid for the 13000-th day since the Unix epoch.
     , counterSlot :: !Word
+      -- | Counter limit, stored together with the counter for convenience.
     , counterLimit :: !RateLimit
     }
 
 data CounterStatus = CounterStatus
-    { -- | The current limit, returned for convenience.
+    { -- | The current limit. We return it to avoid querying it again when
+      -- preparing a rate limit response.
       counterCurrentLimit :: !RateLimit
       -- | How many hits can be taken before the limit is reached. Will be 0
       -- if the limit has been reached already.
@@ -46,18 +58,13 @@ data CounterStatus = CounterStatus
     }
 
 -- | Handle a request to the rate limiter: increment the relevant counter
--- and return the verdict.
---
--- If the counter does not exist, 'hit' will fail with 'HitUnknownRule'. Our
--- invariant is that all rate limiting rules that we know of have exactly
--- one counter corresponding to them. If the counter does not exist, the
--- rule does not exist.
+-- and return the status.
 --
 -- The counter is always incremented, even if the limit has been reached.
 -- This matches the behavior of @lyft/ratelimit@.
 updateCounter
-    :: "now" :! Int64
-    -> "hits" :! Word
+    :: "now" :! Int64  -- ^ Seconds since the Unix epoch
+    -> "hits" :! Word  -- ^ How many hits (requests) to record
     -> Counter
     -> (Counter, CounterStatus)
 updateCounter (arg #now -> now) (arg #hits -> hits) counter =
@@ -66,7 +73,8 @@ updateCounter (arg #now -> now) (arg #hits -> hits) counter =
     limit :: Word
     limit = rateLimitRequestsPerUnit (counterLimit counter)
 
-    -- The time slot that 'now' resides in.
+    -- The time slot that 'now' resides in. See documentation for
+    -- 'counterSlot' for details.
     currentSlot :: Word
     currentSlot =
         fromIntegral $
@@ -97,7 +105,7 @@ updateCounter (arg #now -> now) (arg #hits -> hits) counter =
     status =
         -- Note: we could use 'min' and 'max' instead of the 'if', but then
         -- we would have to use 'Int' instead of 'Word' because of
-        -- underflow. Plus the code is easier to follow this way.
+        -- underflow. Also, the code is easier to follow this way.
         if newHits <= limit
         then CounterStatus
                  { counterCurrentLimit = counterLimit counter
