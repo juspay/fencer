@@ -51,22 +51,20 @@ rateLimitToProto limit = Proto.RateLimit
     }
 
 -- | Convert a 'CounterStatus' to the protobuf representation.
-counterStatusToProto :: Maybe CounterStatus -> Proto.RateLimitResponse
+counterStatusToProto
+    :: Maybe CounterStatus
+    -> (Proto.RateLimitResponse_Code, Proto.RateLimitResponse_DescriptorStatus)
 counterStatusToProto status =
-    Proto.RateLimitResponse
-        { Proto.rateLimitResponseOverallCode =
-              ProtoSuite.Enumerated (Right code)
-        , Proto.rateLimitResponseStatuses =
-              V.singleton $
-              Proto.RateLimitResponse_DescriptorStatus
-                    { Proto.rateLimitResponse_DescriptorStatusCode =
-                          ProtoSuite.Enumerated (Right code)
-                    , Proto.rateLimitResponse_DescriptorStatusCurrentLimit =
-                          currentLimit
-                    , Proto.rateLimitResponse_DescriptorStatusLimitRemaining =
-                          fromIntegral limitRemaining
-                    }
-        }
+    ( code
+    , Proto.RateLimitResponse_DescriptorStatus
+          { Proto.rateLimitResponse_DescriptorStatusCode =
+                ProtoSuite.Enumerated (Right code)
+          , Proto.rateLimitResponse_DescriptorStatusCurrentLimit =
+                currentLimit
+          , Proto.rateLimitResponse_DescriptorStatusLimitRemaining =
+                fromIntegral limitRemaining
+          }
+    )
   where
     code = case status of
         Nothing -> Proto.RateLimitResponse_CodeOK
@@ -83,6 +81,12 @@ counterStatusToProto status =
         Nothing -> 0
         Just CounterStatus{counterRemainingLimit} -> counterRemainingLimit
 
+-- | Unwrap the protobuf representation of a rate limit descriptor.
+rateLimitDescriptorFromProto :: Proto.RateLimitDescriptor -> [(RuleKey, RuleValue)]
+rateLimitDescriptorFromProto (Proto.RateLimitDescriptor xs) =
+    [(RuleKey (TL.toStrict k), RuleValue (TL.toStrict v))
+         | Proto.RateLimitDescriptor_Entry k v <- toList xs]
+
 -- | gRPC handler for the "should rate limit?" method.
 shouldRateLimit
     :: Storage
@@ -90,16 +94,14 @@ shouldRateLimit
     -> IO (Grpc.ServerResponse 'Grpc.Normal Proto.RateLimitResponse)
 shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
     let domain = DomainId (TL.toStrict (Proto.rateLimitRequestDomain request))
-    -- TODO: we assume that the request contains exactly one descriptor. We
-    -- should figure out what to do if it's more than one.
-    let descriptor = case toList (Proto.rateLimitRequestDescriptors request) of
-            [Proto.RateLimitDescriptor ds] ->
-                [(RuleKey (TL.toStrict k), RuleValue (TL.toStrict v))
-                    | Proto.RateLimitDescriptor_Entry k v <- toList ds]
-            otherwise -> error "expected exactly one descriptor"
-    let key = CounterKey
-            { counterKeyDomain = domain
-            , counterKeyDescriptor = descriptor }
+    let descriptors =
+            map rateLimitDescriptorFromProto $
+            toList (Proto.rateLimitRequestDescriptors request)
+    let keys = map
+            (\descriptor -> CounterKey
+                 { counterKeyDomain = domain
+                 , counterKeyDescriptor = descriptor })
+            descriptors
     -- Note: 'rateLimitRequestHitsAddend' could be 0 (default value) if not
     -- specified by the caller in the request.
     let hits :: Word
@@ -113,10 +115,25 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
                 let (newCounter, status) =
                         updateCounter (#now now) (#hits hits) counter
                 in Focus.insert newCounter >> pure (Just status)
-    status <- atomically $ StmMap.focus focus key (counters storage)
+    -- TODO: this might retry way too often if we touch too many keys. Need
+    -- to figure out whether it's safe to do each operation independently.
+    (codes, statuses) <-
+        fmap (unzip . map counterStatusToProto) $
+        atomically $
+        mapM (\key -> StmMap.focus focus key (counters storage)) keys
+    let answer = Proto.RateLimitResponse
+            { Proto.rateLimitResponseOverallCode =
+                  ProtoSuite.Enumerated $
+                  Right $
+                  if Proto.RateLimitResponse_CodeOVER_LIMIT `elem` codes
+                      then Proto.RateLimitResponse_CodeOVER_LIMIT
+                      else Proto.RateLimitResponse_CodeOK
+            , Proto.rateLimitResponseStatuses =
+                  V.fromList statuses
+            }
     pure $ Grpc.ServerNormalResponse
         -- answer
-        (counterStatusToProto status)
+        answer
         -- metadata
         mempty
         -- status
