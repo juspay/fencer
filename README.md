@@ -4,6 +4,23 @@ Fencer is a port of <https://github.com/lyft/ratelimit> into Haskell. The
 key difference is that Fencer does not use Redis. The API, rule matching
 logic, etc, are compatible with `lyft/ratelimit` as far as possible.
 
+## Roadmap
+
+Done:
+
+* In-memory counting
+* Rule matching
+* `lyft/ratelimit`-compatible gRPC interface
+
+Left to do:
+
+* Garbage collect old counters
+* Configuration loading and reloading
+* API for setting configuration
+* Doctests
+* Tests
+* Benchmarks
+
 ## Building
 
 Instructions pending.

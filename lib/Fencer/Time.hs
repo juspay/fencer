@@ -26,9 +26,7 @@ newtype Timestamp = Timestamp Int64
 
 -- | Get current time as a 'Timestamp'.
 getTimestamp :: IO Timestamp
-getTimestamp =
-    -- TODO: use CLOCK_MONOTONIC to avoid leap seconds problems?
-    Timestamp . systemSeconds <$> getSystemTime
+getTimestamp = Timestamp . systemSeconds <$> getSystemTime
 
 -- | Divide time into slots and round a 'Timestamp' up to a slot boundary.
 --

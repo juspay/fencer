@@ -52,8 +52,6 @@ main = do
 ----------------------------------------------------------------------------
 
 -- | In-memory storage for the state of the program.
---
--- TODO: garbage collect counters every once in a while.
 data Storage = Storage
     { rules :: !(StmMap.Map DomainId RuleTree)
     , counters :: !(StmMap.Map CounterKey Counter)
