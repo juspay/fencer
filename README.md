@@ -10,7 +10,14 @@ Instructions pending.
 
 ## Developing
 
-Install [Nix](https://nixos.org/nix/). Then run:
+Install [Nix](https://nixos.org/nix/). On macOS and Linux, this can be done
+with:
+
+```
+$ curl https://nixos.org/nix/install | sh
+```
+
+Once you have Nix, enter the Nix shell and build the project with `cabal`:
 
 ```
 $ nix-shell
