@@ -30,6 +30,7 @@ import qualified Proto3.Suite.Types as ProtoSuite
 
 import Ratelimit.Types
 import Ratelimit.Counter
+import Ratelimit.Time
 import qualified Ratelimit.Proto as Proto
 
 ----------------------------------------------------------------------------
@@ -50,15 +51,16 @@ main = do
 
 -- | In-memory storage for the state of the program.
 data Storage = Storage
-    { counters :: !(StmMap.Map CounterKey Counter)
+    { rules :: !(StmMap.Map CounterKey RateLimit)
+    , counters :: !(StmMap.Map CounterKey Counter)
     }
 
 -- | Create an empty 'Storage'.
 newStorage :: IO Storage
-newStorage = Storage <$> StmMap.newIO
+newStorage = Storage <$> StmMap.newIO <*> StmMap.newIO
 
 ----------------------------------------------------------------------------
--- Handlers
+-- "Should rate limit" method
 ----------------------------------------------------------------------------
 
 -- | gRPC handler for the "should rate limit?" method.
@@ -80,21 +82,13 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
     -- specified by the caller in the request.
     let hits :: Word
         hits = max 1 (fromIntegral (Proto.rateLimitRequestHitsAddend request))
-    -- TODO: this doesn't handle leap seconds well. We should handle
-    -- leap seconds for (at least) the per-second intervals.
-    now <- systemSeconds <$> getSystemTime
-    let focus = Focus.lookup >>= \case
-            Nothing -> pure Nothing
-            Just counter ->
-                let (newCounter, status) =
-                        updateCounter (#now now) (#hits hits) counter
-                in Focus.insert newCounter >> pure (Just status)
+    now <- getTimestamp
     -- TODO: this might retry way too often if we touch too many keys. Need
     -- to figure out whether it's safe to do each operation independently.
     (codes, statuses) <-
         fmap (unzip . map (maybe ruleNotFoundResponse counterStatusToProto)) $
         atomically $
-        mapM (\key -> StmMap.focus focus key (counters storage)) keys
+        mapM (shouldRateLimitDescriptor storage (#now now) (#hits hits)) keys
     let answer = Proto.RateLimitResponse
             { Proto.rateLimitResponseOverallCode =
                   ProtoSuite.Enumerated $
@@ -115,6 +109,29 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
         -- status details
         ""
 
+-- | Handle a single descriptor in a 'shouldRateLimit' request.
+--
+-- Returns the current limit and encoded response
+shouldRateLimitDescriptor
+    :: Storage
+    -> "now" :! Timestamp
+    -> "hits" :! Word
+    -> CounterKey
+    -> STM (Maybe (RateLimit, CounterStatus))
+shouldRateLimitDescriptor storage (arg #now -> now) (arg #hits -> hits) key =
+    StmMap.lookup key (rules storage) >>= \case
+        Nothing -> pure Nothing
+        Just limit -> StmMap.focus (update limit) key (counters storage)
+  where
+    -- Update a counter now that the limit is known.
+    update :: RateLimit -> Focus.Focus Counter STM (Maybe (RateLimit, CounterStatus))
+    update limit = Focus.lookup >>= \case
+        Nothing -> pure Nothing -- TODO create the counter if necessary
+        Just counter ->
+            let (newCounter, status) =
+                    updateCounter (#now now) (#hits hits) (#limit limit) counter
+            in Focus.insert newCounter >> pure (Just (limit, status))
+
 ----------------------------------------------------------------------------
 -- Working with protobuf structures
 ----------------------------------------------------------------------------
@@ -133,17 +150,18 @@ rateLimitToProto limit = Proto.RateLimit
               Day -> Proto.RateLimit_UnitDAY
     }
 
--- | Convert a 'CounterStatus' to the protobuf representation.
+-- | Convert a 'CounterStatus' with the current counter rate limit to the
+-- protobuf representation.
 counterStatusToProto
-    :: CounterStatus
+    :: (RateLimit, CounterStatus)
     -> (Proto.RateLimitResponse_Code, Proto.RateLimitResponse_DescriptorStatus)
-counterStatusToProto status =
+counterStatusToProto (limit, status) =
     ( code
     , Proto.RateLimitResponse_DescriptorStatus
           { Proto.rateLimitResponse_DescriptorStatusCode =
                 ProtoSuite.Enumerated (Right code)
           , Proto.rateLimitResponse_DescriptorStatusCurrentLimit =
-                Just (rateLimitToProto (counterCurrentLimit status))
+                Just (rateLimitToProto limit)
           , Proto.rateLimitResponse_DescriptorStatusLimitRemaining =
                 fromIntegral (counterRemainingLimit status)
           }

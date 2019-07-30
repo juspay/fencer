@@ -21,6 +21,7 @@ import Data.Hashable (Hashable)
 import Named
 
 import Ratelimit.Types
+import Ratelimit.Time
 
 -- | A key that identifies a counter.
 data CounterKey = CounterKey
@@ -31,27 +32,18 @@ data CounterKey = CounterKey
     deriving anyclass (Hashable)
 
 -- | A rate limit requests ("hits") counter.
---
--- We keep one counter per rate limit rule.
 data Counter = Counter
-    { -- | How many hits the counter has already recorded in the current
-      -- time slot.
+    { -- | How many hits the counter has already recorded.
       counterHits :: !Word
-      -- | The time slot that the counter is valid for. For example, if
-      -- 'counterSlot' is 13000 and the 'counterLimit' unit is 'Day', the
-      -- counter is valid for the 13000-th day since the Unix epoch.
-    , counterSlot :: !Word
-      -- | Counter limit, stored together with the counter for convenience.
-    , counterLimit :: !RateLimit
+      -- | Counter expiry date, inclusive (i.e. on 'counterExpiry' the
+      -- counter is already expired).
+    , counterExpiry :: !Timestamp
     }
 
 data CounterStatus = CounterStatus
-    { -- | The current limit. We return it to avoid querying it again when
-      -- preparing a rate limit response.
-      counterCurrentLimit :: !RateLimit
-      -- | How many hits can be taken before the limit is reached. Will be 0
+    { -- | How many hits can be taken before the limit is reached. Will be 0
       -- if the limit has been reached already.
-    , counterRemainingLimit :: !Word
+      counterRemainingLimit :: !Word
       -- | How many hits went over limit. Will be 0 if the limit has not
       -- been reached.
     , counterHitsOverLimit :: !Word
@@ -63,55 +55,43 @@ data CounterStatus = CounterStatus
 -- The counter is always incremented, even if the limit has been reached.
 -- This matches the behavior of @lyft/ratelimit@.
 updateCounter
-    :: "now" :! Int64  -- ^ Seconds since the Unix epoch
-    -> "hits" :! Word  -- ^ How many hits (requests) to record
+    :: "now" :! Timestamp -- ^ Current time
+    -> "hits" :! Word -- ^ How many hits (requests) to record
+    -> "limit" :! RateLimit -- ^ What is the current limit
     -> Counter
     -> (Counter, CounterStatus)
-updateCounter (arg #now -> now) (arg #hits -> hits) counter =
-    (newCounter, status)
+updateCounter (arg #now -> now) (arg #hits -> hits) (arg #limit -> limit) counter =
+    (newCounter, updateStatus)
   where
-    limit :: Word
-    limit = rateLimitRequestsPerUnit (counterLimit counter)
+    -- Deconstructing the 'limit', for convenience.
+    limitPerUnit :: Word
+    limitPerUnit = rateLimitRequestsPerUnit limit
 
-    -- The time slot that 'now' resides in. See documentation for
-    -- 'counterSlot' for details.
-    currentSlot :: Word
-    currentSlot =
-        fromIntegral $
-        now `div` timeUnitToSeconds (rateLimitUnit (counterLimit counter))
+    unitDuration :: Int64
+    unitDuration = timeUnitToSeconds (rateLimitUnit limit)
 
-    -- 'oldHits' is how many hits the counter reported before updating.
-    -- 'newHits' is the new counter value.
-    --
-    -- If the counter is outdated (as per 'counterSlot'), we want to
-    -- essentially create a new counter. In this case @oldHits == 0@ and
-    -- @newHits == hits@. All hits before the current slot are ignored.
-    --
-    -- Note that we only want to create a new counter if the if the counter
-    -- time slot is /older/ than our request's time slot. If it's newer, we
-    -- can simply pretend that the request came later than it actually did.
-    oldHits, newHits :: Word
-    (oldHits, newHits) =
-        if currentSlot > counterSlot counter
-        then (0, hits)
-        else (counterHits counter, counterHits counter + hits)
-
+    -- Updated counter. If the counter is outdated (as per 'counterExpiry'),
+    -- we reset it.
     newCounter :: Counter
-    newCounter = counter
-        { counterHits = newHits
-        , counterSlot = currentSlot }
+    newCounter =
+        if now >= counterExpiry counter
+        then Counter
+                 { counterHits = hits
+                 , counterExpiry = slotBoundary (#slotSeconds unitDuration) now }
+        else Counter
+                 { counterHits = counterHits counter + hits
+                 , counterExpiry = counterExpiry counter }
 
-    status :: CounterStatus
-    status =
+    updateStatus :: CounterStatus
+    updateStatus =
         -- Note: we could use 'min' and 'max' instead of the 'if', but then
         -- we would have to use 'Int' instead of 'Word' because of
         -- underflow. Also, the code is easier to follow this way.
-        if newHits <= limit
-        then CounterStatus
-                 { counterCurrentLimit = counterLimit counter
-                 , counterRemainingLimit = limit - newHits
-                 , counterHitsOverLimit = 0 }
-        else CounterStatus
-                 { counterCurrentLimit = counterLimit counter
-                 , counterRemainingLimit = 0
-                 , counterHitsOverLimit = min hits (newHits - limit) }
+        let newHits = counterHits newCounter
+        in if newHits <= limitPerUnit
+           then CounterStatus
+                    { counterRemainingLimit = limitPerUnit - newHits
+                    , counterHitsOverLimit = 0 }
+           else CounterStatus
+                    { counterRemainingLimit = 0
+                    , counterHitsOverLimit = min hits (newHits - limitPerUnit) }

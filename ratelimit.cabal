@@ -19,6 +19,7 @@ library
     Ratelimit.Counter
     Ratelimit.Types
     Ratelimit.Proto
+    Ratelimit.Time
   build-depends:
     base,
     base-prelude,
