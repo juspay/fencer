@@ -27,10 +27,12 @@ import qualified Focus as Focus
 import qualified StmContainers.Map as StmMap
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 import qualified Proto3.Suite.Types as ProtoSuite
+import qualified Data.HashMap.Strict as HM
 
 import Ratelimit.Types
 import Ratelimit.Counter
 import Ratelimit.Time
+import Ratelimit.Match
 import qualified Ratelimit.Proto as Proto
 
 ----------------------------------------------------------------------------
@@ -53,7 +55,7 @@ main = do
 --
 -- TODO: garbage collect counters every once in a while.
 data Storage = Storage
-    { rules :: !(StmMap.Map CounterKey RateLimit)
+    { rules :: !(StmMap.Map DomainId RuleTree)
     , counters :: !(StmMap.Map CounterKey Counter)
     }
 
@@ -75,11 +77,6 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
     let descriptors =
             map rateLimitDescriptorFromProto $
             toList (Proto.rateLimitRequestDescriptors request)
-    let keys = map
-            (\descriptor -> CounterKey
-                 { counterKeyDomain = domain
-                 , counterKeyDescriptor = descriptor })
-            descriptors
     -- Note: 'rateLimitRequestHitsAddend' could be 0 (default value) if not
     -- specified by the caller in the request.
     let hits :: Word
@@ -90,7 +87,8 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
     (codes, statuses) <-
         fmap (unzip . map (maybe ruleNotFoundResponse counterStatusToProto)) $
         atomically $
-        mapM (shouldRateLimitDescriptor storage (#now now) (#hits hits)) keys
+        forM descriptors $ \descriptor ->
+            shouldRateLimitDescriptor storage (#now now) (#hits hits) domain descriptor
     let answer = Proto.RateLimitResponse
             { Proto.rateLimitResponseOverallCode =
                   ProtoSuite.Enumerated $
@@ -113,18 +111,33 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
 
 -- | Handle a single descriptor in a 'shouldRateLimit' request.
 --
--- Returns the current limit and encoded response
+-- Returns the current limit and protobuf-encoded response.
 shouldRateLimitDescriptor
     :: Storage
     -> "now" :! Timestamp
     -> "hits" :! Word
-    -> CounterKey
+    -> DomainId
+    -> [(RuleKey, RuleValue)]
     -> STM (Maybe (RateLimit, CounterStatus))
-shouldRateLimitDescriptor storage (arg #now -> now) (arg #hits -> hits) key =
-    StmMap.lookup key (rules storage) >>= \case
+shouldRateLimitDescriptor
+    storage
+    (arg #now -> now)
+    (arg #hits -> hits)
+    domain
+    descriptor
+    =
+    StmMap.lookup domain (rules storage) >>= \case
         Nothing -> pure Nothing
-        Just limit -> Just <$> StmMap.focus (update limit) key (counters storage)
+        Just ruleTree -> case matchRequest descriptor ruleTree of
+            Nothing -> pure Nothing
+            Just limit -> Just <$> StmMap.focus (update limit) key (counters storage)
   where
+    -- Counter key corresponding to our rate limit request.
+    key :: CounterKey
+    key = CounterKey
+        { counterKeyDomain = domain
+        , counterKeyDescriptor = descriptor }
+
     -- Update the counter corresponding to 'key', or create a new counter if
     -- it does not exist.
     update :: RateLimit -> Focus.Focus Counter STM (RateLimit, CounterStatus)

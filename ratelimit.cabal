@@ -17,6 +17,7 @@ library
   exposed-modules:
     Ratelimit.Main
     Ratelimit.Counter
+    Ratelimit.Match
     Ratelimit.Types
     Ratelimit.Proto
     Ratelimit.Time
@@ -30,6 +31,7 @@ library
     vector,
     text,
     containers,
+    unordered-containers,
     bytestring,
     deepseq,
     proto3-wire,

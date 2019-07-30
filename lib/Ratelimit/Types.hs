@@ -22,14 +22,6 @@ module Ratelimit.Types
     )
 where
 
--- TODO: are descriptor lists matched in order or as maps?
-
--- TODO: if the request descriptor list is longer than the definition
--- descriptor list, it will not match. What if it's shorter, though?
-
--- TODO: let's say I have two rules "a=* b=y" and a=x b=*". I got a request
--- "a=x b=y". Which rule will it match?
-
 import BasePrelude
 import Data.Hashable (Hashable)
 import Data.Text (Text)
