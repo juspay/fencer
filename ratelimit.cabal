@@ -50,7 +50,8 @@ library
 executable ratelimit
   main-is: Main.hs
   build-depends:
-    base
+    base,
+    ratelimit
   hs-source-dirs:
     src
   default-language:

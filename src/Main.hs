@@ -1,4 +1,8 @@
-module Main where
+module Main (main) where
+
+import Prelude (IO)
+
+import qualified Ratelimit.Main
 
 main :: IO ()
-main = putStrLn "Hello, Haskell!"
+main = Ratelimit.Main.main
