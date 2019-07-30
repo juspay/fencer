@@ -50,6 +50,8 @@ main = do
 ----------------------------------------------------------------------------
 
 -- | In-memory storage for the state of the program.
+--
+-- TODO: garbage collect counters every once in a while.
 data Storage = Storage
     { rules :: !(StmMap.Map CounterKey RateLimit)
     , counters :: !(StmMap.Map CounterKey Counter)
@@ -121,16 +123,23 @@ shouldRateLimitDescriptor
 shouldRateLimitDescriptor storage (arg #now -> now) (arg #hits -> hits) key =
     StmMap.lookup key (rules storage) >>= \case
         Nothing -> pure Nothing
-        Just limit -> StmMap.focus (update limit) key (counters storage)
+        Just limit -> Just <$> StmMap.focus (update limit) key (counters storage)
   where
-    -- Update a counter now that the limit is known.
-    update :: RateLimit -> Focus.Focus Counter STM (Maybe (RateLimit, CounterStatus))
+    -- Update the counter corresponding to 'key', or create a new counter if
+    -- it does not exist.
+    update :: RateLimit -> Focus.Focus Counter STM (RateLimit, CounterStatus)
     update limit = Focus.lookup >>= \case
-        Nothing -> pure Nothing -- TODO create the counter if necessary
-        Just counter ->
+        Nothing -> do
+            let (counter, status) =
+                    updateCounter (#now now) (#hits hits) (#limit limit) $
+                    newCounter (#now now) (#limit limit)
+            Focus.insert counter
+            pure (limit, status)
+        Just counter -> do
             let (newCounter, status) =
                     updateCounter (#now now) (#hits hits) (#limit limit) counter
-            in Focus.insert newCounter >> pure (Just (limit, status))
+            Focus.insert newCounter
+            pure (limit, status)
 
 ----------------------------------------------------------------------------
 -- Working with protobuf structures

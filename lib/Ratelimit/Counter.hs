@@ -7,11 +7,12 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
--- | Rate limit counters and logic for updating them.
+-- | Rate limit counters and logic for creating and updating them.
 module Ratelimit.Counter
     ( CounterKey(..)
     , Counter(..)
     , CounterStatus(..)
+    , newCounter
     , updateCounter
     )
 where
@@ -49,6 +50,19 @@ data CounterStatus = CounterStatus
     , counterHitsOverLimit :: !Word
     }
 
+-- | Create an empty counter.
+newCounter
+    :: "now" :! Timestamp -- ^ Current time
+    -> "limit" :! RateLimit -- ^ Rate limit
+    -> Counter
+newCounter (arg #now -> now) (arg #limit -> limit) =
+    Counter
+        { counterHits = 0
+        , counterExpiry = slotBoundary (#slotSeconds unitDuration) now }
+  where
+    unitDuration :: Int64
+    unitDuration = timeUnitToSeconds (rateLimitUnit limit)
+
 -- | Handle a request to the rate limiter: increment the relevant counter
 -- and return the status.
 --
@@ -57,7 +71,7 @@ data CounterStatus = CounterStatus
 updateCounter
     :: "now" :! Timestamp -- ^ Current time
     -> "hits" :! Word -- ^ How many hits (requests) to record
-    -> "limit" :! RateLimit -- ^ What is the current limit
+    -> "limit" :! RateLimit -- ^ Rate limit
     -> Counter
     -> (Counter, CounterStatus)
 updateCounter (arg #now -> now) (arg #hits -> hits) (arg #limit -> limit) counter =
