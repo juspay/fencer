@@ -14,7 +14,7 @@ Install [Nix](https://nixos.org/nix/). Then run:
 
 ```
 $ nix-shell
-$ cabal new-build
+$ cabal v2-build
 ```
 
 You can use [`nix-cabal`](https://github.com/monadfix/nix-cabal) as a
