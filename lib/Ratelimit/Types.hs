@@ -6,19 +6,29 @@
 
 module Ratelimit.Types
     (
-    -- * Time units
-      TimeUnit(..)
-    , timeUnitToSeconds
-
-    -- * Rate limiting rules
-    , DomainId(..)
-    , Domain(..)
+    -- * Common types
+      DomainId(..)
     , RuleKey(..)
     , RuleValue(..)
-    , Descriptor(..)
     , RateLimit(..)
+
+    -- * Time units
+    , TimeUnit(..)
+    , timeUnitToSeconds
+
+    -- * Definitions (configuration)
+    , DomainDefinition(..)
+    , DescriptorDefinition(..)
     )
 where
+
+-- TODO: are descriptor lists matched in order or as maps?
+
+-- TODO: if the request descriptor list is longer than the definition
+-- descriptor list, it will not match. What if it's shorter, though?
+
+-- TODO: let's say I have two rules "a=* b=y" and a=x b=*". I got a request
+-- "a=x b=y". Which rule will it match?
 
 import BasePrelude
 import Data.Hashable (Hashable)
@@ -48,11 +58,6 @@ newtype DomainId = DomainId Text
     deriving stock (Eq)
     deriving newtype (Hashable)
 
-data Domain = Domain
-    { domainId :: !DomainId
-    , domainDescriptors :: ![Descriptor]
-    }
-
 newtype RuleKey = RuleKey Text
     deriving stock (Eq)
     deriving newtype (Hashable)
@@ -61,14 +66,23 @@ newtype RuleValue = RuleValue Text
     deriving stock (Eq)
     deriving newtype (Hashable)
 
-data Descriptor = Descriptor
-    { descriptorKey :: !RuleKey
-    , descriptorValue :: !(Maybe RuleValue)
-    , descriptorRateLimit :: !(Maybe RateLimit)
-    , descriptorDescriptors :: !(Maybe [Descriptor])
-    }
-
 data RateLimit = RateLimit
     { rateLimitUnit :: !TimeUnit
     , rateLimitRequestsPerUnit :: !Word
+    }
+
+----------------------------------------------------------------------------
+-- Definitions (configuration)
+----------------------------------------------------------------------------
+
+data DomainDefinition = DomainDefinition
+    { domainDefinitionId :: !DomainId
+    , domainDefinitionDescriptors :: ![DescriptorDefinition]
+    }
+
+data DescriptorDefinition = DescriptorDefinition
+    { descriptorDefinitionKey :: !RuleKey
+    , descriptorDefinitionValue :: !(Maybe RuleValue)
+    , descriptorDefinitionRateLimit :: !(Maybe RateLimit)
+    , descriptorDefinitionDescriptors :: !(Maybe [DescriptorDefinition])
     }
