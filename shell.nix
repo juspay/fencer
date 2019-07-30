@@ -95,8 +95,5 @@ in
             stylish-haskell
           ] ++ [ zlib ] ++ attrs.buildInputs;
         })
-        else drv.overrideAttrs(attrs:
-        {
-          # TODO : Create a FHS using buildFHSUserEnv
-          buildInputs = [ pkgs.zlib pkgs.nss pkgs.nssmdns pkgs.iana-etc pkgs.cacert ] ++ attrs.buildInputs;
-        })
+    else
+      drv
