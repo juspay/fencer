@@ -11,7 +11,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE GADTs #-}
 
-module Ratelimit.Main
+module Fencer.Main
     ( main
     )
 where
@@ -29,11 +29,11 @@ import qualified Network.GRPC.HighLevel.Generated as Grpc
 import qualified Proto3.Suite.Types as ProtoSuite
 import qualified Data.HashMap.Strict as HM
 
-import Ratelimit.Types
-import Ratelimit.Counter
-import Ratelimit.Time
-import Ratelimit.Match
-import qualified Ratelimit.Proto as Proto
+import Fencer.Types
+import Fencer.Counter
+import Fencer.Time
+import Fencer.Match
+import qualified Fencer.Proto as Proto
 
 ----------------------------------------------------------------------------
 -- Main

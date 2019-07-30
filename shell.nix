@@ -69,8 +69,8 @@ let
             pkgs.haskell.lib.dontCheck
               (self.callPackage ./nix/grpc-haskell.nix { });
 
-          ratelimit =
-            self.callPackage ./ratelimit.nix (pkgs.lib.optionalAttrs static staticAttrs);
+          fencer =
+            self.callPackage ./fencer.nix (pkgs.lib.optionalAttrs static staticAttrs);
         };
       };
     };
@@ -79,7 +79,7 @@ let
     if static
     then (import nixpkgs { inherit config; }).pkgsMusl
     else import nixpkgs { inherit config; };
-  drv = pkgs.haskellPackages.ratelimit;
+  drv = pkgs.haskellPackages.fencer;
 in
   if pkgs.lib.inNixShell
     then

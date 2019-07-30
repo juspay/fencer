@@ -2,7 +2,7 @@ module Main (main) where
 
 import Prelude (IO)
 
-import qualified Ratelimit.Main
+import qualified Fencer.Main
 
 main :: IO ()
-main = Ratelimit.Main.main
+main = Fencer.Main.main

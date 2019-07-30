@@ -8,7 +8,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
 -- | Rate limit counters and logic for creating and updating them.
-module Ratelimit.Counter
+module Fencer.Counter
     ( CounterKey(..)
     , Counter(..)
     , CounterStatus(..)
@@ -21,8 +21,8 @@ import BasePrelude
 import Data.Hashable (Hashable)
 import Named
 
-import Ratelimit.Types
-import Ratelimit.Time
+import Fencer.Types
+import Fencer.Time
 
 -- | A key that identifies a counter.
 data CounterKey = CounterKey

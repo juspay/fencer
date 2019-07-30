@@ -8,7 +8,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
 -- | Logic for matching rate limiting requests to rules.
-module Ratelimit.Match
+module Fencer.Match
     ( -- * Rule trees
       RuleTree
     , RuleBranch(..)
@@ -24,7 +24,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import Named
 
-import Ratelimit.Types
+import Fencer.Types
 
 ----------------------------------------------------------------------------
 -- Rule trees

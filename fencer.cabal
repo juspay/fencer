@@ -1,6 +1,6 @@
 cabal-version: 2.4
 
-name: ratelimit
+name: fencer
 version: 1.0.0
 synopsis: Port of lyft/ratelimit
 description:
@@ -15,12 +15,12 @@ extra-source-files: CHANGELOG.md
 
 library
   exposed-modules:
-    Ratelimit.Main
-    Ratelimit.Counter
-    Ratelimit.Match
-    Ratelimit.Types
-    Ratelimit.Proto
-    Ratelimit.Time
+    Fencer.Main
+    Fencer.Counter
+    Fencer.Match
+    Fencer.Types
+    Fencer.Proto
+    Fencer.Time
   build-depends:
     base,
     base-prelude,
@@ -47,11 +47,11 @@ library
   default-extensions:
     NoImplicitPrelude
 
-executable ratelimit
+executable fencer
   main-is: Main.hs
   build-depends:
     base,
-    ratelimit
+    fencer
   hs-source-dirs:
     src
   default-language:

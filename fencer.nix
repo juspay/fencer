@@ -5,7 +5,7 @@
 , configureFlags ? [], enableSharedExecutables ? true, enableSharedLibraries ? true
 }:
 mkDerivation {
-  pname = "ratelimit";
+  pname = "fencer";
   version = "1.0.0";
   src = ./.;
   isLibrary = true;

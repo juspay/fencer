@@ -5,7 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLabels #-}
 
-module Ratelimit.Time
+module Fencer.Time
     ( Timestamp(..)
     , getTimestamp
     , slotBoundary

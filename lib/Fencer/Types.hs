@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Ratelimit.Types
+module Fencer.Types
     (
     -- * Common types
       DomainId(..)
