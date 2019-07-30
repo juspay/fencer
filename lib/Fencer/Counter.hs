@@ -84,17 +84,23 @@ updateCounter (arg #now -> now) (arg #hits -> hits) (arg #limit -> limit) counte
     unitDuration :: Int64
     unitDuration = timeUnitToSeconds (rateLimitUnit limit)
 
+    -- New counter expiry time. It would be faster to simply add
+    -- 'unitDuration' to 'counterExpiry' if the counter has expired, but if
+    -- the rate limit unit has changed in the meantime, this would be a
+    -- mistake.
+    newCounterExpiry :: Timestamp
+    newCounterExpiry = slotBoundary (#slotSeconds unitDuration) now
+
     -- Updated counter. If the counter is outdated (as per 'counterExpiry'),
     -- we reset it.
     newCounter :: Counter
-    newCounter =
-        if now >= counterExpiry counter
-        then Counter
-                 { counterHits = hits
-                 , counterExpiry = slotBoundary (#slotSeconds unitDuration) now }
-        else Counter
-                 { counterHits = counterHits counter + hits
-                 , counterExpiry = counterExpiry counter }
+    newCounter = Counter
+        { counterHits =
+              if now > counterExpiry counter
+              then hits
+              else counterHits counter + hits
+        , counterExpiry = newCounterExpiry
+        }
 
     updateStatus :: CounterStatus
     updateStatus =
