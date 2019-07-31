@@ -5,6 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLabels #-}
 
+-- | Working with timestamps.
 module Fencer.Time
     ( Timestamp(..)
     , getTimestamp

@@ -46,6 +46,7 @@ library
     Haskell2010
   default-extensions:
     NoImplicitPrelude
+    ScopedTypeVariables
 
 executable fencer
   main-is: Main.hs

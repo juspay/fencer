@@ -11,6 +11,8 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE GADTs #-}
 
+-- | The main module of Fencer, included in the library to make it easier to
+-- load it in REPL. @src/Main.hs@ simply calls 'main' from this module.
 module Fencer.Main
     ( main
     )
@@ -39,6 +41,8 @@ import qualified Fencer.Proto as Proto
 -- Main
 ----------------------------------------------------------------------------
 
+-- | Create in-memory state and run the gRPC server serving ratelimit
+-- requests.
 main :: IO ()
 main = do
     storage <- newStorage
@@ -71,18 +75,24 @@ shouldRateLimit
     -> Grpc.ServerRequest 'Grpc.Normal Proto.RateLimitRequest Proto.RateLimitResponse
     -> IO (Grpc.ServerResponse 'Grpc.Normal Proto.RateLimitResponse)
 shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
+    -- Decode the protobuf request into our domain types.
     let domain = DomainId (TL.toStrict (Proto.rateLimitRequestDomain request))
-    let descriptors =
+    let descriptors :: [[(RuleKey, RuleValue)]]
+        descriptors =
             map rateLimitDescriptorFromProto $
             toList (Proto.rateLimitRequestDescriptors request)
-    -- Note: 'rateLimitRequestHitsAddend' could be 0 (default value) if not
-    -- specified by the caller in the request.
+    -- Note: 'rateLimitRequestHitsAddend' is 0 (default protobuf value) if
+    -- not specified by the caller in the request. We are required to treat
+    -- this case as 1 hit.
     let hits :: Word
         hits = max 1 (fromIntegral (Proto.rateLimitRequestHitsAddend request))
+
+    -- Execute the query.
     now <- getTimestamp
     -- TODO: this might retry way too often if we touch too many keys. Need
     -- to figure out whether it's safe to do each operation independently.
-    (codes, statuses) <-
+    (codes :: [Proto.RateLimitResponse_Code],
+     statuses :: [Proto.RateLimitResponse_DescriptorStatus]) <-
         fmap (unzip . map (maybe ruleNotFoundResponse counterStatusToProto)) $
         atomically $
         forM descriptors $ \descriptor ->
@@ -97,15 +107,11 @@ shouldRateLimit storage (Grpc.ServerNormalRequest _metadata request) = do
             , Proto.rateLimitResponseStatuses = V.fromList statuses
             , Proto.rateLimitResponseHeaders = mempty
             }
-    pure $ Grpc.ServerNormalResponse
-        -- answer
-        answer
-        -- metadata
-        mempty
-        -- status
-        Grpc.StatusOk
-        -- status details
-        ""
+
+    -- Return server response.
+    let metadata = mempty
+        statusDetails = ""
+    pure $ Grpc.ServerNormalResponse answer metadata Grpc.StatusOk statusDetails
 
 -- | Handle a single descriptor in a 'shouldRateLimit' request.
 --

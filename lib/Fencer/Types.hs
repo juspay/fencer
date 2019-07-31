@@ -4,6 +4,8 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- | Types used in Fencer. We try to keep most types in one module to avoid
+-- circular dependencies between modules.
 module Fencer.Types
     (
     -- * Common types
@@ -30,6 +32,7 @@ import Data.Text (Text)
 -- Time units
 ----------------------------------------------------------------------------
 
+-- | All time units a rate limit could apply to.
 data TimeUnit = Second | Minute | Hour | Day
     deriving stock (Eq, Generic)
     deriving anyclass (Hashable)
