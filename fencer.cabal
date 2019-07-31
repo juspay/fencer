@@ -47,6 +47,13 @@ library
   default-extensions:
     NoImplicitPrelude
     ScopedTypeVariables
+    LambdaCase
+    DeriveGeneric
+    DerivingStrategies
+    NamedFieldPuns
+    ViewPatterns
+    TypeOperators
+    MultiWayIf
 
 executable fencer
   main-is: Main.hs

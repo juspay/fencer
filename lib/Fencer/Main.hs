@@ -1,14 +1,7 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE GADTs #-}
 
 -- | The main module of Fencer, included in the library to make it easier to
