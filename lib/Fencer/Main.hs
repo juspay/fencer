@@ -16,6 +16,8 @@ import Data.Hashable (Hashable)
 import Control.Concurrent.STM (atomically, orElse)
 import Data.Time.Clock.System (getSystemTime, systemSeconds)
 import Named
+import System.Directory (listDirectory, doesFileExist)
+import System.FilePath
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import qualified Focus as Focus
@@ -23,6 +25,7 @@ import qualified StmContainers.Map as StmMap
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 import qualified Proto3.Suite.Types as ProtoSuite
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Yaml as Yaml
 
 import Fencer.Types
 import Fencer.Counter
@@ -34,11 +37,16 @@ import qualified Fencer.Proto as Proto
 -- Main
 ----------------------------------------------------------------------------
 
--- | Create in-memory state and run the gRPC server serving ratelimit
--- requests.
+-- | Load YAML rules from @config/@, create in-memory state and run the gRPC
+-- server serving ratelimit requests.
 main :: IO ()
 main = do
     storage <- newStorage
+    parseRules (#directory "./config") (#ignoreDotFiles False) >>= \rules ->
+        atomically $ forM_ rules $ \rule -> do
+            let domain = domainDefinitionId rule
+                tree = makeRuleTree (domainDefinitionDescriptors rule)
+            StmMap.insert tree domain (storageRules storage)
     let handlers = Proto.RateLimitService
             { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit storage }
     let options = Grpc.defaultServiceOptions
@@ -50,13 +58,39 @@ main = do
 
 -- | In-memory storage for the state of the program.
 data Storage = Storage
-    { rules :: !(StmMap.Map DomainId RuleTree)
-    , counters :: !(StmMap.Map CounterKey Counter)
+    { storageRules :: !(StmMap.Map DomainId RuleTree)
+    , storageCounters :: !(StmMap.Map CounterKey Counter)
     }
 
 -- | Create an empty 'Storage'.
 newStorage :: IO Storage
 newStorage = Storage <$> StmMap.newIO <*> StmMap.newIO
+
+----------------------------------------------------------------------------
+-- Load rules
+----------------------------------------------------------------------------
+
+-- | Gather rate limiting rules (*.yml, *.yaml) from a directory.
+-- Subdirectories are not included.
+--
+-- Throws an exception for unparseable or unreadable files.
+parseRules
+  :: "directory" :! FilePath
+  -> "ignoreDotFiles" :! Bool  -- ^ Ignore hidden files (starting with a dot)
+  -> IO [DomainDefinition]
+parseRules (arg #directory -> directory) (arg #ignoreDotFiles -> ignoreDotFiles) = do
+    files <- filterM doesFileExist . map (directory </>) =<< listDirectory directory
+    let ruleFiles =
+            (if ignoreDotFiles then filter (not . isDotFile) else id) $
+            filter isYaml files
+    mapM Yaml.decodeFileThrow ruleFiles
+    -- TODO: what does lyft/ratelimit do with unparseable files?
+  where
+    isYaml :: FilePath -> Bool
+    isYaml file = takeExtension file `elem` [".yml", ".yaml"]
+
+    isDotFile :: FilePath -> Bool
+    isDotFile file = "." `isPrefixOf` takeFileName file
 
 ----------------------------------------------------------------------------
 -- "Should rate limit" method
@@ -123,11 +157,13 @@ shouldRateLimitDescriptor
     domain
     descriptor
     =
-    StmMap.lookup domain (rules storage) >>= \case
+    StmMap.lookup domain (storageRules storage) >>= \case
         Nothing -> pure Nothing
         Just ruleTree -> case matchRequest descriptor ruleTree of
-            Nothing -> pure Nothing
-            Just limit -> Just <$> StmMap.focus (update limit) key (counters storage)
+            Nothing ->
+                pure Nothing
+            Just limit ->
+                Just <$> StmMap.focus (update limit) key (storageCounters storage)
   where
     -- Counter key corresponding to our rate limit request.
     key :: CounterKey

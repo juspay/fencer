@@ -39,7 +39,11 @@ library
     grpc-haskell,
     stm-containers,
     focus,
-    named
+    named,
+    aeson,
+    yaml,
+    directory,
+    filepath
   hs-source-dirs:
     lib
   default-language:

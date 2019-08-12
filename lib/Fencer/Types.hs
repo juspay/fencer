@@ -1,5 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | Types used in Fencer. We try to keep most types in one module to avoid
 -- circular dependencies between modules.
@@ -24,6 +26,7 @@ where
 import BasePrelude
 import Data.Hashable (Hashable)
 import Data.Text (Text)
+import Data.Aeson (FromJSON(..), (.:), (.:?), withObject, withText)
 
 ----------------------------------------------------------------------------
 -- Time units
@@ -33,6 +36,14 @@ import Data.Text (Text)
 data TimeUnit = Second | Minute | Hour | Day
     deriving stock (Eq, Generic)
     deriving anyclass (Hashable)
+
+instance FromJSON TimeUnit where
+    parseJSON = withText "TimeUnit" $ \case
+        "second" -> pure Second
+        "minute" -> pure Minute
+        "hour" -> pure Hour
+        "day" -> pure Day
+        other -> fail ("unknown time unit: " ++ show other)
 
 -- | Return the duration of a 'TimeUnit'.
 timeUnitToSeconds :: TimeUnit -> Int64
@@ -48,20 +59,26 @@ timeUnitToSeconds = \case
 
 newtype DomainId = DomainId Text
     deriving stock (Eq)
-    deriving newtype (Hashable)
+    deriving newtype (Hashable, FromJSON)
 
 newtype RuleKey = RuleKey Text
     deriving stock (Eq)
-    deriving newtype (Hashable)
+    deriving newtype (Hashable, FromJSON)
 
 newtype RuleValue = RuleValue Text
     deriving stock (Eq)
-    deriving newtype (Hashable)
+    deriving newtype (Hashable, FromJSON)
 
 data RateLimit = RateLimit
     { rateLimitUnit :: !TimeUnit
     , rateLimitRequestsPerUnit :: !Word
     }
+
+instance FromJSON RateLimit where
+    parseJSON = withObject "RateLimit" $ \o -> do
+        rateLimitUnit <- o .: "unit"
+        rateLimitRequestsPerUnit <- o .: "requests_per_unit"
+        pure RateLimit{..}
 
 ----------------------------------------------------------------------------
 -- Definitions (configuration)
@@ -78,3 +95,17 @@ data DescriptorDefinition = DescriptorDefinition
     , descriptorDefinitionRateLimit :: !(Maybe RateLimit)
     , descriptorDefinitionDescriptors :: !(Maybe [DescriptorDefinition])
     }
+
+instance FromJSON DomainDefinition where
+    parseJSON = withObject "DomainDefinition" $ \o -> do
+        domainDefinitionId <- o .: "domain"
+        domainDefinitionDescriptors <- o .: "descriptors"
+        pure DomainDefinition{..}
+
+instance FromJSON DescriptorDefinition where
+    parseJSON = withObject "DescriptorDefinition" $ \o -> do
+        descriptorDefinitionKey <- o .: "key"
+        descriptorDefinitionValue <- o .:? "value"
+        descriptorDefinitionRateLimit <- o .:? "rate_limit"
+        descriptorDefinitionDescriptors <- o .:? "descriptors"
+        pure DescriptorDefinition{..}
