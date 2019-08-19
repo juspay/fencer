@@ -21,6 +21,7 @@ library
     Fencer.Types
     Fencer.Proto
     Fencer.Time
+    Fencer.Settings
   build-depends:
     base,
     base-prelude,
