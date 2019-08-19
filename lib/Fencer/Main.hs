@@ -32,6 +32,7 @@ import Fencer.Counter
 import Fencer.Time
 import Fencer.Match
 import qualified Fencer.Proto as Proto
+import Fencer.Settings
 
 ----------------------------------------------------------------------------
 -- Main
@@ -42,11 +43,15 @@ import qualified Fencer.Proto as Proto
 main :: IO ()
 main = do
     storage <- newStorage
-    parseRules (#directory "./config") (#ignoreDotFiles False) >>= \rules ->
-        atomically $ forM_ rules $ \rule -> do
-            let domain = domainDefinitionId rule
-                tree = makeRuleTree (domainDefinitionDescriptors rule)
-            StmMap.insert tree domain (storageRules storage)
+    settings <- getSettingsFromEnvironment
+    let configDir = settingsRoot settings </> settingsSubdirectory settings </> "config"
+    rules <- parseRules
+        (#directory configDir)
+        (#ignoreDotFiles (settingsIgnoreDotFiles settings))
+    atomically $ forM_ rules $ \rule -> do
+        let domain = domainDefinitionId rule
+            tree = makeRuleTree (domainDefinitionDescriptors rule)
+        StmMap.insert tree domain (storageRules storage)
     let handlers = Proto.RateLimitService
             { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit storage }
     let options = Grpc.defaultServiceOptions
