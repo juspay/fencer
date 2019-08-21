@@ -34,41 +34,10 @@ main :: IO ()
 main = do
     appState <- initAppState
     settings <- getSettingsFromEnvironment
-    let configDir = settingsRoot settings </> settingsSubdirectory settings </> "config"
-
-    -- Load rules
-    let reloadRules = do
-            putStrLn ("Loading rules from " ++ configDir)
-            rules <- parseRules
-                (#directory configDir)
-                (#ignoreDotFiles (settingsIgnoreDotFiles settings))
-            atomically $ do
-                StmMap.reset (appStateRules appState)
-                forM_ rules $ \rule -> do
-                    let domain = domainDefinitionId rule
-                        tree = makeRuleTree (domainDefinitionDescriptors rule)
-                    StmMap.insert tree domain (appStateRules appState)
-    reloadRules
-
-    -- Set up rule reloading
-    _ <- forkOS $ FSNotify.withManager $ \manager -> do
-        -- We want to detect when the settings root (which should be a
-        -- symlink) is replaced with another symlink. So, we watch the
-        -- directory *containing* the settings root, and we watch for
-        -- 'Added' or 'Modified' events.
-        root <- makeAbsolute (settingsRoot settings)
-        let directory = takeDirectory root
-        let predicate = \case
-                FSNotify.Added path _ _ ->
-                    path == root
-                FSNotify.Modified path _ _ ->
-                    path == root
-                _ ->
-                    False
-        _ <- FSNotify.watchDir manager directory predicate $ \_ -> reloadRules
-        forever $ threadDelay 1000000
-
-    -- Start the server
+    reloadRules settings appState
+    watchRoot
+        (#root (settingsRoot settings))
+        (#onChange (reloadRules settings appState))
     runServer appState
 
 ----------------------------------------------------------------------------
@@ -96,3 +65,46 @@ parseRules (arg #directory -> directory) (arg #ignoreDotFiles -> ignoreDotFiles)
 
     isDotFile :: FilePath -> Bool
     isDotFile file = "." `isPrefixOf` takeFileName file
+
+-- | Clear the rule storage and reload rules from the @config/@
+-- subdirectory.
+reloadRules :: Settings -> AppState -> IO ()
+reloadRules settings appState = do
+    let configDir = settingsRoot settings </> settingsSubdirectory settings </> "config"
+    putStrLn ("Loading rules from " ++ configDir)
+    rules <- parseRules
+        (#directory configDir)
+        (#ignoreDotFiles (settingsIgnoreDotFiles settings))
+    atomically $ do
+        StmMap.reset (appStateRules appState)
+        forM_ rules $ \rule -> do
+            let domain = domainDefinitionId rule
+                tree = makeRuleTree (domainDefinitionDescriptors rule)
+            StmMap.insert tree domain (appStateRules appState)
+
+----------------------------------------------------------------------------
+-- Directory watching
+----------------------------------------------------------------------------
+
+-- | Fork a thread that watches the settings root (which should be a
+-- symlink) and executes an action when it's replaced with another symlink.
+watchRoot
+    :: "root" :! FilePath
+    -> "onChange" :! IO ()
+    -> IO ()
+watchRoot (arg #root -> root) (arg #onChange -> onChange) =
+    void $ forkOS $ FSNotify.withManager $ \manager -> do
+        -- We watch the directory *containing* the settings root, and we
+        -- watch for 'Added' or 'Modified' events. Note that fsnotify
+        -- doesn't allow watching a file, only a directory.
+        absoluteRoot <- makeAbsolute root
+        let directory = takeDirectory absoluteRoot
+        let predicate = \case
+                FSNotify.Added path _ _ ->
+                    path == absoluteRoot
+                FSNotify.Modified path _ _ ->
+                    path == absoluteRoot
+                _ ->
+                    False
+        _ <- FSNotify.watchDir manager directory predicate $ \_ -> onChange
+        forever $ threadDelay 1000000
