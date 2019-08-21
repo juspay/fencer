@@ -7,7 +7,7 @@ module Fencer.Counter
     ( CounterKey(..)
     , Counter(..)
     , CounterStatus(..)
-    , newCounter
+    , initCounter
     , updateCounter
     )
 where
@@ -46,11 +46,11 @@ data CounterStatus = CounterStatus
     }
 
 -- | Create an empty counter.
-newCounter
+initCounter
     :: "now" :! Timestamp -- ^ Current time
     -> "limit" :! RateLimit -- ^ Rate limit
     -> Counter
-newCounter (arg #now -> now) (arg #limit -> limit) =
+initCounter (arg #now -> now) (arg #limit -> limit) =
     Counter
         { counterHits = 0
         , counterExpiry = slotBoundary (#slotSeconds unitDuration) now }

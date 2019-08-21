@@ -17,7 +17,6 @@ where
 import BasePrelude
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
-import Named
 
 import Fencer.Types
 
@@ -55,7 +54,7 @@ makeRuleTree = HM.fromList . map (\d -> (makeKey d, makeBranch d))
 
 -- | Find the right 'RateLimit' for a descriptor in the 'RuleTree'.
 matchRequest :: [(RuleKey, RuleValue)] -> RuleTree -> Maybe RateLimit
-matchRequest [] tree =
+matchRequest [] _tree =
     Nothing
 matchRequest ((key, value):rest) tree = do
     -- Try matching the more specific rule (key, value) first. If it's not
