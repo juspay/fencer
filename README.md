@@ -11,11 +11,11 @@ Done:
 * In-memory counting
 * Rule matching
 * `lyft/ratelimit`-compatible gRPC interface
+* Configuration loading and reloading
 
 Left to do:
 
 * Garbage collect old counters
-* Configuration loading and reloading
 * API for setting configuration
 * Doctests
 * Tests
