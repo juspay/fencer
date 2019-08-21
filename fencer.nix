@@ -1,7 +1,7 @@
 { mkDerivation, stdenv
 , base, stm, vector, text, containers, bytestring, deepseq, proto3-wire, proto3-suite
 , hashable, base-prelude, grpc-haskell, stm-containers, focus, named, monad-loops
-, unordered-containers, time, aeson, yaml, directory, filepath
+, unordered-containers, time, aeson, yaml, directory, filepath, fsnotify
 , configureFlags ? [], enableSharedExecutables ? true, enableSharedLibraries ? true
 }:
 mkDerivation {
@@ -14,7 +14,7 @@ mkDerivation {
   libraryHaskellDepends = [
     base stm vector text containers bytestring deepseq proto3-wire proto3-suite
     hashable base-prelude grpc-haskell stm-containers focus named monad-loops
-    unordered-containers time aeson yaml directory filepath
+    unordered-containers time aeson yaml directory filepath fsnotify
   ];
   executableHaskellDepends = [
     base

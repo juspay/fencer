@@ -16,7 +16,7 @@ import Data.Hashable (Hashable)
 import Control.Concurrent.STM (atomically, orElse)
 import Data.Time.Clock.System (getSystemTime, systemSeconds)
 import Named
-import System.Directory (listDirectory, doesFileExist)
+import System.Directory (listDirectory, doesFileExist, makeAbsolute)
 import System.FilePath
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
@@ -26,6 +26,7 @@ import qualified Network.GRPC.HighLevel.Generated as Grpc
 import qualified Proto3.Suite.Types as ProtoSuite
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Yaml as Yaml
+import qualified System.FSNotify as FSNotify
 
 import Fencer.Types
 import Fencer.Counter
@@ -45,13 +46,40 @@ main = do
     storage <- newStorage
     settings <- getSettingsFromEnvironment
     let configDir = settingsRoot settings </> settingsSubdirectory settings </> "config"
-    rules <- parseRules
-        (#directory configDir)
-        (#ignoreDotFiles (settingsIgnoreDotFiles settings))
-    atomically $ forM_ rules $ \rule -> do
-        let domain = domainDefinitionId rule
-            tree = makeRuleTree (domainDefinitionDescriptors rule)
-        StmMap.insert tree domain (storageRules storage)
+
+    -- Load rules
+    let reloadRules = do
+            putStrLn ("Loading rules from " ++ configDir)
+            rules <- parseRules
+                (#directory configDir)
+                (#ignoreDotFiles (settingsIgnoreDotFiles settings))
+            atomically $ do
+                StmMap.reset (storageRules storage)
+                forM_ rules $ \rule -> do
+                    let domain = domainDefinitionId rule
+                        tree = makeRuleTree (domainDefinitionDescriptors rule)
+                    StmMap.insert tree domain (storageRules storage)
+    reloadRules
+
+    -- Set up rule reloading
+    forkOS $ FSNotify.withManager $ \manager -> do
+        -- We want to detect when the settings root (which should be a
+        -- symlink) is replaced with another symlink. So, we watch the
+        -- directory *containing* the settings root, and we watch for
+        -- 'Added' or 'Modified' events.
+        root <- makeAbsolute (settingsRoot settings)
+        let directory = takeDirectory root
+        let predicate = \case
+                FSNotify.Added path _ _ ->
+                    path == root
+                FSNotify.Modified path _ _ ->
+                    path == root
+                _ ->
+                    False
+        FSNotify.watchDir manager directory predicate $ \_ -> reloadRules
+        forever $ threadDelay 1000000
+
+    -- Start the server
     let handlers = Proto.RateLimitService
             { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit storage }
     let options = Grpc.defaultServiceOptions

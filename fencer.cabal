@@ -44,7 +44,8 @@ library
     aeson,
     yaml,
     directory,
-    filepath
+    filepath,
+    fsnotify
   hs-source-dirs:
     lib
   default-language:
@@ -69,3 +70,6 @@ executable fencer
     src
   default-language:
     Haskell2010
+  ghc-options:
+    -threaded
+    -with-rtsopts=-N
