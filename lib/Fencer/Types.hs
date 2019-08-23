@@ -34,7 +34,7 @@ import Data.Aeson (FromJSON(..), (.:), (.:?), withObject, withText)
 
 -- | All time units a rate limit could apply to.
 data TimeUnit = Second | Minute | Hour | Day
-    deriving stock (Eq, Generic)
+    deriving stock (Eq, Generic, Show)
     deriving anyclass (Hashable)
 
 instance FromJSON TimeUnit where
@@ -58,21 +58,22 @@ timeUnitToSeconds = \case
 ----------------------------------------------------------------------------
 
 newtype DomainId = DomainId Text
-    deriving stock (Eq)
+    deriving stock (Eq, Show)
     deriving newtype (Hashable, FromJSON)
 
 newtype RuleKey = RuleKey Text
-    deriving stock (Eq)
+    deriving stock (Eq, Show)
     deriving newtype (Hashable, FromJSON)
 
 newtype RuleValue = RuleValue Text
-    deriving stock (Eq)
+    deriving stock (Eq, Show)
     deriving newtype (Hashable, FromJSON)
 
 data RateLimit = RateLimit
     { rateLimitUnit :: !TimeUnit
     , rateLimitRequestsPerUnit :: !Word
     }
+    deriving stock (Eq, Show)
 
 instance FromJSON RateLimit where
     parseJSON = withObject "RateLimit" $ \o -> do
@@ -88,6 +89,7 @@ data DomainDefinition = DomainDefinition
     { domainDefinitionId :: !DomainId
     , domainDefinitionDescriptors :: ![DescriptorDefinition]
     }
+    deriving stock (Eq, Show)
 
 data DescriptorDefinition = DescriptorDefinition
     { descriptorDefinitionKey :: !RuleKey
@@ -95,6 +97,7 @@ data DescriptorDefinition = DescriptorDefinition
     , descriptorDefinitionRateLimit :: !(Maybe RateLimit)
     , descriptorDefinitionDescriptors :: !(Maybe [DescriptorDefinition])
     }
+    deriving stock (Eq, Show)
 
 instance FromJSON DomainDefinition where
     parseJSON = withObject "DomainDefinition" $ \o -> do
