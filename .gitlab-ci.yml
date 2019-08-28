@@ -1,0 +1,10 @@
+image: nixos/nix
+
+stages:
+  - build
+
+compile:
+  stage: build
+  script:
+  - nix-shell --command "cabal new-build"
+  
