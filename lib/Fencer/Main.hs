@@ -12,16 +12,16 @@ where
 import BasePrelude
 import Control.Concurrent.STM (atomically)
 import Named
-import System.Directory (listDirectory, doesFileExist, makeAbsolute)
+import System.Directory (listDirectory, doesFileExist)
 import System.FilePath
 import qualified StmContainers.Map as StmMap
 import qualified Data.Yaml as Yaml
-import qualified System.FSNotify as FSNotify
 
 import Fencer.Types
 import Fencer.AppState
 import Fencer.Server
-import Fencer.Match
+import Fencer.Rules
+import Fencer.Watch
 import Fencer.Settings
 
 ----------------------------------------------------------------------------
@@ -32,28 +32,57 @@ import Fencer.Settings
 -- server serving ratelimit requests.
 main :: IO ()
 main = do
+    -- Create in-memory state and read environment variables
     appState <- initAppState
-    settings <- getSettingsFromEnvironment
-    reloadRules settings appState
-    watchRoot
-        (#root (settingsRoot settings))
-        (#onChange (reloadRules settings appState))
+    -- Load rate limiting rules for the first time
+    reloadRules appState
+    -- Create a thread watching the config directory for changes
+    watchSymlink
+        (#symlink (settingsRoot (appStateSettings appState)))
+        (#onChange (reloadRules appState))
+    -- Start the gRPC server
     runServer appState
 
 ----------------------------------------------------------------------------
 -- Load rules
 ----------------------------------------------------------------------------
 
+-- | Clear the rule storage and reload rules from the @config/@
+-- subdirectory.
+reloadRules :: AppState -> IO ()
+reloadRules appState = do
+    let configDir =
+            settingsRoot (appStateSettings appState) </>
+            settingsSubdirectory (appStateSettings appState) </>
+            "config"
+    putStrLn ("Loading rules from " ++ configDir)
+    rules <-
+        loadRulesFromDirectory
+            (#directory configDir)
+            (#ignoreDotFiles (settingsIgnoreDotFiles (appStateSettings appState)))
+    atomically $ do
+        StmMap.reset (appStateRules appState)
+        forM_ rules $ \rule -> do
+            let domain = domainDefinitionId rule
+                tree = definitionsToRuleTree (domainDefinitionDescriptors rule)
+            StmMap.insert tree domain (appStateRules appState)
+
 -- | Gather rate limiting rules (*.yml, *.yaml) from a directory.
 -- Subdirectories are not included.
 --
 -- Throws an exception for unparseable or unreadable files.
-parseRules
-  :: "directory" :! FilePath
-  -> "ignoreDotFiles" :! Bool  -- ^ Ignore hidden files (starting with a dot)
-  -> IO [DomainDefinition]
-parseRules (arg #directory -> directory) (arg #ignoreDotFiles -> ignoreDotFiles) = do
-    files <- filterM doesFileExist . map (directory </>) =<< listDirectory directory
+loadRulesFromDirectory
+    :: "directory" :! FilePath
+    -> "ignoreDotFiles" :! Bool
+    -> IO [DomainDefinition]
+loadRulesFromDirectory
+    (arg #directory -> directory)
+    (arg #ignoreDotFiles -> ignoreDotFiles)
+    =
+    do
+    files <-
+        filterM doesFileExist . map (directory </>) =<<
+        listDirectory directory
     let ruleFiles =
             (if ignoreDotFiles then filter (not . isDotFile) else id) $
             filter isYaml files
@@ -65,46 +94,3 @@ parseRules (arg #directory -> directory) (arg #ignoreDotFiles -> ignoreDotFiles)
 
     isDotFile :: FilePath -> Bool
     isDotFile file = "." `isPrefixOf` takeFileName file
-
--- | Clear the rule storage and reload rules from the @config/@
--- subdirectory.
-reloadRules :: Settings -> AppState -> IO ()
-reloadRules settings appState = do
-    let configDir = settingsRoot settings </> settingsSubdirectory settings </> "config"
-    putStrLn ("Loading rules from " ++ configDir)
-    rules <- parseRules
-        (#directory configDir)
-        (#ignoreDotFiles (settingsIgnoreDotFiles settings))
-    atomically $ do
-        StmMap.reset (appStateRules appState)
-        forM_ rules $ \rule -> do
-            let domain = domainDefinitionId rule
-                tree = makeRuleTree (domainDefinitionDescriptors rule)
-            StmMap.insert tree domain (appStateRules appState)
-
-----------------------------------------------------------------------------
--- Directory watching
-----------------------------------------------------------------------------
-
--- | Fork a thread that watches the settings root (which should be a
--- symlink) and executes an action when it's replaced with another symlink.
-watchRoot
-    :: "root" :! FilePath
-    -> "onChange" :! IO ()
-    -> IO ()
-watchRoot (arg #root -> root) (arg #onChange -> onChange) =
-    void $ forkOS $ FSNotify.withManager $ \manager -> do
-        -- We watch the directory *containing* the settings root, and we
-        -- watch for 'Added' or 'Modified' events. Note that fsnotify
-        -- doesn't allow watching a file, only a directory.
-        absoluteRoot <- makeAbsolute root
-        let directory = takeDirectory absoluteRoot
-        let predicate = \case
-                FSNotify.Added path _ _ ->
-                    path == absoluteRoot
-                FSNotify.Modified path _ _ ->
-                    path == absoluteRoot
-                _ ->
-                    False
-        _ <- FSNotify.watchDir manager directory predicate $ \_ -> onChange
-        forever $ threadDelay 1000000

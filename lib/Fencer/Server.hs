@@ -23,7 +23,7 @@ import Fencer.Types
 import Fencer.AppState
 import Fencer.Counter
 import Fencer.Time
-import Fencer.Match
+import Fencer.Rules
 import qualified Fencer.Proto as Proto
 
 ----------------------------------------------------------------------------
@@ -105,7 +105,7 @@ shouldRateLimitDescriptor
     =
     StmMap.lookup domain (appStateRules appState) >>= \case
         Nothing -> pure Nothing
-        Just ruleTree -> case matchRequest descriptor ruleTree of
+        Just ruleTree -> case applyRules descriptor ruleTree of
             Nothing ->
                 pure Nothing
             Just limit ->

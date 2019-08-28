@@ -17,9 +17,13 @@ module Fencer.Types
     , TimeUnit(..)
     , timeUnitToSeconds
 
-    -- * Definitions (configuration)
+    -- * Rate limit rule configs
     , DomainDefinition(..)
     , DescriptorDefinition(..)
+
+    -- * Rate limit rules in tree form
+    , RuleTree
+    , RuleBranch(..)
     )
 where
 
@@ -27,6 +31,7 @@ import BasePrelude
 import Data.Hashable (Hashable)
 import Data.Text (Text)
 import Data.Aeson (FromJSON(..), (.:), (.:?), withObject, withText)
+import Data.HashMap.Strict (HashMap)
 
 ----------------------------------------------------------------------------
 -- Time units
@@ -82,7 +87,7 @@ instance FromJSON RateLimit where
         pure RateLimit{..}
 
 ----------------------------------------------------------------------------
--- Definitions (configuration)
+-- Rate limit rule configs
 ----------------------------------------------------------------------------
 
 data DomainDefinition = DomainDefinition
@@ -112,3 +117,19 @@ instance FromJSON DescriptorDefinition where
         descriptorDefinitionRateLimit <- o .:? "rate_limit"
         descriptorDefinitionDescriptors <- o .:? "descriptors"
         pure DescriptorDefinition{..}
+
+----------------------------------------------------------------------------
+-- Rate limit rules in tree form
+----------------------------------------------------------------------------
+
+-- | The type for a tree of rules. It is equivalent to a list of
+-- 'DescriptorDefinition's, but uses nested hashmaps and is more convenient
+-- to work with.
+type RuleTree = HashMap (RuleKey, Maybe RuleValue) RuleBranch
+
+-- | A single branch in a rule tree, containing several (or perhaps zero)
+-- nested rules.
+data RuleBranch = RuleBranch
+    { ruleBranchRateLimit :: !(Maybe RateLimit)
+    , ruleBranchNested :: !RuleTree
+    }
