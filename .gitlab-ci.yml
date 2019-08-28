@@ -7,7 +7,7 @@ stages:
 compile:
   stage: build
   script:
-  - nix-build shell.nix
+  - nix-build
 
 success:
   stage: ci_status

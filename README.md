@@ -34,7 +34,7 @@ $ curl https://nixos.org/nix/install | sh
 Then run:
 
 ```
-$ nix-build shell.nix
+$ nix-build
 ```
 
 ### Troubleshooting
