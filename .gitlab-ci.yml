@@ -2,9 +2,29 @@ image: nixos/nix
 
 stages:
   - build
+  - ci_status
 
 compile:
   stage: build
   script:
   - nix-shell --command "cabal new-build"
-  
+
+success:
+  stage: ci_status
+  before_script:
+    - ""
+  after_script:
+    - ""
+  script:
+    - BUILD_STATUS=passed BUILD_KEY=push .gitlab/build_status.sh
+  when: on_success
+
+failure:
+  stage: ci_status
+  before_script:
+    - ""
+  after_script:
+    - ""
+  script:
+    - BUILD_STATUS=failed BUILD_KEY=push .gitlab/build_status.sh
+  when: on_failure
