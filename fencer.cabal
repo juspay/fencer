@@ -19,7 +19,8 @@ library
     Fencer.AppState
     Fencer.Server
     Fencer.Counter
-    Fencer.Match
+    Fencer.Rules
+    Fencer.Watch
     Fencer.Types
     Fencer.Proto
     Fencer.Time

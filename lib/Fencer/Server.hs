@@ -23,7 +23,7 @@ import Fencer.Types
 import Fencer.AppState
 import Fencer.Counter
 import Fencer.Time
-import Fencer.Match
+import Fencer.Rules
 import qualified Fencer.Proto as Proto
 
 ----------------------------------------------------------------------------
@@ -60,16 +60,24 @@ shouldRateLimit appState (Grpc.ServerNormalRequest _metadata request) = do
     let hits :: Word
         hits = max 1 (fromIntegral (Proto.rateLimitRequestHitsAddend request))
 
-    -- Execute the query.
+    -- Update all counters in one atomic operation, and collect the results.
+    --
+    -- Note: this might retry often if we touch too many keys, but doing
+    -- counter updates independently would be less correct. If two requests
+    -- come at the same time and one hits "A" and "B" while the other hits
+    -- "B" and "A", and both counters have a rate limit of 1, serving both
+    -- requests in parallel might lead to both requests being reported as
+    -- "over limit", even though one of them would have succeeded if the
+    -- ordering of descriptors was "A", "B" in both requests.
     now <- getTimestamp
-    -- TODO: this might retry way too often if we touch too many keys. Need
-    -- to figure out whether it's safe to do each operation independently.
     (codes :: [Proto.RateLimitResponse_Code],
      statuses :: [Proto.RateLimitResponse_DescriptorStatus]) <-
         fmap (unzip . map (maybe ruleNotFoundResponse counterStatusToProto)) $
         atomically $
         forM descriptors $ \descriptor ->
             shouldRateLimitDescriptor appState (#now now) (#hits hits) domain descriptor
+
+    -- Return server response.
     let answer = Proto.RateLimitResponse
             { Proto.rateLimitResponseOverallCode =
                   ProtoSuite.Enumerated $
@@ -80,10 +88,8 @@ shouldRateLimit appState (Grpc.ServerNormalRequest _metadata request) = do
             , Proto.rateLimitResponseStatuses = V.fromList statuses
             , Proto.rateLimitResponseHeaders = mempty
             }
-
-    -- Return server response.
     let metadata = mempty
-        statusDetails = ""
+    let statusDetails = ""
     pure $ Grpc.ServerNormalResponse answer metadata Grpc.StatusOk statusDetails
 
 -- | Handle a single descriptor in a 'shouldRateLimit' request.
@@ -105,7 +111,7 @@ shouldRateLimitDescriptor
     =
     StmMap.lookup domain (appStateRules appState) >>= \case
         Nothing -> pure Nothing
-        Just ruleTree -> case matchRequest descriptor ruleTree of
+        Just ruleTree -> case applyRules descriptor ruleTree of
             Nothing ->
                 pure Nothing
             Just limit ->
