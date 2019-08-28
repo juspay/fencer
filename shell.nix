@@ -85,15 +85,21 @@ in
     then
       drv.env.overrideAttrs(attrs:
         { buildInputs =
-          with pkgs.haskellPackages;
           [
-            cabal-install
-            cabal2nix
-            ghcid
-            hindent
-            hlint
-            stylish-haskell
-          ] ++ [ zlib ] ++ attrs.buildInputs;
+            pkgs.haskellPackages.cabal-install
+            pkgs.haskellPackages.cabal2nix
+            pkgs.haskellPackages.ghcid
+            pkgs.haskellPackages.hindent
+            pkgs.haskellPackages.hlint
+            pkgs.haskellPackages.stylish-haskell
+          ] ++
+          [
+            pkgs.haskellPackages.zlib
+          ] ++
+          [
+            pkgs.wget
+          ] ++
+          attrs.buildInputs;
         })
     else
       drv
