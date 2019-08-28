@@ -23,9 +23,6 @@ Left to do:
 
 ## Building
 
-Instructions pending.
-
-## Developing
 
 Install [Nix](https://nixos.org/nix/). On macOS and Linux, this can be done
 with:
@@ -34,7 +31,21 @@ with:
 $ curl https://nixos.org/nix/install | sh
 ```
 
-Once you have Nix, enter the Nix shell and build the project with `cabal`:
+Then run:
+
+```
+$ nix-build shell.nix
+```
+
+### Troubleshooting
+
+If you are getting `cannot satisfy -package-id aeson-1.4.2.0-...` or
+something along those lines, do `rm .ghc.environment.*`.
+
+## Developing
+
+Install Nix as per instructions in the "Building" secion. Enter the Nix
+shell and build the project with `cabal`:
 
 ```
 $ nix-shell

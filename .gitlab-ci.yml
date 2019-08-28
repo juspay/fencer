@@ -7,7 +7,7 @@ stages:
 compile:
   stage: build
   script:
-  - nix-shell --command "cabal new-build"
+  - nix-build shell.nix
 
 success:
   stage: ci_status
