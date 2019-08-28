@@ -16,7 +16,7 @@ success:
   after_script:
     - ""
   script:
-    - BUILD_STATUS=passed BUILD_KEY=push .gitlab/build_status.sh
+    - BUILD_STATUS=passed BUILD_KEY=push nix-shell -p bash curl --run .gitlab/build_status.sh
   when: on_success
 
 failure:
@@ -26,5 +26,5 @@ failure:
   after_script:
     - ""
   script:
-    - BUILD_STATUS=failed BUILD_KEY=push .gitlab/build_status.sh
+    - BUILD_STATUS=failed BUILD_KEY=push nix-shell -p bash curl --run .gitlab/build_status.sh
   when: on_failure
