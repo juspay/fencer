@@ -1,0 +1,4 @@
+packages: *
+
+-- https://github.com/haskell/cabal/issues/4542#issuecomment-319617866
+write-ghc-environment-files: never

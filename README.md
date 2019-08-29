@@ -37,11 +37,6 @@ Then run:
 $ nix-build
 ```
 
-### Troubleshooting
-
-If you are getting `cannot satisfy -package-id aeson-1.4.2.0-...` or
-something along those lines, do `rm .ghc.environment.*`.
-
 ## Developing
 
 Install Nix as per instructions in the "Building" secion. Enter the Nix
