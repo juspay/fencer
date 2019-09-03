@@ -64,7 +64,14 @@ library
     TypeOperators
     MultiWayIf
   ghc-options:
+    -threaded
+    -rtsopts
+    -with-rtsopts=-N
     -Wall
+    -Wcompat
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wredundant-constraints
 
 executable fencer
   main-is: Main.hs
@@ -77,4 +84,10 @@ executable fencer
     Haskell2010
   ghc-options:
     -threaded
+    -rtsopts
     -with-rtsopts=-N
+    -Wall
+    -Wcompat
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wredundant-constraints
