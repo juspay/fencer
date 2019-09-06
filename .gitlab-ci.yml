@@ -11,23 +11,29 @@ stages:
 compile:
   stage: build
   script:
-  - nix-build -o out
+    - nix-build -o out
+  artifacts:
+    paths:
+      - out/
 
 # Build the Go integration test and put into ./out-bin/bin/test_integration_go
 compile_integration:
   stage: build
   script:
-  - nix-build test_integration_go -o out
+    - nix-build test_integration_go -o out
+  artifacts:
+    paths:
+      - out-bin/
 
 ### Test
 
 integration:
   stage: test
   script:
-  - RUNTIME_ROOT=./test_integration_go/config RUNTIME_SUBDIRECTORY=ratelimit ./out/bin/fencer &
-  - sleep 0.1
-  - ./out-bin/bin/test_integration_go
-  - kill $!
+    - RUNTIME_ROOT=./test_integration_go/config RUNTIME_SUBDIRECTORY=ratelimit ./out/bin/fencer &
+    - sleep 0.1
+    - ./out-bin/bin/test_integration_go
+    - kill $!
 
 ### CI status
 
