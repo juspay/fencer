@@ -2,12 +2,34 @@ image: nixos/nix
 
 stages:
   - build
+  - test
   - ci_status
 
+### Build
+
+# Build Fencer and put into ./out/bin/fencer
 compile:
   stage: build
   script:
-  - nix-build
+  - nix-build -o out
+
+# Build the Go integration test and put into ./out-bin/bin/test_integration_go
+compile_integration:
+  stage: build
+  script:
+  - nix-build test_integration_go -o out
+
+### Test
+
+integration:
+  stage: test
+  script:
+  - RUNTIME_ROOT=./test_integration_go/config RUNTIME_SUBDIRECTORY=ratelimit ./out/bin/fencer &
+  - sleep 0.1
+  - ./out-bin/bin/test_integration_go
+  - kill $!
+
+### CI status
 
 success:
   stage: ci_status
