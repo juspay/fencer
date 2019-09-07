@@ -102,4 +102,5 @@ in
           attrs.buildInputs;
         })
     else
-      drv
+      # https://github.com/Gabriel439/haskell-nix/blob/master/project3/README.md#minimizing-the-closure
+      pkgs.haskell.lib.justStaticExecutables drv
