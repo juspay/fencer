@@ -2,12 +2,50 @@ image: nixos/nix
 
 stages:
   - build
+  - test
   - ci_status
 
+### Build
+
+# Build Fencer and put into ./out/bin/fencer
 compile:
   stage: build
   script:
-  - nix-build
+    - storepath=$(nix-build)
+    - nix-store --export $(nix-store -qR $storepath) > out-fencer
+    - echo $storepath > out-fencer-path
+  artifacts:
+    paths:
+      - out-fencer
+      - out-fencer-path
+
+# Build the Go integration test and put into ./out-integration/bin/test_integration_go
+compile_integration:
+  stage: build
+  script:
+    - storepath=$(nix-build test_integration_go)
+    - nix-store --export $(nix-store -qR $storepath) > out-integration
+    - echo $storepath > out-integration-path
+  artifacts:
+    paths:
+      - out-integration
+      - out-integration-path
+
+### Test
+
+integration:
+  stage: test
+  script:
+    - nix-store --import < out-fencer
+    - nix-store --import < out-integration
+    - RUNTIME_ROOT=./test_integration_go/config
+        RUNTIME_SUBDIRECTORY=ratelimit
+        $(cat out-fencer-path)/bin/fencer &
+    - sleep 0.1
+    - $(cat out-integration-path)/bin/test_integration_go
+    - kill $!
+
+### CI status
 
 success:
   stage: ci_status
