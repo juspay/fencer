@@ -11,30 +11,38 @@ stages:
 compile:
   stage: build
   script:
-    - nix-build
-    - cp -Lr result out
+    - storepath=$(nix-build)
+    - nix-store --export $(nix-store -qR $storepath) > out-fencer
+    - echo $storepath > out-fencer-path
   artifacts:
     paths:
-      - out
+      - out-fencer
+      - out-fencer-path
 
 # Build the Go integration test and put into ./out-integration/bin/test_integration_go
 compile_integration:
   stage: build
   script:
-    - nix-build test_integration_go
-    - cp -Lr result-bin out-integration
+    - storepath=$(nix-build test_integration_go)
+    - nix-store --export $(nix-store -qR $storepath) > out-integration
+    - echo $storepath > out-integration-path
   artifacts:
     paths:
       - out-integration
+      - out-integration-path
 
 ### Test
 
 integration:
   stage: test
   script:
-    - RUNTIME_ROOT=./test_integration_go/config RUNTIME_SUBDIRECTORY=ratelimit ./out/bin/fencer &
+    - nix-store --import < out-fencer
+    - nix-store --import < out-integration
+    - RUNTIME_ROOT=./test_integration_go/config
+        RUNTIME_SUBDIRECTORY=ratelimit
+        $(cat out-fencer-path)/bin/fencer &
     - sleep 0.1
-    - ./out-integration/bin/test_integration_go
+    - $(cat out-integration-path)/bin/test_integration_go
     - kill $!
 
 ### CI status
