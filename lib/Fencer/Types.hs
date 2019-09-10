@@ -9,8 +9,11 @@ module Fencer.Types
     (
     -- * Common types
       DomainId(..)
+    , unDomainId
     , RuleKey(..)
+    , unRuleKey
     , RuleValue(..)
+    , unRuleValue
     , RateLimit(..)
 
     -- * Time units
@@ -66,13 +69,22 @@ newtype DomainId = DomainId Text
     deriving stock (Eq, Show)
     deriving newtype (Hashable, FromJSON)
 
+unDomainId :: DomainId -> Text
+unDomainId (DomainId s) = s
+
 newtype RuleKey = RuleKey Text
     deriving stock (Eq, Show)
     deriving newtype (Hashable, FromJSON)
 
+unRuleKey :: RuleKey -> Text
+unRuleKey (RuleKey s) = s
+
 newtype RuleValue = RuleValue Text
     deriving stock (Eq, Show)
     deriving newtype (Hashable, FromJSON)
+
+unRuleValue :: RuleValue -> Text
+unRuleValue (RuleValue s) = s
 
 data RateLimit = RateLimit
     { rateLimitUnit :: !TimeUnit

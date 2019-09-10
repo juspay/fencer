@@ -48,7 +48,8 @@ library
     yaml,
     directory,
     filepath,
-    fsnotify
+    fsnotify,
+    tinylog
   hs-source-dirs:
     lib
   default-language:

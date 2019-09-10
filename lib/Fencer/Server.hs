@@ -12,12 +12,15 @@ where
 import BasePrelude
 import Control.Concurrent.STM (atomically)
 import Named
+import Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import qualified Focus as Focus
 import qualified StmContainers.Map as StmMap
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 import qualified Proto3.Suite.Types as ProtoSuite
+import qualified System.Logger as Logger
+import System.Logger (Logger)
 
 import Fencer.Types
 import Fencer.AppState
@@ -31,11 +34,13 @@ import qualified Fencer.Proto as Proto
 ----------------------------------------------------------------------------
 
 -- | Run the gRPC server serving ratelimit requests.
-runServer :: AppState -> IO ()
-runServer appState = do
+runServer :: Logger -> AppState -> IO ()
+runServer logger appState = do
     let handlers = Proto.RateLimitService
-            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit appState }
+            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit logger appState }
     let options = Grpc.defaultServiceOptions
+    Logger.info logger $
+        Logger.msg (Logger.val "Starting gRPC server on port 50051")
     Proto.rateLimitServiceServer handlers options
 
 ----------------------------------------------------------------------------
@@ -44,10 +49,11 @@ runServer appState = do
 
 -- | gRPC handler for the "should rate limit?" method.
 shouldRateLimit
-    :: AppState
+    :: Logger
+    -> AppState
     -> Grpc.ServerRequest 'Grpc.Normal Proto.RateLimitRequest Proto.RateLimitResponse
     -> IO (Grpc.ServerResponse 'Grpc.Normal Proto.RateLimitResponse)
-shouldRateLimit appState (Grpc.ServerNormalRequest _metadata request) = do
+shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = do
     -- Decode the protobuf request into our domain types.
     let domain = DomainId (TL.toStrict (Proto.rateLimitRequestDomain request))
     let descriptors :: [[(RuleKey, RuleValue)]]
@@ -59,6 +65,12 @@ shouldRateLimit appState (Grpc.ServerNormalRequest _metadata request) = do
     -- this case as 1 hit.
     let hits :: Word
         hits = max 1 (fromIntegral (Proto.rateLimitRequestHitsAddend request))
+
+    Logger.debug logger $
+        Logger.msg (Logger.val "Got rate limit request") .
+        Logger.field "domain" (Proto.rateLimitRequestDomain request) .
+        Logger.field "descriptors" (show descriptors) .
+        Logger.field "hits" hits
 
     -- Update all counters in one atomic operation, and collect the results.
     --
@@ -78,13 +90,16 @@ shouldRateLimit appState (Grpc.ServerNormalRequest _metadata request) = do
             shouldRateLimitDescriptor appState (#now now) (#hits hits) domain descriptor
 
     -- Return server response.
+    let overallCode =
+            if Proto.RateLimitResponse_CodeOVER_LIMIT `elem` codes
+                then Proto.RateLimitResponse_CodeOVER_LIMIT
+                else Proto.RateLimitResponse_CodeOK
+    Logger.debug logger $
+        Logger.msg (Logger.val "Replying to the rate limit request") .
+        Logger.field "code" (showRateLimitCode overallCode)
     let answer = Proto.RateLimitResponse
             { Proto.rateLimitResponseOverallCode =
-                  ProtoSuite.Enumerated $
-                  Right $
-                  if Proto.RateLimitResponse_CodeOVER_LIMIT `elem` codes
-                      then Proto.RateLimitResponse_CodeOVER_LIMIT
-                      else Proto.RateLimitResponse_CodeOK
+                  ProtoSuite.Enumerated (Right overallCode)
             , Proto.rateLimitResponseStatuses = V.fromList statuses
             , Proto.rateLimitResponseHeaders = mempty
             }
@@ -196,3 +211,10 @@ rateLimitDescriptorFromProto :: Proto.RateLimitDescriptor -> [(RuleKey, RuleValu
 rateLimitDescriptorFromProto (Proto.RateLimitDescriptor xs) =
     [(RuleKey (TL.toStrict k), RuleValue (TL.toStrict v))
          | Proto.RateLimitDescriptor_Entry k v <- toList xs]
+
+-- | Show rate limit code as @OK@ or @OVER_LIMIT@.
+showRateLimitCode :: Proto.RateLimitResponse_Code -> Text
+showRateLimitCode = \case
+    Proto.RateLimitResponse_CodeUNKNOWN -> "UNKNOWN"
+    Proto.RateLimitResponse_CodeOK -> "OK"
+    Proto.RateLimitResponse_CodeOVER_LIMIT -> "OVER_LIMIT"

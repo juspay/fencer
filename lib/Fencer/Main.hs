@@ -16,6 +16,8 @@ import System.Directory (listDirectory, doesFileExist)
 import System.FilePath
 import qualified StmContainers.Map as StmMap
 import qualified Data.Yaml as Yaml
+import qualified System.Logger as Logger
+import System.Logger (Logger)
 
 import Fencer.Types
 import Fencer.AppState
@@ -32,16 +34,20 @@ import Fencer.Settings
 -- server serving ratelimit requests.
 main :: IO ()
 main = do
+    -- Initialize logging
+    logger <- Logger.new $
+        Logger.setOutput Logger.StdErr $
+        Logger.defSettings
     -- Create in-memory state and read environment variables
     appState <- initAppState
     -- Load rate limiting rules for the first time
-    reloadRules appState
+    reloadRules logger appState
     -- Create a thread watching the config directory for changes
     watchSymlink
         (#symlink (settingsRoot (appStateSettings appState)))
-        (#onChange (reloadRules appState))
+        (#onChange (reloadRules logger appState))
     -- Start the gRPC server
-    runServer appState
+    runServer logger appState
 
 ----------------------------------------------------------------------------
 -- Load rules
@@ -49,23 +55,33 @@ main = do
 
 -- | Clear the rule storage and reload rules from the @config/@
 -- subdirectory.
-reloadRules :: AppState -> IO ()
-reloadRules appState = do
+reloadRules :: Logger -> AppState -> IO ()
+reloadRules logger appState = do
     let configDir =
             settingsRoot (appStateSettings appState) </>
             settingsSubdirectory (appStateSettings appState) </>
             "config"
-    putStrLn ("Loading rules from " ++ configDir)
-    rules <-
+    Logger.info logger $
+        Logger.msg ("Loading rules from " ++ configDir)
+
+    -- Read and parse the rules
+    rules :: [DomainDefinition] <-
         loadRulesFromDirectory
             (#directory configDir)
             (#ignoreDotFiles (settingsIgnoreDotFiles (appStateSettings appState)))
+    Logger.info logger $
+        Logger.msg ("Parsed rules for domains: " ++
+                    show (map (unDomainId . domainDefinitionId) rules))
+
+    -- Recreate 'appStateRules'
     atomically $ do
         StmMap.reset (appStateRules appState)
         forM_ rules $ \rule -> do
             let domain = domainDefinitionId rule
                 tree = definitionsToRuleTree (domainDefinitionDescriptors rule)
             StmMap.insert tree domain (appStateRules appState)
+    Logger.info logger $
+        Logger.msg (Logger.val "Applied new rules")
 
 -- | Gather rate limiting rules (*.yml, *.yaml) from a directory.
 -- Subdirectories are not included.
