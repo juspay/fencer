@@ -85,6 +85,57 @@ nix-build test_integration_go
 result-bin/bin/test_integration_go
 ```
 
+## Bencmarking
+
+To run benchmarks, install [ghz][], a gRPC benchmarking tool. A prebuilt
+executable can be downloaded from its [GitHub releases page][releases].
+
+[ghz]: https://ghz.sh/
+[releases]: https://github.com/bojand/ghz/releases
+
+We also assume that you have `lyft/ratelimit` in your GOPATH (e.g. `~/go/`).
+We will use a sample ruleset from lyft/ratelimit to compare the
+implementations.
+
+Benchmarking Fencer:
+
+```bash
+# In the Fencer repo
+LOG_LEVEL=Info \
+  RUNTIME_ROOT=~/go/src/github.com/lyft/ratelimit/examples \
+  RUNTIME_SUBDIRECTORY=ratelimit \
+  result/bin/fencer
+```
+
+```bash
+# In the Fencer repo
+ghz --insecure \
+  --proto proto/rls.proto \
+  --call envoy.service.ratelimit.v2.RateLimitService/ShouldRateLimit \
+  --data '{"domain":"mongo_cps","descriptors":[{"entries":[{"key":"database","value":"users"}]}]}' \
+  -n 50000 \
+  localhost:50051
+```
+
+Benchmarking lyft/ratelimit:
+
+```bash
+# In the lyft/ratelimit repo
+echo "{version: '3', services: {ratelimit: {environment: [LOG_LEVEL=info]}}}" > docker-compose.override.yml
+
+docker-compose up
+```
+
+```bash
+# In the Fencer repo
+ghz --insecure \
+  --proto proto/rls.proto \
+  --call envoy.service.ratelimit.v2.RateLimitService/ShouldRateLimit \
+  --data '{"domain":"mongo_cps","descriptors":[{"entries":[{"key":"database","value":"users"}]}]}' \
+  -n 50000 \
+  localhost:8081
+```
+
 ## Style guide
 
 * All modules should use `BasePrelude` as the prelude.
