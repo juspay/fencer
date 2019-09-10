@@ -12,7 +12,8 @@ module Fencer.Watch
 where
 
 import BasePrelude
-import Named
+
+import Named ((:!), arg)
 import System.Directory (makeAbsolute)
 import System.FilePath (takeDirectory)
 import qualified System.FSNotify as FSNotify

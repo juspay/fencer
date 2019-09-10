@@ -10,10 +10,11 @@ module Fencer.Main
 where
 
 import BasePrelude
+
 import Control.Concurrent.STM (atomically)
-import Named
+import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist)
-import System.FilePath
+import System.FilePath ((</>), takeExtension, takeFileName)
 import qualified StmContainers.Map as StmMap
 import qualified Data.Yaml as Yaml
 import qualified System.Logger as Logger

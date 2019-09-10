@@ -10,8 +10,9 @@ module Fencer.Server
 where
 
 import BasePrelude
+
 import Control.Concurrent.STM (atomically)
-import Named
+import Named ((:!), arg)
 import Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V

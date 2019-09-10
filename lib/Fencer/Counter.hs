@@ -13,8 +13,9 @@ module Fencer.Counter
 where
 
 import BasePrelude
+
 import Data.Hashable (Hashable)
-import Named
+import Named ((:!), arg)
 
 import Fencer.Types
 import Fencer.Time

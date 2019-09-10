@@ -11,8 +11,9 @@ module Fencer.Time
 where
 
 import BasePrelude
-import Named
-import Data.Time.Clock.System
+
+import Named ((:!), arg)
+import Data.Time.Clock.System (systemSeconds, getSystemTime)
 
 ----------------------------------------------------------------------------
 -- Timestamp
