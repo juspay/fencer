@@ -23,7 +23,6 @@ Left to do:
 
 ## Building
 
-
 Install [Nix](https://nixos.org/nix/). On macOS and Linux, this can be done
 with:
 
@@ -64,6 +63,26 @@ the following command:
   && mv lib/Fencer/Rls.hs lib/Fencer/Proto.hs \
   && sed -i 's/module Rls/module Fencer.Proto/' lib/Fencer/Proto.hs \
   && sed -i 's/Rls\./Fencer\.Proto\./g' lib/Fencer/Proto.hs
+```
+
+## Testing
+
+### Go integration tests
+
+To run Go integration tests ported from `lyft/ratelimit`, run in one terminal:
+
+```bash
+nix-build
+
+RUNTIME_ROOT=./test_integration_go/config RUNTIME_SUBDIRECTORY=ratelimit result/bin/fencer
+```
+
+And in another terminal:
+
+```bash
+nix-build test_integration_go
+
+result-bin/bin/test_integration_go
 ```
 
 ## Design
