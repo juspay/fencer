@@ -9,6 +9,7 @@ module Fencer.AppState
 where
 
 import BasePrelude
+
 import qualified StmContainers.Map as StmMap
 
 import Fencer.Types

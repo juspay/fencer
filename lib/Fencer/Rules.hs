@@ -12,6 +12,7 @@ module Fencer.Rules
 where
 
 import BasePrelude
+
 import qualified Data.HashMap.Strict as HM
 
 import Fencer.Types

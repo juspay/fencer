@@ -85,6 +85,19 @@ nix-build test_integration_go
 result-bin/bin/test_integration_go
 ```
 
+## Style guide
+
+* All modules should use `BasePrelude` as the prelude.
+* Imports from external libraries have to be either explicit or qualified.
+* Imports from `Fencer` modules can be implicit, and should be in most cases.
+* Avoid defining identifiers with the same names, to keep jump-to-definition happy.
+* All identifiers should have haddocks.
+* Err on the side of using named arguments (with `Named`). Arguments of
+  types `Bool`, `Text`, etc should almost always be named.
+* Do not use `String`.
+* Do not use `deriving` without qualifying it. Write `deriving stock` or
+  `deriving newtype`.
+
 ## Design
 
 ### Intro
