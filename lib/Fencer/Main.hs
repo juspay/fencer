@@ -47,7 +47,7 @@ main = do
         (#symlink (settingsRoot (appStateSettings appState)))
         (#onChange (reloadRules logger appState))
     -- Start the gRPC server
-    runServer appState
+    runServer logger appState
 
 ----------------------------------------------------------------------------
 -- Load rules
