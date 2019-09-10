@@ -85,7 +85,7 @@ nix-build test_integration_go
 result-bin/bin/test_integration_go
 ```
 
-## Bencmarking
+## Benchmarking
 
 To run benchmarks, install [ghz][], a gRPC benchmarking tool. A prebuilt
 executable can be downloaded from its [GitHub releases page][releases].
