@@ -3,7 +3,6 @@ image: nixos/nix
 stages:
   - build
   - test
-  - ci_status
 
 ### Build
 
@@ -44,25 +43,3 @@ integration:
     - sleep 0.1
     - $(cat out-integration-path)/bin/test_integration_go
     - kill $!
-
-### CI status
-
-success:
-  stage: ci_status
-  before_script:
-    - ""
-  after_script:
-    - ""
-  script:
-    - BUILD_STATUS=passed BUILD_KEY=push nix-shell -p bash curl --run .gitlab/build_status.sh
-  when: on_success
-
-failure:
-  stage: ci_status
-  before_script:
-    - ""
-  after_script:
-    - ""
-  script:
-    - BUILD_STATUS=failed BUILD_KEY=push nix-shell -p bash curl --run .gitlab/build_status.sh
-  when: on_failure
