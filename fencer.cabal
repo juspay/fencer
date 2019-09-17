@@ -79,7 +79,8 @@ library
     -Wredundant-constraints
 
 executable fencer
-  main-is: Main.hs
+  main-is:
+    Main.hs
   build-depends:
     base,
     fencer
