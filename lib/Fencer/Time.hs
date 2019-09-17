@@ -37,6 +37,9 @@ getTimestamp = Timestamp . systemSeconds <$> getSystemTime
 --
 -- >>> slotBoundary (#slotSeconds 10) (Timestamp 20)
 -- Timestamp 30
+--
+-- The returned timestamp is guaranteed to be greater than the passed
+-- timestamp, assuming that @slotSeconds@ is positive.
 slotBoundary
     :: "slotSeconds" :! Int64
     -> Timestamp
