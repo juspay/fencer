@@ -12,6 +12,7 @@ where
 
 import BasePrelude
 
+import Data.Hashable (Hashable)
 import Named ((:!), arg)
 import Data.Time.Clock.System (systemSeconds, getSystemTime)
 
@@ -22,6 +23,7 @@ import Data.Time.Clock.System (systemSeconds, getSystemTime)
 -- | Unix timestamp with the granularity of 1 second.
 newtype Timestamp = Timestamp Int64
     deriving stock (Eq, Ord, Show)
+    deriving newtype (Hashable)
 
 -- | Get current time as a 'Timestamp'.
 getTimestamp :: IO Timestamp
