@@ -89,9 +89,7 @@ in
             pkgs.haskellPackages.cabal-install
             pkgs.haskellPackages.cabal2nix
             pkgs.haskellPackages.ghcid
-            pkgs.haskellPackages.hindent
             pkgs.haskellPackages.hlint
-            pkgs.haskellPackages.stylish-haskell
           ] ++
           [
             pkgs.haskellPackages.zlib
