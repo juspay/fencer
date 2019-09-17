@@ -18,6 +18,7 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import qualified Focus as Focus
 import qualified StmContainers.Map as StmMap
+import qualified StmContainers.Multimap as StmMultimap
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 import qualified Proto3.Suite.Types as ProtoSuite
 import qualified System.Logger as Logger
@@ -82,13 +83,18 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = d
     -- requests in parallel might lead to both requests being reported as
     -- "over limit", even though one of them would have succeeded if the
     -- ordering of descriptors was "A", "B" in both requests.
-    now <- getTimestamp
     (codes :: [Proto.RateLimitResponse_Code],
      statuses :: [Proto.RateLimitResponse_DescriptorStatus]) <-
         fmap (unzip . map (maybe ruleNotFoundResponse counterStatusToProto)) $
-        atomically $
-        forM descriptors $ \descriptor ->
-            shouldRateLimitDescriptor appState (#now now) (#hits hits) domain descriptor
+        atomically $ do
+            now <- readTVar (appStateCurrentTime appState)
+            forM descriptors $ \descriptor ->
+                shouldRateLimitDescriptor
+                    appState
+                    (#now now)
+                    (#hits hits)
+                    domain
+                    descriptor
 
     -- Return server response.
     let overallCode =
@@ -111,6 +117,10 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = d
 -- | Handle a single descriptor in a 'shouldRateLimit' request.
 --
 -- Returns the current limit and protobuf-encoded response.
+--
+-- 'shouldRateLimitDescriptor' will create a new counter if the counter does
+-- not exist, or update an existing counter otherwise. The counter will be
+-- reset if it has expired, and 'appStateCounterExpiry' will be updated.
 shouldRateLimitDescriptor
     :: AppState
     -> "now" :! Timestamp
@@ -125,13 +135,34 @@ shouldRateLimitDescriptor
     domain
     descriptor
     =
+    -- INV001 is satisfied: in the code below we take care to create a new
+    -- entry in 'appStateCounterExpiry' when a new counter has been created.
+    -- We do not remove counters.
+    --
+    -- INV002 is satisfied: when 'counterExpiry' changes, we remove the old
+    -- counter from 'appStateCounterExpiry' and add the new counter.
+    --
+    --  INV003 is satisfied: the expiry date 'counterExpiry' is greater than
+    -- @now@, and @now@ (passed from the outside) is equal to
+    -- 'appStateCurrentTime'.
     StmMap.lookup domain (appStateRules appState) >>= \case
         Nothing -> pure Nothing
         Just ruleTree -> case applyRules descriptor ruleTree of
-            Nothing ->
-                pure Nothing
-            Just limit ->
-                Just <$> StmMap.focus (update limit) key (appStateCounters appState)
+            Nothing -> pure Nothing
+            Just limit -> do
+                (mbOldCounter, counter, status) <-
+                    StmMap.focus (update limit) key (appStateCounters appState)
+                case mbOldCounter of
+                    Nothing ->
+                        StmMultimap.insert key (counterExpiry counter)
+                            (appStateCounterExpiry appState)
+                    Just oldCounter ->
+                        when (counterExpiry oldCounter /= counterExpiry counter) $ do
+                            StmMultimap.delete key (counterExpiry oldCounter)
+                                (appStateCounterExpiry appState)
+                            StmMultimap.insert key (counterExpiry counter)
+                                (appStateCounterExpiry appState)
+                pure (Just (limit, status))
   where
     -- Counter key corresponding to our rate limit request.
     key :: CounterKey
@@ -140,20 +171,20 @@ shouldRateLimitDescriptor
         , counterKeyDescriptor = descriptor }
 
     -- Update the counter corresponding to 'key', or create a new counter if
-    -- it does not exist.
-    update :: RateLimit -> Focus.Focus Counter STM (RateLimit, CounterStatus)
-    update limit = Focus.lookup >>= \case
-        Nothing -> do
-            let (counter, status) =
-                    updateCounter (#now now) (#hits hits) (#limit limit) $
-                        initCounter (#now now) (#limit limit)
-            Focus.insert counter
-            pure (limit, status)
-        Just counter -> do
-            let (newCounter, status) =
-                    updateCounter (#now now) (#hits hits) (#limit limit) counter
-            Focus.insert newCounter
-            pure (limit, status)
+    -- it does not exist. Returns the old counter, the new counter, and
+    -- counter status.
+    update
+        :: RateLimit
+        -> Focus.Focus Counter STM (Maybe Counter, Counter, CounterStatus)
+    update limit = do
+        mbOldCounter <- Focus.lookup
+        let (counter, status) =
+                updateCounter (#now now) (#hits hits) (#limit limit) $
+                    case mbOldCounter of
+                        Nothing -> initCounter (#now now) (#limit limit)
+                        Just oldCounter -> oldCounter
+        Focus.insert counter
+        pure (mbOldCounter, counter, status)
 
 ----------------------------------------------------------------------------
 -- Working with protobuf structures
