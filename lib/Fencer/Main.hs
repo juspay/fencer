@@ -15,7 +15,6 @@ import Control.Concurrent.STM (atomically)
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist)
 import System.FilePath ((</>), takeExtension, takeFileName)
-import qualified StmContainers.Map as StmMap
 import qualified Data.Yaml as Yaml
 import qualified System.Logger as Logger
 import System.Logger (Logger)
@@ -39,14 +38,16 @@ main = do
     logger <- Logger.new $
         Logger.setOutput Logger.StdErr $
         Logger.defSettings
-    -- Create in-memory state and read environment variables
+    -- Create in-memory state
     appState <- initAppState
+    -- Read environment variables
+    settings <- getSettingsFromEnvironment
     -- Load rate limiting rules for the first time
-    reloadRules logger appState
+    reloadRules logger settings appState
     -- Create a thread watching the config directory for changes
     watchSymlink
-        (#symlink (settingsRoot (appStateSettings appState)))
-        (#onChange (reloadRules logger appState))
+        (#symlink (settingsRoot settings))
+        (#onChange (reloadRules logger settings appState))
     -- Start the gRPC server
     runServer logger appState
 
@@ -56,31 +57,31 @@ main = do
 
 -- | Clear the rule storage and reload rules from the @config/@
 -- subdirectory.
-reloadRules :: Logger -> AppState -> IO ()
-reloadRules logger appState = do
+reloadRules :: Logger -> Settings -> AppState -> IO ()
+reloadRules logger settings appState = do
     let configDir =
-            settingsRoot (appStateSettings appState) </>
-            settingsSubdirectory (appStateSettings appState) </>
+            settingsRoot settings </>
+            settingsSubdirectory settings </>
             "config"
     Logger.info logger $
         Logger.msg ("Loading rules from " ++ configDir)
 
     -- Read and parse the rules
-    rules :: [DomainDefinition] <-
+    ruleDefinitions :: [DomainDefinition] <-
         loadRulesFromDirectory
             (#directory configDir)
-            (#ignoreDotFiles (settingsIgnoreDotFiles (appStateSettings appState)))
+            (#ignoreDotFiles (settingsIgnoreDotFiles settings))
     Logger.info logger $
         Logger.msg ("Parsed rules for domains: " ++
-                    show (map (unDomainId . domainDefinitionId) rules))
+                    show (map (unDomainId . domainDefinitionId) ruleDefinitions))
 
     -- Recreate 'appStateRules'
-    atomically $ do
-        StmMap.reset (appStateRules appState)
-        forM_ rules $ \rule -> do
-            let domain = domainDefinitionId rule
-                tree = definitionsToRuleTree (domainDefinitionDescriptors rule)
-            StmMap.insert tree domain (appStateRules appState)
+    atomically $
+        setRules appState
+            [ ( domainDefinitionId rule
+              , definitionsToRuleTree (domainDefinitionDescriptors rule))
+            | rule <- ruleDefinitions
+            ]
     Logger.info logger $
         Logger.msg (Logger.val "Applied new rules")
 
