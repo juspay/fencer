@@ -12,7 +12,8 @@ module Fencer.AppState
     , recordHits
     , getLimit
     , setRules
-    , tick
+    , updateCurrentTime
+    , deleteCountersWithExpiry
     )
 where
 
@@ -154,34 +155,30 @@ setRules appState rules = do
     forM_ rules $ \(domain, tree) ->
         StmMap.insert tree domain (appStateRules appState)
 
--- | Update current time and spawn a thread for removing expired counters.
--- The reason we spawn a thread is so that if removing counters takes too
--- long for some reason, 'tick's would still happen as often as they usually
--- do, and 'appStateCurrentTime' would be updated promptly.
+-- | Update the value of 'appStateCurrentTime' to the current time.
 --
--- You should call 'tick' multiple times per second, ideally as often as
--- possible. It should only take a trivial amount of time in most cases.
+-- Returns the previous and the current timestamp.
 --
 -- __Invariants:__
 --
 -- INV004: nobody else modifies 'appStateCurrentTime'.
 --
--- INV005: 'tick' should not be called in parallel.
-tick :: AppState -> IO ()
-tick appState = do
+-- INV005: 'updateCurrentTime' should not be called in parallel.
+updateCurrentTime :: AppState -> IO (Timestamp, Timestamp)
+updateCurrentTime appState = do
     -- Note: readTVarIO is faster than swapTVar, and most of the time we
     -- won't have to do a write, which is why we don't use swapTVar here. We
     -- assume that nobody else modifies 'appStateCurrentTime', so it's
     -- alright to write without doing a compare-and-swap.
     now <- getTimestamp
     before <- readTVarIO (appStateCurrentTime appState)
-    when (now > before) $ do
+    when (now > before) $
         atomically $ writeTVar (appStateCurrentTime appState) now
-        void $ forkIO $ mapM_ (deleteExpiredAt appState) [before .. pred now]
+    pure (before, now)
 
 -- | Delete all counters with a given expiry date.
-deleteExpiredAt :: AppState -> Timestamp -> IO ()
-deleteExpiredAt appState timestamp = do
+deleteCountersWithExpiry :: AppState -> Timestamp -> IO ()
+deleteCountersWithExpiry appState timestamp = do
     mbExpired <- atomically $
         StmMultimap.lookupByKey timestamp (appStateCounterExpiry appState) <*
         StmMultimap.deleteByKey timestamp (appStateCounterExpiry appState)
