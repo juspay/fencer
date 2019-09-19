@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DataKinds #-}
@@ -48,6 +49,11 @@ main = do
     watchSymlink
         (#symlink (settingsRoot settings))
         (#onChange (reloadRules logger settings appState))
+    -- Create a thread for updating current time and garbage collecting
+    -- expired counters
+    void $ forkIO $ forever $ do
+        tick appState
+        threadDelay 1_000  -- 1ms
     -- Start the gRPC server
     runServer logger appState
 

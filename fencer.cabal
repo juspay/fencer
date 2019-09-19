@@ -50,6 +50,7 @@ library
     proto3-suite,
     grpc-haskell,
     stm-containers,
+    list-t,
     focus,
     named,
     aeson,

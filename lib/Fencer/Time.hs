@@ -23,7 +23,7 @@ import Data.Time.Clock.System (systemSeconds, getSystemTime)
 -- | Unix timestamp with the granularity of 1 second.
 newtype Timestamp = Timestamp Int64
     deriving stock (Eq, Ord, Show)
-    deriving newtype (Hashable)
+    deriving newtype (Hashable, Enum)
 
 -- | Get current time as a 'Timestamp'.
 getTimestamp :: IO Timestamp

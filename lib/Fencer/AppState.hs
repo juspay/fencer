@@ -12,6 +12,7 @@ module Fencer.AppState
     , recordHits
     , getLimit
     , setRules
+    , tick
     )
 where
 
@@ -19,6 +20,8 @@ import BasePrelude
 
 import qualified StmContainers.Map as StmMap
 import qualified StmContainers.Multimap as StmMultimap
+import qualified StmContainers.Set as StmSet
+import qualified ListT as ListT
 import Named ((:!), arg)
 import qualified Focus as Focus
 import Control.Monad.Trans.Class (lift)
@@ -52,7 +55,7 @@ import Fencer.Rules
 --
 -- Note that there is no invariant that 'appStateCounters' will not have
 -- expired counters. We start removing counters after incrementing
--- 'appStateCurrentTime', but we do not do it atomically.
+-- 'appStateCurrentTime', but we do not do it atomically - see 'tick'.
 data AppState = AppState
     { -- | All active ratelimiting rules.
       appStateRules :: !(StmMap.Map DomainId RuleTree)
@@ -150,3 +153,43 @@ setRules appState rules = do
     StmMap.reset (appStateRules appState)
     forM_ rules $ \(domain, tree) ->
         StmMap.insert tree domain (appStateRules appState)
+
+-- | Update current time and spawn a thread for removing expired counters.
+-- The reason we spawn a thread is so that if removing counters takes too
+-- long for some reason, 'tick's would still happen as often as they usually
+-- do, and 'appStateCurrentTime' would be updated promptly.
+--
+-- You should call 'tick' multiple times per second, ideally as often as
+-- possible. It should only take a trivial amount of time in most cases.
+--
+-- __Invariants:__
+--
+-- INV004: nobody else modifies 'appStateCurrentTime'.
+--
+-- INV005: 'tick' should not be called in parallel.
+tick :: AppState -> IO ()
+tick appState = do
+    -- Note: readTVarIO is faster than swapTVar, and most of the time we
+    -- won't have to do a write, which is why we don't use swapTVar here. We
+    -- assume that nobody else modifies 'appStateCurrentTime', so it's
+    -- alright to write without doing a compare-and-swap.
+    now <- getTimestamp
+    before <- readTVarIO (appStateCurrentTime appState)
+    when (now > before) $ do
+        atomically $ writeTVar (appStateCurrentTime appState) now
+        void $ forkIO $ mapM_ (deleteExpiredAt appState) [before .. pred now]
+
+-- | Delete all counters with a given expiry date.
+deleteExpiredAt :: AppState -> Timestamp -> IO ()
+deleteExpiredAt appState timestamp = do
+    mbExpired <- atomically $
+        StmMultimap.lookupByKey timestamp (appStateCounterExpiry appState) <*
+        StmMultimap.deleteByKey timestamp (appStateCounterExpiry appState)
+    case mbExpired of
+        Nothing -> pure ()
+        Just expired -> do
+            keys <- atomically $ ListT.toList (StmSet.listT expired)
+            -- Note: we do *not* want to delete all counters in a single
+            -- transaction because it might lead to nearly infinite retries.
+            forM_ keys $ \key ->
+                atomically $ StmMap.delete key (appStateCounters appState)
