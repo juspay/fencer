@@ -49,11 +49,20 @@ main = do
     watchSymlink
         (#symlink (settingsRoot settings))
         (#onChange (reloadRules logger settings appState))
-    -- Create a thread for updating current time and garbage collecting
+    -- Create a thread for updating current time every 1ms and removing
     -- expired counters
     void $ forkIO $ forever $ do
-        tick appState
-        threadDelay 1_000  -- 1ms
+        threadDelay 1_000
+        (before, now) <- updateCurrentTime appState
+        -- Remove expired counters in a new thread. If it takes too long,
+        -- ticks would still happen as often as they usually do, and
+        -- 'updateCurrentTime' would still be done every 1 ms.
+        when (now > before) $ void $ forkIO $
+            -- Note: we say "pred now" so that we would never run
+            -- 'deleteCountersWithExpiry' twice for the same timestamp.
+            --
+            -- TODO: clarify the counter removal logic?
+            mapM_ (deleteCountersWithExpiry appState) [before .. pred now]
     -- Start the gRPC server
     runServer logger appState
 
