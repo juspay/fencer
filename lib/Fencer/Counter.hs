@@ -13,8 +13,9 @@ module Fencer.Counter
 where
 
 import BasePrelude
+
 import Data.Hashable (Hashable)
-import Named
+import Named ((:!), arg)
 
 import Fencer.Types
 import Fencer.Time
@@ -46,6 +47,9 @@ data CounterStatus = CounterStatus
     }
 
 -- | Create an empty counter.
+--
+-- The resulting counter's 'counterExpiry' is guaranteed to be greater than
+-- @now@.
 initCounter
     :: "now" :! Timestamp -- ^ Current time
     -> "limit" :! RateLimit -- ^ Rate limit

@@ -11,8 +11,10 @@ module Fencer.Time
 where
 
 import BasePrelude
-import Named
-import Data.Time.Clock.System
+
+import Data.Hashable (Hashable)
+import Named ((:!), arg)
+import Data.Time.Clock.System (systemSeconds, getSystemTime)
 
 ----------------------------------------------------------------------------
 -- Timestamp
@@ -21,6 +23,7 @@ import Data.Time.Clock.System
 -- | Unix timestamp with the granularity of 1 second.
 newtype Timestamp = Timestamp Int64
     deriving stock (Eq, Ord, Show)
+    deriving newtype (Hashable, Enum)
 
 -- | Get current time as a 'Timestamp'.
 getTimestamp :: IO Timestamp
@@ -36,6 +39,9 @@ getTimestamp = Timestamp . systemSeconds <$> getSystemTime
 --
 -- >>> slotBoundary (#slotSeconds 10) (Timestamp 20)
 -- Timestamp 30
+--
+-- The returned timestamp is guaranteed to be greater than the passed
+-- timestamp, assuming that @slotSeconds@ is positive.
 slotBoundary
     :: "slotSeconds" :! Int64
     -> Timestamp

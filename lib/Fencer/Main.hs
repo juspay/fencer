@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DataKinds #-}
@@ -10,12 +11,14 @@ module Fencer.Main
 where
 
 import BasePrelude
+
 import Control.Concurrent.STM (atomically)
-import Named
+import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist)
-import System.FilePath
-import qualified StmContainers.Map as StmMap
+import System.FilePath ((</>), takeExtension, takeFileName)
 import qualified Data.Yaml as Yaml
+import qualified System.Logger as Logger
+import System.Logger (Logger)
 
 import Fencer.Types
 import Fencer.AppState
@@ -32,16 +35,36 @@ import Fencer.Settings
 -- server serving ratelimit requests.
 main :: IO ()
 main = do
-    -- Create in-memory state and read environment variables
+    -- Initialize logging
+    logger <- Logger.new $
+        Logger.setOutput Logger.StdErr $
+        Logger.defSettings
+    -- Create in-memory state
     appState <- initAppState
+    -- Read environment variables
+    settings <- getSettingsFromEnvironment
     -- Load rate limiting rules for the first time
-    reloadRules appState
+    reloadRules logger settings appState
     -- Create a thread watching the config directory for changes
     watchSymlink
-        (#symlink (settingsRoot (appStateSettings appState)))
-        (#onChange (reloadRules appState))
+        (#symlink (settingsRoot settings))
+        (#onChange (reloadRules logger settings appState))
+    -- Create a thread for updating current time every 1ms and removing
+    -- expired counters
+    void $ forkIO $ forever $ do
+        threadDelay 1_000
+        (before, now) <- updateCurrentTime appState
+        -- Remove expired counters in a new thread. If it takes too long,
+        -- ticks would still happen as often as they usually do, and
+        -- 'updateCurrentTime' would still be done every 1 ms.
+        when (now > before) $ void $ forkIO $
+            -- Note: we say "pred now" so that we would never run
+            -- 'deleteCountersWithExpiry' twice for the same timestamp.
+            --
+            -- TODO: clarify the counter removal logic?
+            mapM_ (deleteCountersWithExpiry appState) [before .. pred now]
     -- Start the gRPC server
-    runServer appState
+    runServer logger appState
 
 ----------------------------------------------------------------------------
 -- Load rules
@@ -49,23 +72,33 @@ main = do
 
 -- | Clear the rule storage and reload rules from the @config/@
 -- subdirectory.
-reloadRules :: AppState -> IO ()
-reloadRules appState = do
+reloadRules :: Logger -> Settings -> AppState -> IO ()
+reloadRules logger settings appState = do
     let configDir =
-            settingsRoot (appStateSettings appState) </>
-            settingsSubdirectory (appStateSettings appState) </>
+            settingsRoot settings </>
+            settingsSubdirectory settings </>
             "config"
-    putStrLn ("Loading rules from " ++ configDir)
-    rules <-
+    Logger.info logger $
+        Logger.msg ("Loading rules from " ++ configDir)
+
+    -- Read and parse the rules
+    ruleDefinitions :: [DomainDefinition] <-
         loadRulesFromDirectory
             (#directory configDir)
-            (#ignoreDotFiles (settingsIgnoreDotFiles (appStateSettings appState)))
-    atomically $ do
-        StmMap.reset (appStateRules appState)
-        forM_ rules $ \rule -> do
-            let domain = domainDefinitionId rule
-                tree = definitionsToRuleTree (domainDefinitionDescriptors rule)
-            StmMap.insert tree domain (appStateRules appState)
+            (#ignoreDotFiles (settingsIgnoreDotFiles settings))
+    Logger.info logger $
+        Logger.msg ("Parsed rules for domains: " ++
+                    show (map (unDomainId . domainDefinitionId) ruleDefinitions))
+
+    -- Recreate 'appStateRules'
+    atomically $
+        setRules appState
+            [ ( domainDefinitionId rule
+              , definitionsToRuleTree (domainDefinitionDescriptors rule))
+            | rule <- ruleDefinitions
+            ]
+    Logger.info logger $
+        Logger.msg (Logger.val "Applied new rules")
 
 -- | Gather rate limiting rules (*.yml, *.yaml) from a directory.
 -- Subdirectories are not included.

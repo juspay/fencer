@@ -8,9 +8,13 @@
 module Fencer.Types
     (
     -- * Common types
+    -- $sample-config
       DomainId(..)
+    , unDomainId
     , RuleKey(..)
+    , unRuleKey
     , RuleValue(..)
+    , unRuleValue
     , RateLimit(..)
 
     -- * Time units
@@ -28,6 +32,7 @@ module Fencer.Types
 where
 
 import BasePrelude
+
 import Data.Hashable (Hashable)
 import Data.Text (Text)
 import Data.Aeson (FromJSON(..), (.:), (.:?), withObject, withText)
@@ -62,20 +67,53 @@ timeUnitToSeconds = \case
 -- Rate limiting rules
 ----------------------------------------------------------------------------
 
+-- $sample-config
+--
+-- This sample config shows which config fields correspond to which types:
+--
+-- @
+-- domain: mongo\_cps  # 'DomainId'
+-- descriptors:
+--   - key: database  # 'RuleKey'
+--     value: users  # 'RuleValue'
+--     rate\_limit: # 'RateLimit'
+--       unit: second
+--       requests\_per\_unit: 500
+-- @
+
+-- | Domain name. Several rate limiting rules can belong to the same domain.
 newtype DomainId = DomainId Text
     deriving stock (Eq, Show)
     deriving newtype (Hashable, FromJSON)
 
+-- | Unwrap 'DomainId'.
+unDomainId :: DomainId -> Text
+unDomainId (DomainId s) = s
+
+-- | A label for a branch in the rate limit rule tree.
 newtype RuleKey = RuleKey Text
     deriving stock (Eq, Show)
     deriving newtype (Hashable, FromJSON)
 
+-- | Unwrap 'RuleKey'.
+unRuleKey :: RuleKey -> Text
+unRuleKey (RuleKey s) = s
+
+-- | An optional value associated with a rate limiting rule.
 newtype RuleValue = RuleValue Text
     deriving stock (Eq, Show)
     deriving newtype (Hashable, FromJSON)
 
+-- | Unwrap 'RuleValue'.
+unRuleValue :: RuleValue -> Text
+unRuleValue (RuleValue s) = s
+
+-- | A specification of the rate limit that should be applied to a branch in
+-- the rate limit rule tree.
 data RateLimit = RateLimit
-    { rateLimitUnit :: !TimeUnit
+    { -- | Rate limit granularity.
+      rateLimitUnit :: !TimeUnit
+      -- | How many requests are allowed during each 'rateLimitUnit'.
     , rateLimitRequestsPerUnit :: !Word
     }
     deriving stock (Eq, Show)
@@ -90,12 +128,16 @@ instance FromJSON RateLimit where
 -- Rate limit rule configs
 ----------------------------------------------------------------------------
 
+-- | Config for a single domain.
+--
+-- Corresponds to one YAML file.
 data DomainDefinition = DomainDefinition
     { domainDefinitionId :: !DomainId
     , domainDefinitionDescriptors :: ![DescriptorDefinition]
     }
     deriving stock (Eq, Show)
 
+-- | Config for a single rule tree.
 data DescriptorDefinition = DescriptorDefinition
     { descriptorDefinitionKey :: !RuleKey
     , descriptorDefinitionValue :: !(Maybe RuleValue)
