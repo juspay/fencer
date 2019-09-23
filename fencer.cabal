@@ -116,6 +116,7 @@ test-suite test-fencer
     , aeson-qq
     , base
     , tasty
+    , tasty-discover
     , tasty-hunit
     , text
     , unordered-containers
