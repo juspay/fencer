@@ -1,13 +1,13 @@
 module Main where
 
-import           Fencer.Types.Test (test_parseJSONDomainDefinition, test_parseJSONDescriptorDefinition)
+import qualified Fencer.Types.Test as T
 import           Test.Tasty
 
 
 tests :: TestTree
 tests = testGroup "Configuration Parsing"
-  [ test_parseJSONDescriptorDefinition
-  , test_parseJSONDomainDefinition ]
+  [ T.test_parseJSONDescriptorDefinition
+  , T.test_parseJSONDomainDefinition ]
 
 
 -- | Test entry point
