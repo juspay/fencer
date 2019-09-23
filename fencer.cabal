@@ -113,6 +113,7 @@ test-suite test-fencer
     Haskell2010
   build-depends:
     , aeson
+    , aeson-qq
     , base
     , tasty
     , tasty-hunit
