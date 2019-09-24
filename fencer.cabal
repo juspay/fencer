@@ -98,11 +98,6 @@ executable fencer
     -threaded
     -rtsopts
     -with-rtsopts=-N
-    -Wall
-    -Wcompat
-    -Wincomplete-record-updates
-    -Wincomplete-uni-patterns
-    -Wredundant-constraints
 
 test-suite test-fencer
   import:
@@ -134,8 +129,3 @@ test-suite test-fencer
     -threaded
     -rtsopts
     -with-rtsopts=-N
-    -Wall
-    -Wcompat
-    -Wincomplete-record-updates
-    -Wincomplete-uni-patterns
-    -Wredundant-constraints
