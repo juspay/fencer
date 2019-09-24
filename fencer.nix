@@ -27,6 +27,6 @@ mkDerivation {
   hydraPlatforms = stdenv.lib.platforms.none;
   testHaskellDepends = [
     aeson base tasty tasty-hunit tasty-discover text unordered-containers vector
-    aeson-qq
+    aeson-qq base-prelude
   ];
 }

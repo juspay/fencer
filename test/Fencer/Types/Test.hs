@@ -9,6 +9,8 @@ module Fencer.Types.Test
   )
 where
 
+import           BasePrelude
+
 import           Data.Aeson (parseJSON)
 import           Data.Aeson.QQ (aesonQQ)
 import           Data.Aeson.Types (parseEither, Value(..))

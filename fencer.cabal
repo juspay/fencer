@@ -115,6 +115,7 @@ test-suite test-fencer
     , aeson
     , aeson-qq
     , base
+    , base-prelude
     , tasty
     , tasty-discover
     , tasty-hunit
