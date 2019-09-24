@@ -6,6 +6,13 @@ stages:
 
 ### Build
 
+# Check that fencer.nix corresponds to fencer.cabal
+check_nix:
+  stage: build
+  script:
+    - nix-shell --pure -p cabal2nix --run "cabal2nix ." > fencer.nix_generated
+    - diff fencer.nix fencer.nix_generated
+
 # Build Fencer and put into ./out/bin/fencer
 compile:
   stage: build
