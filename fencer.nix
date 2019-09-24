@@ -1,10 +1,9 @@
-{ mkDerivation, stdenv
-, base, stm, vector, text, containers, bytestring, deepseq, proto3-wire, proto3-suite
-, hashable, base-prelude, grpc-haskell, stm-containers, focus, named, monad-loops
-, unordered-containers, time, aeson, yaml, directory, filepath, fsnotify, tinylog
-, transformers, list-t
-, tasty, tasty-hunit, tasty-discover, aeson-qq
-, configureFlags ? [], enableSharedExecutables ? true, enableSharedLibraries ? true
+{ mkDerivation, aeson, aeson-qq, base, base-prelude, bytestring
+, containers, deepseq, directory, filepath, focus, fsnotify
+, grpc-haskell, hashable, list-t, monad-loops, named, proto3-suite
+, proto3-wire, stdenv, stm, stm-containers, tasty, tasty-discover
+, tasty-hunit, text, time, tinylog, transformers
+, unordered-containers, vector, yaml
 }:
 mkDerivation {
   pname = "fencer";
@@ -12,21 +11,19 @@ mkDerivation {
   src = ./.;
   isLibrary = true;
   isExecutable = true;
-  inherit enableSharedExecutables enableSharedLibraries configureFlags;
   libraryHaskellDepends = [
-    base stm vector text containers bytestring deepseq proto3-wire proto3-suite
-    hashable base-prelude grpc-haskell stm-containers focus named monad-loops
-    unordered-containers time aeson yaml directory filepath fsnotify tinylog
-    transformers list-t
+    aeson base base-prelude bytestring containers deepseq directory
+    filepath focus fsnotify grpc-haskell hashable list-t monad-loops
+    named proto3-suite proto3-wire stm stm-containers text time tinylog
+    transformers unordered-containers vector yaml
   ];
-  executableHaskellDepends = [
-    base
+  executableHaskellDepends = [ base ];
+  testHaskellDepends = [
+    aeson aeson-qq base base-prelude tasty tasty-discover tasty-hunit
+    text unordered-containers vector
   ];
+  testToolDepends = [ tasty-discover ];
+  homepage = "http://github.com/juspay/fencer";
   description = "Port of lyft/ratelimit";
   license = stdenv.lib.licenses.bsd3;
-  hydraPlatforms = stdenv.lib.platforms.none;
-  testHaskellDepends = [
-    aeson base tasty tasty-hunit tasty-discover text unordered-containers vector
-    aeson-qq base-prelude
-  ];
 }
