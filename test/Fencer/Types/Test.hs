@@ -20,13 +20,33 @@ import           Test.Tasty.HUnit (assertEqual, testCase)
 
 
 dd1 :: Value
-dd1 = [aesonQQ| {key: "some key", value: "some value"} |]
+dd1 = [aesonQQ|
+  {
+    "key": "some key",
+    "value": "some value"
+  }
+  |]
 
 dd2 :: Value
-dd2 = [aesonQQ| {key: "some key #2", value: "some value #2", rate_limit: {unit: "second", requests_per_unit: 5}, descriptors: [#{dd1}]} |]
+dd2 = [aesonQQ|
+  {
+    "key": "some key #2",
+    "value": "some value #2",
+    "rate_limit": {
+      "unit": "second",
+      "requests_per_unit": 5
+    },
+    "descriptors": [#{dd1}]
+  }
+  |]
 
 o :: Value
-o = [aesonQQ| {domain: "some domain", descriptors: [#{dd1}, #{dd2}]} |]
+o = [aesonQQ|
+  {
+    "domain": "some domain",
+    "descriptors": [#{dd1}, #{dd2}]
+  }
+  |]
 
 test_parseJSONDescriptorDefinition :: TestTree
 test_parseJSONDescriptorDefinition =
