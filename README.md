@@ -126,6 +126,9 @@ ghz --insecure \
 * Imports from `Fencer` modules can be implicit, and should be in most cases.
 * Avoid defining identifiers with the same names, to keep jump-to-definition happy.
 * All identifiers should have haddocks.
+* Top-level identifiers should not be abbreviated, where feasible. Do not
+  use `jsn` instead of `json`, or `dd` instead of `descriptor` or
+  `descriptorDefinition`.
 * Err on the side of using named arguments (with `Named`). Arguments of
   types `Bool`, `Text`, etc should almost always be named.
 * Do not use `String`.
