@@ -3,6 +3,7 @@
 , hashable, base-prelude, grpc-haskell, stm-containers, focus, named, monad-loops
 , unordered-containers, time, aeson, yaml, directory, filepath, fsnotify, tinylog
 , transformers, list-t
+, tasty, tasty-hunit, tasty-discover, aeson-qq
 , configureFlags ? [], enableSharedExecutables ? true, enableSharedLibraries ? true
 }:
 mkDerivation {
@@ -24,4 +25,8 @@ mkDerivation {
   description = "Port of lyft/ratelimit";
   license = stdenv.lib.licenses.bsd3;
   hydraPlatforms = stdenv.lib.platforms.none;
+  testHaskellDepends = [
+    aeson base tasty tasty-hunit tasty-discover text unordered-containers vector
+    aeson-qq base-prelude
+  ];
 }
