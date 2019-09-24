@@ -1,3 +1,5 @@
+{- HLINT ignore -}
+
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DataKinds         #-}

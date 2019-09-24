@@ -1,0 +1,40 @@
+# Force qualified imports to be imported consistently.
+- modules:
+    - { name: Data.ByteString, as: BS }
+    - { name: Data.ByteString.Lazy, as: BSL }
+    - { name: Data.Text, as: T }
+    - { name: Data.Text.Lazy, as: TL }
+    - { name: Data.HashMap.Strict, as: HM }
+    - { name: Data.HashMap.Lazy, as: HML }
+    - { name: Data.List.NonEmpty, as: NE }
+    - { name: Data.Aeson, as: Aeson }
+    - { name: Data.Yaml, as: Yaml }
+    - { name: StmContainers.Map, as: StmMap }
+    - { name: StmContainers.Set, as: StmSet }
+    - { name: StmContainers.Multimap, as: StmMultimap }
+    - { name: System.Logger, as: Logger }
+
+# Force explicit type annotations for certain 'Foldable' methods, to prevent
+# silent breakage when a list is changed to 'Maybe' or a tuple.
+- warn: { lhs: null x, rhs: null @... x, side: not (isTypeApp x)
+        , note: "Specify the type of the container explicitly, e.g. @[]" }
+- warn: { lhs: length x, rhs: length @... x, side: not (isTypeApp x)
+        , note: "Specify the type of the container explicitly, e.g. @[]" }
+
+# Forbid '-XCPP', which is poorly supported by code formatting tools. If a
+# need to use '-XCPP' arises in the future, it should be contained within a
+# single module named e.g. 'Compat'.
+- extensions:
+    - { name: CPP, within: [] }
+
+# Ignore not useful or subjective hints.
+- ignore: { name: 'Use newtype instead of data' }
+- ignore: { name: 'Use tuple-section' }
+- ignore: { name: 'Use section' }
+- ignore: { name: 'Redundant bracket' }
+- ignore: { name: 'Redundant as' }
+- ignore: { name: 'Redundant $' }
+- ignore: { name: 'Replace case with fromMaybe' }
+- ignore: { name: 'Use const' }
+- ignore: { name: 'Move brackets to avoid $' }
+- ignore: { name: 'Use ?~' }
