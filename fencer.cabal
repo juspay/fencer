@@ -20,7 +20,29 @@ source-repository head
   type: git
   location: git://github.com/juspay/fencer.git
 
+common common
+  default-language:
+    Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    ScopedTypeVariables
+    LambdaCase
+    DeriveGeneric
+    DerivingStrategies
+    NamedFieldPuns
+    ViewPatterns
+    TypeOperators
+    MultiWayIf
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wredundant-constraints
+
 library
+  import:
+    common
   exposed-modules:
     Fencer.Main
     Fencer.AppState
@@ -61,26 +83,10 @@ library
     tinylog
   hs-source-dirs:
     lib
-  default-language:
-    Haskell2010
-  default-extensions:
-    NoImplicitPrelude
-    ScopedTypeVariables
-    LambdaCase
-    DeriveGeneric
-    DerivingStrategies
-    NamedFieldPuns
-    ViewPatterns
-    TypeOperators
-    MultiWayIf
-  ghc-options:
-    -Wall
-    -Wcompat
-    -Wincomplete-record-updates
-    -Wincomplete-uni-patterns
-    -Wredundant-constraints
 
 executable fencer
+  import:
+    common
   main-is:
     Main.hs
   build-depends:
@@ -88,8 +94,6 @@ executable fencer
     fencer
   hs-source-dirs:
     src
-  default-language:
-    Haskell2010
   ghc-options:
     -threaded
     -rtsopts
@@ -101,6 +105,8 @@ executable fencer
     -Wredundant-constraints
 
 test-suite test-fencer
+  import:
+    common
   type:
     exitcode-stdio-1.0
   main-is:
@@ -115,6 +121,7 @@ test-suite test-fencer
     , aeson
     , aeson-qq
     , base
+    , base-prelude
     , tasty
     , tasty-discover
     , tasty-hunit
