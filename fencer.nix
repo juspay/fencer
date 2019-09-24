@@ -23,7 +23,7 @@ mkDerivation {
     text unordered-containers vector
   ];
   testToolDepends = [ tasty-discover ];
-  homepage = "http://github.com/juspay/fencer";
+  homepage = "https://github.com/juspay/fencer";
   description = "Port of lyft/ratelimit";
   license = stdenv.lib.licenses.bsd3;
 }
