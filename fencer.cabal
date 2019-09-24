@@ -111,6 +111,16 @@ test-suite test-fencer
     Fencer.Types.Test
   default-language:
     Haskell2010
+  default-extensions:
+    NoImplicitPrelude
+    ScopedTypeVariables
+    LambdaCase
+    DeriveGeneric
+    DerivingStrategies
+    NamedFieldPuns
+    ViewPatterns
+    TypeOperators
+    MultiWayIf
   build-depends:
     , aeson
     , aeson-qq
