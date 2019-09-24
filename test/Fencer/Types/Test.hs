@@ -10,7 +10,7 @@ module Fencer.Types.Test
 where
 
 import           Data.Aeson (parseJSON)
-import           Data.Aeson.QQ
+import           Data.Aeson.QQ (aesonQQ)
 import           Data.Aeson.Types (parseEither, Value(..))
 import           Fencer.Types (DescriptorDefinition(..), DomainDefinition(..), DomainId(..), RateLimit(..), RuleKey(..), RuleValue(..), TimeUnit(..))
 import           Test.Tasty (TestTree)
