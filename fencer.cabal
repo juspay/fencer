@@ -13,8 +13,8 @@ author: Artyom Kazak
 maintainer: artyom@monadfix.com
 extra-source-files: CHANGELOG.md
 
-homepage: http://github.com/juspay/fencer
-bug-reports: http://github.com/juspay/fencer/issues
+homepage: https://github.com/juspay/fencer
+bug-reports: https://github.com/juspay/fencer/issues
 
 source-repository head
   type: git

@@ -10,7 +10,7 @@ let
     rev = "db858b4d3032aec35be7e98a65eb9b91b63671ef";
     sha256 = "0gqcbf5nyqff1a4ps6szcrv59ay97fr26jdwrs7qp8fijzcpdnkh";
   };
-  staticAttrs = {
+  staticPackage = pkg: pkg.overrideAttrs (old: {
     enableSharedExecutables = false;
     enableSharedLibraries = false;
     configureFlags = [
@@ -19,8 +19,9 @@ let
       "--ghc-option=-optl=-L${pkgs.gmp6.override { withStatic = true; }}/lib"
       "--ghc-option=-optl=-L${pkgs.zlib.static}/lib"
       "--extra-lib-dirs=${pkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
-    ];
-  };
+    ] ++
+    old.configureFlags;
+  });
   config = {
     packageOverrides = pkgs: rec {
       grpc = pkgs.callPackage ./nix/grpc.nix { };
@@ -70,7 +71,7 @@ let
               (self.callPackage ./nix/grpc-haskell.nix { });
 
           fencer =
-            self.callPackage ./fencer.nix (pkgs.lib.optionalAttrs static staticAttrs);
+            self.callCabal2nix "fencer" (./.) { };
         };
       };
     };
@@ -79,7 +80,10 @@ let
     if static
     then (import nixpkgs { inherit config; }).pkgsMusl
     else import nixpkgs { inherit config; };
-  drv = pkgs.haskellPackages.fencer;
+  drv =
+    if static
+    then staticPackage pkgs.haskellPackages.fencer
+    else pkgs.haskellPackages.fencer;
 in
   if pkgs.lib.inNixShell
     then
