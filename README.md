@@ -32,15 +32,6 @@ $ cabal v2-build
 You can use [`nix-cabal`](https://github.com/monadfix/nix-cabal) as a
 `cabal` replacement to get seamless nix-shell support in your editor/IDE.
 
-### Syncronizing `fencer.cabal` and `fencer.nix`
-
-Whenever you add dependencies or otherwise modify `fencer.cabal`, you need
-to update `fencer.nix`:
-
-```
-$ cabal2nix . > fencer.nix
-```
-
 ### Regenerating API from Protobuf
 
 `lib/Fencer/Proto.hs` has been generated from a proto3 file used in
