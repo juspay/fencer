@@ -38,19 +38,22 @@ let
 
           range-set-list =
             pkgs.haskell.lib.dontCheck
-              (self.callPackage ./nix/range-set-list.nix { });
+              (self.callHackage "range-set-list" "0.1.3" { });
 
           primitive-extras =
             pkgs.haskell.lib.dontCheck
-              (self.callPackage ./nix/primitive-extras.nix { });
+              (self.callHackage "primitive-extras" "0.7.1.1" { });
 
+          # We intentionally use 1.2.0.3 instead of 1.2.0.4 because 1.2.0.4
+          # would cause us to recompile the world due to the old version of
+          # 'primitive' shipped by nixpkgs.
           stm-hamt =
             pkgs.haskell.lib.dontCheck
-              (self.callPackage ./nix/stm-hamt.nix { });
+              (self.callHackage "stm-hamt" "1.2.0.3" { });
 
           stm-containers =
             pkgs.haskell.lib.dontCheck
-              (self.callPackage ./nix/stm-containers.nix { });
+              (self.callHackage "stm-containers" "1.1.0.4" { });
 
           proto3-wire =
             pkgs.haskell.lib.dontCheck
