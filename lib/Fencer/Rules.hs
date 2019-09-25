@@ -1,8 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- | Working with rate limiting rules.
 module Fencer.Rules
@@ -47,6 +45,6 @@ applyRules ((key, value):rest) tree = do
         HM.lookup (key, Nothing) tree
     -- If we reached the end of the descriptor, we use the current rate
     -- limit. Otherwise we keep going.
-    if null rest
+    if null @[] rest
         then ruleBranchRateLimit branch
         else applyRules rest (ruleBranchNested branch)

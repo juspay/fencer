@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | In-memory state of Fencer.
 module Fencer.AppState
@@ -143,7 +142,7 @@ getLimit
     -> DomainId
     -> [(RuleKey, RuleValue)]
     -> STM (Maybe RateLimit)
-getLimit appState domain descriptor = do
+getLimit appState domain descriptor =
     StmMap.lookup domain (appStateRules appState) >>= \case
         Nothing -> pure Nothing
         Just ruleTree -> pure (applyRules descriptor ruleTree)

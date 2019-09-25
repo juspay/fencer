@@ -36,17 +36,19 @@ You can use [`nix-cabal`](https://github.com/monadfix/nix-cabal) as a
 
 `lib/Fencer/Proto.hs` has been generated from a proto3 file used in
 `lyft/ratelimit`. This file, with minor modifications, is vendored in
-`proto/rls.proto`. To regenerate the Haskell code from the proto3 file, use
-the following command:
+`proto/rls.proto`. To regenerate the Haskell code from the proto3 file, go
+into `nix-shell` and use the following command:
 
 ```
-# compile-proto-file is weird and you can't get it to generate a module with
-# a normal name, so we have to resort to sed shenanigans
 (cd proto; compile-proto-file --proto rls.proto --out ../lib/Fencer/) \
   && mv lib/Fencer/Rls.hs lib/Fencer/Proto.hs \
   && sed -i 's/module Rls/module Fencer.Proto/' lib/Fencer/Proto.hs \
-  && sed -i 's/Rls\./Fencer\.Proto\./g' lib/Fencer/Proto.hs
+  && sed -i 's/Rls\./Fencer\.Proto\./g' lib/Fencer/Proto.hs \
+  && sed -i '1s/^/{- HLINT ignore -}\n\n/' lib/Fencer/Proto.hs
 ```
+
+Unfortunately, `compile-proto-file` does not allow customizing the module
+name, so we have to resort to sed.
 
 ## Testing
 
