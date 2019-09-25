@@ -9,8 +9,8 @@ description:
 license: BSD-3-Clause
 license-file: LICENSE
 
-author: Artyom Kazak
-maintainer: artyom@monadfix.com
+author: Juspay Technologies
+maintainer: artyom.kazak@juspay.in
 extra-source-files: CHANGELOG.md
 
 homepage: https://github.com/juspay/fencer
