@@ -37,6 +37,8 @@ import Data.Hashable (Hashable)
 import Data.Text (Text)
 import Data.Aeson (FromJSON(..), (.:), (.:?), withObject, withText)
 import Data.HashMap.Strict (HashMap)
+import qualified Data.List.NonEmpty as NE
+
 
 ----------------------------------------------------------------------------
 -- Time units
@@ -133,7 +135,7 @@ instance FromJSON RateLimit where
 -- Corresponds to one YAML file.
 data DomainDefinition = DomainDefinition
     { domainDefinitionId :: !DomainId
-    , domainDefinitionDescriptors :: ![DescriptorDefinition]
+    , domainDefinitionDescriptors :: !(NE.NonEmpty DescriptorDefinition)
     }
     deriving stock (Eq, Show)
 

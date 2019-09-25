@@ -13,6 +13,7 @@ where
 import BasePrelude
 
 import Control.Concurrent.STM (atomically)
+import qualified Data.List.NonEmpty as NE
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist)
 import System.FilePath ((</>), takeExtension, takeFileName)
@@ -94,7 +95,7 @@ reloadRules logger settings appState = do
     atomically $
         setRules appState
             [ ( domainDefinitionId rule
-              , definitionsToRuleTree (domainDefinitionDescriptors rule))
+              , definitionsToRuleTree (NE.toList . domainDefinitionDescriptors $ rule))
             | rule <- ruleDefinitions
             ]
     Logger.info logger $
