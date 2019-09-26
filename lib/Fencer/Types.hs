@@ -151,6 +151,8 @@ data DescriptorDefinition = DescriptorDefinition
 instance FromJSON DomainDefinition where
     parseJSON = withObject "DomainDefinition" $ \o -> do
         domainDefinitionId <- o .: "domain"
+        when (domainDefinitionId == DomainId "") $
+          fail "rate limit domain must not be empty"
         domainDefinitionDescriptors <- o .: "descriptors"
         pure DomainDefinition{..}
 
