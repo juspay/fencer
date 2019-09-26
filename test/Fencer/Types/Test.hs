@@ -7,6 +7,8 @@ module Fencer.Types.Test
   ( test_parseJSONDescriptorDefinition
   , test_parseJSONDomainDefinition
   , test_parseJSONDomainAtLeastOneDescriptor
+  , test_parseJSONNonEmptyDomainId
+  , test_parseJSONOptionalDescriptorFields
   )
 where
 
@@ -93,17 +95,93 @@ test_parseJSONDomainDefinition =
     , descriptorDefinitionDescriptors = Just [descriptor1']
     }
 
-domain2 :: Value
-domain2 = [aesonQQ|
-  {
-    "domain": "some domain #2",
-    "descriptors": []
-  }
-  |]
-
 test_parseJSONDomainAtLeastOneDescriptor :: TestTree
 test_parseJSONDomainAtLeastOneDescriptor =
   testCase "DomainDefinition has to have at least one descriptor" $
     assertEqual "parsing DomainDefinition failed"
       (Left "Error in $.descriptors: Expected a NonEmpty but got an empty list")
-      (parseEither (parseJSON @DomainDefinition) domain2)
+      (parseEither (parseJSON @DomainDefinition) domain)
+ where
+  domain :: Value
+  domain = [aesonQQ|
+    {
+      "domain": "some domain #2",
+      "descriptors": []
+    }
+    |]
+
+test_parseJSONNonEmptyDomainId :: TestTree
+test_parseJSONNonEmptyDomainId =
+  testCase "DomainId cannot be empty" $
+    assertEqual "parsing DomainDefinition failed"
+      (Left "Error in $: rate limit domain must not be empty")
+      (parseEither (parseJSON @DomainDefinition) domain)
+ where
+  domain :: Value
+  domain = [aesonQQ|
+    {
+      "domain": "",
+      "descriptors": [#{descriptor1}]
+    }
+    |]
+
+test_parseJSONOptionalDescriptorFields :: TestTree
+test_parseJSONOptionalDescriptorFields =
+  testCase "Optional descriptor definition fields" $
+    assertEqual "parsing DomainDefinition failed"
+      (Right domain)
+      (parseEither (parseJSON @DomainDefinition) domainValue)
+ where
+  desc1Value :: Value
+  desc1Value = [aesonQQ|
+    {
+      "key": "key #1"
+    , "value": "value #1"
+    , "descriptors": [
+        {"key": "inner key #1", "rate_limit": {"unit": "minute", "requests_per_unit": 10}}]
+    }
+    |]
+  desc1 :: DescriptorDefinition
+  desc1 = DescriptorDefinition
+    {
+      descriptorDefinitionKey         = RuleKey "key #1"
+    , descriptorDefinitionValue       = Just . RuleValue $ "value #1"
+    , descriptorDefinitionRateLimit   = Nothing
+    , descriptorDefinitionDescriptors = Just [
+        DescriptorDefinition
+          {
+            descriptorDefinitionKey         = RuleKey "inner key #1"
+          , descriptorDefinitionValue       = Nothing
+          , descriptorDefinitionRateLimit   = Just RateLimit {rateLimitUnit = Minute, rateLimitRequestsPerUnit = 10}
+          , descriptorDefinitionDescriptors = Nothing
+          }
+        ]
+    }
+  desc2Value :: Value
+  desc2Value = [aesonQQ|
+    {
+      "key": "key #2"
+    , "rate_limit": {"unit": "hour", "requests_per_unit": 1000}
+    }
+    |]
+  desc2 :: DescriptorDefinition
+  desc2 = DescriptorDefinition
+    {
+      descriptorDefinitionKey         = RuleKey "key #2"
+    , descriptorDefinitionValue       = Nothing
+    , descriptorDefinitionRateLimit   = Just RateLimit {rateLimitUnit = Hour, rateLimitRequestsPerUnit = 1000}
+    , descriptorDefinitionDescriptors = Nothing
+    }
+  domainValue :: Value
+  domainValue = [aesonQQ|
+    {
+      "domain": "messaging"
+    , "descriptors": [#{desc1Value}, #{desc2Value}]
+    }
+    |]
+  domain :: DomainDefinition
+  domain = DomainDefinition
+    {
+      domainDefinitionId          = DomainId "messaging"
+    , domainDefinitionDescriptors = desc1 :| [desc2]
+    }
