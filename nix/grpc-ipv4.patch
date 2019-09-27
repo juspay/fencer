@@ -1,0 +1,66 @@
+diff --git a/src/core/lib/iomgr/tcp_server_posix.c b/src/core/lib/iomgr/tcp_server_posix.c
+index 8c371bc8ba..61c9fac58f 100644
+--- a/src/core/lib/iomgr/tcp_server_posix.c
++++ b/src/core/lib/iomgr/tcp_server_posix.c
+@@ -703,15 +703,6 @@ static grpc_error *add_wildcard_addrs_to_server(grpc_tcp_server *s,
+                                          out_port);
+   }
+   grpc_sockaddr_make_wildcards(requested_port, &wild4, &wild6);
+-  /* Try listening on IPv6 first. */
+-  if ((v6_err = add_addr_to_server(s, &wild6, port_index, fd_index, &dsmode,
+-                                   &sp)) == GRPC_ERROR_NONE) {
+-    ++fd_index;
+-    requested_port = *out_port = sp->port;
+-    if (dsmode == GRPC_DSMODE_DUALSTACK || dsmode == GRPC_DSMODE_IPV4) {
+-      return GRPC_ERROR_NONE;
+-    }
+-  }
+   /* If we got a v6-only socket or nothing, try adding 0.0.0.0. */
+   grpc_sockaddr_set_port(&wild4, requested_port);
+   if ((v4_err = add_addr_to_server(s, &wild4, port_index, fd_index, &dsmode,
+diff --git a/src/core/lib/iomgr/tcp_server_uv.c b/src/core/lib/iomgr/tcp_server_uv.c
+index eed2773f8a..f126031e44 100644
+--- a/src/core/lib/iomgr/tcp_server_uv.c
++++ b/src/core/lib/iomgr/tcp_server_uv.c
+@@ -334,13 +334,6 @@ grpc_error *grpc_tcp_server_add_port(grpc_tcp_server *s,
+     addr = &addr6_v4mapped;
+   }
+ 
+-  /* Treat :: or 0.0.0.0 as a family-agnostic wildcard. */
+-  if (grpc_sockaddr_is_wildcard(addr, port)) {
+-    grpc_sockaddr_make_wildcard6(*port, &wildcard);
+-
+-    addr = &wildcard;
+-  }
+-
+   handle = gpr_malloc(sizeof(uv_tcp_t));
+   status = uv_tcp_init(uv_default_loop(), handle);
+   if (status == 0) {
+diff --git a/src/core/lib/iomgr/udp_server.c b/src/core/lib/iomgr/udp_server.c
+index d1bcd89af1..8f73949a4d 100644
+--- a/src/core/lib/iomgr/udp_server.c
++++ b/src/core/lib/iomgr/udp_server.c
+@@ -413,22 +413,7 @@ int grpc_udp_server_add_port(grpc_udp_server *s,
+   /* Treat :: or 0.0.0.0 as a family-agnostic wildcard. */
+   if (grpc_sockaddr_is_wildcard(addr, &port)) {
+     grpc_sockaddr_make_wildcards(port, &wild4, &wild6);
+-
+-    /* Try listening on IPv6 first. */
+-    addr = &wild6;
+-    // TODO(rjshade): Test and propagate the returned grpc_error*:
+-    GRPC_ERROR_UNREF(grpc_create_dualstack_socket(addr, SOCK_DGRAM, IPPROTO_UDP,
+-                                                  &dsmode, &fd));
+-    allocated_port1 =
+-        add_socket_to_server(s, fd, addr, read_cb, write_cb, orphan_cb);
+-    if (fd >= 0 && dsmode == GRPC_DSMODE_DUALSTACK) {
+-      goto done;
+-    }
+-
+-    /* If we didn't get a dualstack socket, also listen on 0.0.0.0. */
+-    if (port == 0 && allocated_port1 > 0) {
+-      grpc_sockaddr_set_port(&wild4, allocated_port1);
+-    }
++    grpc_sockaddr_set_port(&wild4, allocated_port1);
+     addr = &wild4;
+   }
+ 

@@ -237,3 +237,8 @@ at 1000 requests per day.
 At least, this is according to our understanding of the logic in the Go
 code. Ideally we should test this against `lyft/ratelimit` itself, which is
 a pending task.
+
+## Limitations
+
+* Fencer does not listen on IPv6 `::`. This should be fixed once
+  <https://github.com/juspay/fencer/pull/6> is merged.
