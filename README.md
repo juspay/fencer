@@ -13,10 +13,17 @@ with:
 $ curl https://nixos.org/nix/install | sh
 ```
 
-Then run:
+To build a binary:
 
 ```
 $ nix-build
+```
+
+To build a Docker image:
+
+```
+$ dockerpath=$(nix-build docker.nix)
+$ docker load -i $dockerpath
 ```
 
 ## Developing
