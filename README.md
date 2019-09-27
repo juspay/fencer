@@ -4,6 +4,9 @@ Fencer is a port of <https://github.com/lyft/ratelimit> into Haskell. The
 key difference is that Fencer does not use Redis. The API, rule matching
 logic, etc, are compatible with `lyft/ratelimit` as far as possible.
 
+Questions? [Open an issue](https://github.com/juspay/fencer/issues) or get
+in touch at <opensource@juspay.in>.
+
 ## Building
 
 Install [Nix](https://nixos.org/nix/). On macOS and Linux, this can be done
