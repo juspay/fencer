@@ -1,45 +1,62 @@
-image: nixos/nix
-
 stages:
   - build
   - test
 
 ### Build
 
-# Build Fencer and put into ./out/bin/fencer
+# Build the Fencer Docker image
 compile:
   stage: build
+  image: nixos/nix
   script:
-    - storepath=$(nix-build)
-    - nix-store --export $(nix-store -qR $storepath) > out-fencer
-    - echo $storepath > out-fencer-path
+    - imagepath=$(nix-build docker.nix)
+    - cp $imagepath fencer.tar.gz
   artifacts:
     paths:
-      - out-fencer
-      - out-fencer-path
+      - fencer.tar.gz
 
-# Build the Go integration test and put into ./out-integration/bin/test_integration_go
+# Build the Go integration test
 compile_integration:
   stage: build
+  image: nixos/nix
   script:
-    - storepath=$(nix-build test_integration_go)
-    - nix-store --export $(nix-store -qR $storepath) > out-integration
-    - echo $storepath > out-integration-path
+    - imagepath=$(nix-build test_integration_go/docker.nix)
+    - cp $imagepath test_integration_go.tar.gz
   artifacts:
     paths:
-      - out-integration
-      - out-integration-path
+      - test_integration_go.tar.gz
 
 ### Test
 
 integration:
   stage: test
+  image: docker:19.03.0
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: "/certs"
+  services:
+    - docker:19.03.0-dind
+  before_script:
+    - docker info
   script:
-    - nix-store --import < out-fencer
-    - nix-store --import < out-integration
-    - RUNTIME_ROOT=./test_integration_go/config
-        RUNTIME_SUBDIRECTORY=ratelimit
-        $(cat out-fencer-path)/bin/fencer &
-    - sleep 0.1
-    - $(cat out-integration-path)/bin/test_integration_go
-    - kill $!
+    # Create a Docker network for the containers
+    - docker network create test
+
+    # Run Fencer
+    - docker load -i fencer.tar.gz
+    - docker run
+        -v $(pwd)/test_integration_go/config:/srv/runtime_data/current
+        -e RUNTIME_SUBDIRECTORY=ratelimit
+        -p 50051:50051
+        --name fencer
+        --network test
+        --detach
+        juspay/fencer
+    - sleep 5
+
+    # Run the test
+    - docker load -i test_integration_go.tar.gz
+    - docker run
+        -e GRPC_HOST=fencer
+        --network test
+        test_integration_go
