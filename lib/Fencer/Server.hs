@@ -31,11 +31,13 @@ import qualified Fencer.Proto as Proto
 ----------------------------------------------------------------------------
 
 -- | Run the gRPC server serving ratelimit requests.
+--
+-- TODO: fail if the port is taken? or does it fail already?
 runServer :: Logger -> AppState -> IO ()
 runServer logger appState = do
     let handlers = Proto.RateLimitService
             { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit logger appState }
-    let options = Grpc.defaultServiceOptions
+    let options = Grpc.defaultServiceOptions -- TODO: set the logger
     Logger.info logger $
         Logger.msg (Logger.val "Starting gRPC server on port 50051")
     Proto.rateLimitServiceServer handlers options
@@ -104,7 +106,7 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = d
 
 -- | Handle a single descriptor in a 'shouldRateLimit' request.
 --
--- Returns the current limit and protobuf-encoded response.
+-- Returns the current limit and response.
 --
 -- 'shouldRateLimitDescriptor' will create a new counter if the counter does
 -- not exist, or update an existing counter otherwise. The counter will be
