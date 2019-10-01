@@ -44,7 +44,7 @@ test_responseNoRules =
               actualError
           Grpc.ClientNormalResponse result _ _ status _ -> do
             assertFailure $
-              "Expected a failure, got a normal response: " ++
+              "Expected an error response, got a normal response: " ++
               "status = " ++ show status ++ ", " ++
               "result = " ++ show result
   where
