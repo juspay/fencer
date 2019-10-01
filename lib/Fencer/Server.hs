@@ -52,7 +52,7 @@ shouldRateLimit
     -> AppState
     -> Grpc.ServerRequest 'Grpc.Normal Proto.RateLimitRequest Proto.RateLimitResponse
     -> IO (Grpc.ServerResponse 'Grpc.Normal Proto.RateLimitResponse)
-shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = do
+shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = do
     -- Decode the protobuf request into our domain types.
     let domain = DomainId (TL.toStrict (Proto.rateLimitRequestDomain request))
     let descriptors :: [[(RuleKey, RuleValue)]]
@@ -70,6 +70,15 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = d
         Logger.field "domain" (Proto.rateLimitRequestDomain request) .
         Logger.field "descriptors" (show descriptors) .
         Logger.field "hits" hits
+
+    rulesLoaded <- atomically $ getAppStateRulesLoaded appState
+    unless rulesLoaded $ do
+        Logger.info logger $
+            Logger.msg (Logger.val "Rules not loaded, responding with an error")
+        Grpc.serverCallCancel
+            serverCall
+            Grpc.StatusUnknown
+            "rate limit descriptor list must not be empty"
 
     -- Update all counters in one atomic operation, and collect the results.
     --
