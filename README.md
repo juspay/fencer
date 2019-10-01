@@ -19,6 +19,13 @@ Then run:
 $ nix-build
 ```
 
+To speed up the build, you can fetch prebuilt dependencies (like gRPC) from
+[Cachix](https://cachix.org):
+
+```
+cachix use fencer
+```
+
 ## Developing
 
 Install Nix as per instructions in the "Building" secion. Enter the Nix

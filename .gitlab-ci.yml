@@ -10,7 +10,11 @@ stages:
 compile:
   stage: build
   script:
+    - nix-env -iA cachix -f https://cachix.org/api/v1/install
+    - cachix use fencer
     - storepath=$(nix-build)
+    - nix-store -qR --include-outputs $(nix-instantiate default.nix)
+        | cachix push fencer
     - nix-store --export $(nix-store -qR $storepath) > out-fencer
     - echo $storepath > out-fencer-path
   artifacts:
