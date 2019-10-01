@@ -23,6 +23,7 @@ To speed up the build, you can fetch prebuilt dependencies (like gRPC) from
 [Cachix](https://cachix.org):
 
 ```
+nix-env -iA cachix -f https://cachix.org/api/v1/install
 cachix use fencer
 ```
 
