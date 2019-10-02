@@ -34,10 +34,13 @@ import qualified Fencer.Proto as Proto
 runServer :: Logger -> AppState -> IO ()
 runServer logger appState = do
     let handlers = Proto.RateLimitService
-            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit logger appState }
+            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit logger appState
+            }
     let options = Grpc.defaultServiceOptions
+            { Grpc.serverHost = "0.0.0.0"
+            }
     Logger.info logger $
-        Logger.msg (Logger.val "Starting gRPC server on port 50051")
+        Logger.msg (Logger.val "Starting gRPC server at 0.0.0.0:50051")
     Proto.rateLimitServiceServer handlers options
 
 ----------------------------------------------------------------------------
