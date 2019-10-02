@@ -36,10 +36,14 @@ import qualified Fencer.Proto as Proto
 runServer :: Logger -> AppState -> IO ()
 runServer logger appState = do
     let handlers = Proto.RateLimitService
-            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit logger appState }
-    let options = Grpc.defaultServiceOptions -- TODO: set the logger
+            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit logger appState
+            }
+    let options = Grpc.defaultServiceOptions
+            { Grpc.serverHost = "0.0.0.0"
+              -- TODO: set the logger
+            }
     Logger.info logger $
-        Logger.msg (Logger.val "Starting gRPC server on port 50051")
+        Logger.msg (Logger.val "Starting gRPC server at 0.0.0.0:50051")
     Proto.rateLimitServiceServer handlers options
 
 ----------------------------------------------------------------------------
@@ -107,6 +111,8 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = 
             { Proto.rateLimitResponseOverallCode =
                   ProtoSuite.Enumerated (Right overallCode)
             , Proto.rateLimitResponseStatuses = V.fromList statuses
+            -- The headers field is never set, as per
+            -- https://github.com/lyft/ratelimit/blob/883e9705856eb8c891813589f95809dbb2bbec39/src/service/ratelimit.go#L120-L131
             , Proto.rateLimitResponseHeaders = mempty
             }
     let metadata = mempty

@@ -10,7 +10,7 @@ license: BSD-3-Clause
 license-file: LICENSE
 
 author: Juspay Technologies
-maintainer: artyom.kazak@juspay.in
+maintainer: opensource@juspay.in
 extra-source-files: CHANGELOG.md
 
 homepage: https://github.com/juspay/fencer

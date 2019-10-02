@@ -79,12 +79,17 @@ func TestBasicConfig(t *testing.T) {
 }
 
 func testBasicConfig() func(*testing.T) {
-	grpcPort := "50051";
+	grpcHost, grpcHostSet := os.LookupEnv("GRPC_HOST")
+	if !grpcHostSet {
+		grpcHost = "localhost"
+	}
+	grpcPort, grpcPortSet := os.LookupEnv("GRPC_PORT")
+	if !grpcPortSet {
+		grpcPort = "50051"
+	}
 	return func(t *testing.T) {
-		os.Setenv("GRPC_PORT", grpcPort)
-
 		assert := assert.New(t)
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%s", grpcPort), grpc.WithInsecure())
+		conn, err := grpc.Dial(fmt.Sprintf("%s:%s", grpcHost, grpcPort), grpc.WithInsecure())
 		assert.NoError(err)
 		defer conn.Close()
 		c := pb.NewRateLimitServiceClient(conn)

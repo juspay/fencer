@@ -4,19 +4,57 @@ Fencer is a port of <https://github.com/lyft/ratelimit> into Haskell. The
 key difference is that Fencer does not use Redis. The API, rule matching
 logic, etc, are compatible with `lyft/ratelimit` as far as possible.
 
+Questions? [Open an issue](https://github.com/juspay/fencer/issues) or get
+in touch at <opensource@juspay.in>.
+
 ## Building
 
 Install [Nix](https://nixos.org/nix/). On macOS and Linux, this can be done
 with:
 
 ```
-$ curl https://nixos.org/nix/install | sh
+curl https://nixos.org/nix/install | sh
 ```
 
-Then run:
+Then build a binary from `default.nix`:
 
 ```
-$ nix-build
+nix-build
+```
+
+## Docker image
+
+A Docker image can be built from `docker.nix`. The Fencer binary is still
+built on the host machine and copied into the image, so you should run
+`nix-build docker.nix` from inside a `nixos/nix` container if you want to
+get a working image.
+
+Enter `nixos/nix`:
+
+```
+docker run -it nixos/nix -v $(pwd):/src
+```
+
+From inside, run:
+
+```
+cd /src
+dockerpath=$(nix-build docker.nix)
+cp $dockerpath fencer.tar.gz
+```
+
+To load the image into host Docker, run:
+
+```
+docker load -i fencer.tar.gz
+```
+
+To speed up the build, you can fetch prebuilt dependencies (like gRPC) from
+[Cachix](https://cachix.org):
+
+```
+nix-env -iA cachix -f https://cachix.org/api/v1/install
+cachix use fencer
 ```
 
 ## Developing
@@ -25,8 +63,8 @@ Install Nix as per instructions in the "Building" secion. Enter the Nix
 shell and build the project with `cabal`:
 
 ```
-$ nix-shell
-$ cabal v2-build
+nix-shell
+cabal v2-build
 ```
 
 You can use [`nix-cabal`](https://github.com/monadfix/nix-cabal) as a
@@ -230,3 +268,8 @@ at 1000 requests per day.
 At least, this is according to our understanding of the logic in the Go
 code. Ideally we should test this against `lyft/ratelimit` itself, which is
 a pending task.
+
+## Limitations
+
+* Fencer does not listen on IPv6 `::`. This should be fixed once
+  <https://github.com/juspay/fencer/pull/6> is merged.
