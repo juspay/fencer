@@ -9,7 +9,11 @@ compile:
   stage: build
   image: nixos/nix
   script:
+    - nix-env -iA cachix -f https://cachix.org/api/v1/install
+    - cachix use fencer
     - imagepath=$(nix-build docker.nix)
+    - nix-store -qR --include-outputs $(nix-instantiate docker.nix)
+        | cachix push fencer
     - cp $imagepath fencer.tar.gz
   artifacts:
     paths:
