@@ -29,10 +29,14 @@ let
       haskellPackages = pkgs.haskellPackages.override {
         overrides = self: super: rec {
           ghc =
-            super.ghc // { withPackages = if withHoogle then super.ghc.withHoogle else super.ghc ; };
+            if withHoogle
+            then super.ghc // {withPackages = super.ghc.withHoogle;}
+            else super.ghc;
 
           ghcWithPackages =
-            self.ghc.withPackages;
+            if withHoogle
+            then self.ghc.withPackages
+            else super.ghcWithPackages;
 
           # We skip tests for most packages to reduce build times.
 
