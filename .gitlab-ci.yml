@@ -5,8 +5,13 @@ stages:
 ### Secret management
 
 # Don't allow reading secret-containing files so that we won't leak secrets
-# into build outputs. We also use files instead of environment variables to
-# pass secrets - otherwise the trick would not work.
+# into build outputs.
+#
+# We use files instead of environment variables to pass secrets - otherwise
+# the trick would not work.
+#
+# NOTE: other jobs may not use "before_script" because it will override the
+# "before_script" we define here.
 default:
   before_script:
     # All SECRET_* variables point to files containing secrets; make them
@@ -63,8 +68,6 @@ integration:
     DOCKER_TLS_CERTDIR: "/certs"
   services:
     - docker:19.03.0-dind
-  before_script:
-    - docker info
   script:
     # Create a Docker network for the containers
     - docker network create test
