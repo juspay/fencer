@@ -99,6 +99,8 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = d
             { Proto.rateLimitResponseOverallCode =
                   ProtoSuite.Enumerated (Right overallCode)
             , Proto.rateLimitResponseStatuses = V.fromList statuses
+            -- The headers field is never set, as per
+            -- https://github.com/lyft/ratelimit/blob/883e9705856eb8c891813589f95809dbb2bbec39/src/service/ratelimit.go#L120-L131
             , Proto.rateLimitResponseHeaders = mempty
             }
     let metadata = mempty
