@@ -2,6 +2,28 @@ stages:
   - build
   - test
 
+### Secret management
+
+# Don't allow reading secret-containing files so that we won't leak secrets
+# into build outputs. We also use files instead of environment variables to
+# pass secrets - otherwise the trick would not work.
+default:
+  before_script:
+    # All SECRET_* variables point to files containing secrets; make them
+    # unreadable.
+    - for var in $(env | awk -F= '{if($1 ~ /SECRET_/) print $1}'); do
+        ( eval filename=\$$var;
+          chmod 0 $filename; )
+      done
+
+    # get_secret loads secret X from the SECRET_X file.
+    - get_secret() {
+        eval local filename=\$SECRET_$1;
+        chmod 400 $filename;
+        export $1="$(cat $filename)";
+        chmod 0 $filename;
+      }
+
 ### Build
 
 # Build the Fencer Docker image
@@ -13,7 +35,8 @@ compile:
     - cachix use fencer
     - imagepath=$(nix-build docker.nix)
     - nix-store -qR --include-outputs $(nix-instantiate docker.nix)
-        | cachix push fencer
+        | ( get_secret CACHIX_SIGNING_KEY;
+            cachix push fencer )
     - cp $imagepath fencer.tar.gz
   artifacts:
     paths:
