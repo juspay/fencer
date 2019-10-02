@@ -31,6 +31,8 @@ import qualified Fencer.Proto as Proto
 ----------------------------------------------------------------------------
 
 -- | Run the gRPC server serving ratelimit requests.
+--
+-- TODO: fail if the port is taken? or does it fail already?
 runServer :: Logger -> AppState -> IO ()
 runServer logger appState = do
     let handlers = Proto.RateLimitService
@@ -38,6 +40,7 @@ runServer logger appState = do
             }
     let options = Grpc.defaultServiceOptions
             { Grpc.serverHost = "0.0.0.0"
+              -- TODO: set the logger
             }
     Logger.info logger $
         Logger.msg (Logger.val "Starting gRPC server at 0.0.0.0:50051")
@@ -53,7 +56,7 @@ shouldRateLimit
     -> AppState
     -> Grpc.ServerRequest 'Grpc.Normal Proto.RateLimitRequest Proto.RateLimitResponse
     -> IO (Grpc.ServerResponse 'Grpc.Normal Proto.RateLimitResponse)
-shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = do
+shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = do
     -- Decode the protobuf request into our domain types.
     let domain = DomainId (TL.toStrict (Proto.rateLimitRequestDomain request))
     let descriptors :: [[(RuleKey, RuleValue)]]
@@ -71,6 +74,15 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = d
         Logger.field "domain" (Proto.rateLimitRequestDomain request) .
         Logger.field "descriptors" (show descriptors) .
         Logger.field "hits" hits
+
+    rulesLoaded <- atomically $ getAppStateRulesLoaded appState
+    unless rulesLoaded $ do
+        Logger.info logger $
+            Logger.msg (Logger.val "Rules not loaded, responding with an error")
+        Grpc.serverCallCancel
+            serverCall
+            Grpc.StatusUnknown
+            "rate limit descriptor list must not be empty"
 
     -- Update all counters in one atomic operation, and collect the results.
     --
@@ -109,7 +121,7 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest _metadata request) = d
 
 -- | Handle a single descriptor in a 'shouldRateLimit' request.
 --
--- Returns the current limit and protobuf-encoded response.
+-- Returns the current limit and response.
 --
 -- 'shouldRateLimitDescriptor' will create a new counter if the counter does
 -- not exist, or update an existing counter otherwise. The counter will be

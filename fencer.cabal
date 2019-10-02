@@ -110,6 +110,7 @@ test-suite test-fencer
     test
   other-modules:
     Fencer.Types.Test
+    Fencer.Server.Test
   default-language:
     Haskell2010
   build-depends:
@@ -117,10 +118,14 @@ test-suite test-fencer
     , aeson-qq
     , base
     , base-prelude
+    , grpc-haskell
+    , proto3-wire
+    , proto3-suite
     , tasty
     , tasty-discover
     , tasty-hunit
     , text
+    , tinylog
     , unordered-containers
     , vector
     -- Internal dependencies

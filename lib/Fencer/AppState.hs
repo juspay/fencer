@@ -11,6 +11,7 @@ module Fencer.AppState
     , recordHits
     , getLimit
     , setRules
+    , getAppStateRulesLoaded
     , updateCurrentTime
     , deleteCountersWithExpiry
     )
@@ -59,6 +60,9 @@ import Fencer.Rules
 data AppState = AppState
     { -- | All active ratelimiting rules.
       appStateRules :: !(StmMap.Map DomainId RuleTree)
+      -- | Whether the rules were ever loaded successfully. If not, Fencer
+      -- will have to return an error on all requests.
+    , appStateRulesLoaded :: !(TVar Bool)
       -- | Current time, updated every second by a dedicated thread.
     , appStateCurrentTime :: !(TVar Timestamp)
       -- | All alive counters, as well as some counters that got expired but
@@ -71,10 +75,12 @@ data AppState = AppState
 -- | Initialize the environment.
 --
 -- * Set all maps to empty values.
+-- * Set 'appStateRulesLoaded' to @False@.
 -- * Set 'appStateCurrentTime' to the current time.
 initAppState :: IO AppState
 initAppState = do
     appStateRules <- StmMap.newIO
+    appStateRulesLoaded <- newTVarIO False
     appStateCurrentTime <- newTVarIO =<< getTimestamp
     appStateCounters <- StmMap.newIO
     appStateCounterExpiry <- StmMultimap.newIO
@@ -147,12 +153,17 @@ getLimit appState domain descriptor =
         Nothing -> pure Nothing
         Just ruleTree -> pure (applyRules descriptor ruleTree)
 
--- | Set 'appStateRules'.
+-- | Set 'appStateRules' and 'appStateRulesLoaded'.
 setRules :: AppState -> [(DomainId, RuleTree)] -> STM ()
 setRules appState rules = do
+    writeTVar (appStateRulesLoaded appState) True
     StmMap.reset (appStateRules appState)
     forM_ rules $ \(domain, tree) ->
         StmMap.insert tree domain (appStateRules appState)
+
+-- | Get 'appStateRulesLoaded'.
+getAppStateRulesLoaded :: AppState -> STM Bool
+getAppStateRulesLoaded appState = readTVar (appStateRulesLoaded appState)
 
 -- | Update the value of 'appStateCurrentTime' to the current time.
 --

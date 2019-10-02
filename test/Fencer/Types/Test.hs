@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
 
--- | Tests for types from the 'Fencer.Types' module.
+-- | Tests for types from the "Fencer.Types" module.
 module Fencer.Types.Test
   ( test_parseJSONDescriptorDefinition
   , test_parseJSONDomainDefinition
