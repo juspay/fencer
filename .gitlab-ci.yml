@@ -62,15 +62,15 @@ compile_integration:
 
 integration:
   stage: test
-  image: docker:19.03.0
+  image: docker:19.03.2
   variables:
     DOCKER_DRIVER: overlay2
     DOCKER_TLS_CERTDIR: "/certs"
   services:
-    - docker:19.03.0-dind
+    - docker:19.03.2-dind
   script:
     # Create a Docker network for the containers
-    - docker network create test
+    - docker network create test-net
 
     # Run Fencer
     - docker load -i fencer.tar.gz
@@ -79,7 +79,7 @@ integration:
         -e RUNTIME_SUBDIRECTORY=ratelimit
         -p 50051:50051
         --name fencer
-        --network test
+        --network test-net
         --detach
         juspay/fencer
     - sleep 5
@@ -88,5 +88,5 @@ integration:
     - docker load -i test_integration_go.tar.gz
     - docker run
         -e GRPC_HOST=fencer
-        --network test
+        --network test-net
         test_integration_go
