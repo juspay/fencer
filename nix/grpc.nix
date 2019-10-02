@@ -13,7 +13,12 @@ stdenv.mkDerivation rec {
   };
 
   patches = [
-    ./grpc-cast.patch  # https://github.com/grpc/grpc/pull/13714/files
+    # https://github.com/grpc/grpc/pull/13714/files
+    ./grpc-cast.patch
+    # Don't enable IPv6 support for 0.0.0.0, patch by @neongreen to work
+    # around https://github.com/grpc/grpc/issues/10532
+    ./grpc-ipv4.patch
+    # Disable compiler warnings to make the library compile
     ./grpc-warnings.patch
   ];
 
