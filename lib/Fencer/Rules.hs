@@ -4,7 +4,8 @@
 
 -- | Working with rate limiting rules.
 module Fencer.Rules
-    ( definitionsToRuleTree
+    ( loadRulesFromDirectory
+    , definitionsToRuleTree
     , applyRules
     )
 where
@@ -12,8 +13,40 @@ where
 import BasePrelude
 
 import qualified Data.HashMap.Strict as HM
+import Named ((:!), arg)
+import System.Directory (listDirectory, doesFileExist)
+import System.FilePath ((</>), takeExtension, takeFileName)
+import qualified Data.Yaml as Yaml
 
 import Fencer.Types
+
+-- | Gather rate limiting rules (*.yml, *.yaml) from a directory.
+-- Subdirectories are not included.
+--
+-- Throws an exception for unparseable or unreadable files.
+loadRulesFromDirectory
+    :: "directory" :! FilePath
+    -> "ignoreDotFiles" :! Bool
+    -> IO [DomainDefinition]
+loadRulesFromDirectory
+    (arg #directory -> directory)
+    (arg #ignoreDotFiles -> ignoreDotFiles)
+    =
+    do
+    files <-
+        filterM doesFileExist . map (directory </>) =<<
+        listDirectory directory
+    let ruleFiles =
+            (if ignoreDotFiles then filter (not . isDotFile) else id) $
+            filter isYaml files
+    mapM Yaml.decodeFileThrow ruleFiles
+    -- TODO: what does lyft/ratelimit do with unparseable files?
+  where
+    isYaml :: FilePath -> Bool
+    isYaml file = takeExtension file `elem` [".yml", ".yaml"]
+
+    isDotFile :: FilePath -> Bool
+    isDotFile file = "." `isPrefixOf` takeFileName file
 
 -- | Convert a list of descriptors to a 'RuleTree'.
 definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree
