@@ -15,7 +15,7 @@ import BasePrelude
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist)
-import System.FilePath ((</>), takeExtension, takeFileName)
+import System.FilePath ((</>), takeFileName)
 import qualified Data.Yaml as Yaml
 
 import Fencer.Types
@@ -36,15 +36,11 @@ loadRulesFromDirectory
     files <-
         filterM doesFileExist . map (directory </>) =<<
         listDirectory directory
-    let ruleFiles =
-            (if ignoreDotFiles then filter (not . isDotFile) else id) $
-            filter isYaml files
-    mapM Yaml.decodeFileThrow ruleFiles
-    -- TODO: what does lyft/ratelimit do with unparseable files?
+    mapM Yaml.decodeFileThrow $
+        if ignoreDotFiles
+            then filter (not . isDotFile) files
+            else files
   where
-    isYaml :: FilePath -> Bool
-    isYaml file = takeExtension file `elem` [".yml", ".yaml"]
-
     isDotFile :: FilePath -> Bool
     isDotFile file = "." `isPrefixOf` takeFileName file
 

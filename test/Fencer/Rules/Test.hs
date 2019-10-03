@@ -5,6 +5,7 @@
 -- | Tests for "Fencer.Rules".
 module Fencer.Rules.Test
   ( test_loadRulesYaml
+  , test_loadRulesNonYaml
   )
 where
 
@@ -29,6 +30,22 @@ test_loadRulesYaml =
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.yml") domain1Text
       TIO.writeFile (tempDir </> "config2.yaml") domain2Text
+      definitions <-
+        loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
+      assertEqual "unexpected definitions"
+        (sortOn domainDefinitionId [domain1, domain2])
+        (sortOn domainDefinitionId definitions)
+
+-- | Test that 'loadRulesFromDirectory' loads rules from all files, not just
+-- YAML files.
+--
+-- This counterintuitive behavior matches the behavior of @lyft/ratelimit@.
+test_loadRulesNonYaml :: TestTree
+test_loadRulesNonYaml =
+  testCase "Rules are loaded from non-YAML files" $ do
+    Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
+      TIO.writeFile (tempDir </> "config1.bin") domain1Text
+      TIO.writeFile (tempDir </> "config2") domain2Text
       definitions <-
         loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
       assertEqual "unexpected definitions"
