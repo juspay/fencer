@@ -1,15 +1,8 @@
-{
-  withHoogle ? true
+{ withHoogle ? false
 , static ? false
 }:
 let
-  inherit (import <nixpkgs> {}) fetchFromGitHub;
-  nixpkgs = fetchFromGitHub {
-    owner = "NixOS";
-    repo = "nixpkgs";
-    rev = "db858b4d3032aec35be7e98a65eb9b91b63671ef";
-    sha256 = "0gqcbf5nyqff1a4ps6szcrv59ay97fr26jdwrs7qp8fijzcpdnkh";
-  };
+  nixpkgs = import ./nixpkgs.nix;
   staticPackage = pkg: pkg.overrideAttrs (old: {
     enableSharedExecutables = false;
     enableSharedLibraries = false;
@@ -91,25 +84,10 @@ let
     if static
     then staticPackage pkgs.haskellPackages.fencer
     else pkgs.haskellPackages.fencer;
-in
-  if pkgs.lib.inNixShell
-    then
-      drv.env.overrideAttrs(attrs:
-        { buildInputs =
-          [
-            pkgs.haskellPackages.cabal-install
-            pkgs.haskellPackages.cabal2nix
-            pkgs.haskellPackages.ghcid
-            pkgs.haskellPackages.hlint
-          ] ++
-          [
-            pkgs.haskellPackages.zlib
-          ] ++
-          [
-            pkgs.wget
-          ] ++
-          attrs.buildInputs;
-        })
-    else
-      # https://github.com/Gabriel439/haskell-nix/blob/master/project3/README.md#minimizing-the-closure
-      pkgs.haskell.lib.justStaticExecutables drv
+in {
+  pkgs = pkgs;
+  fencer =
+    if pkgs.lib.inNixShell
+    then drv
+    else pkgs.haskell.lib.justStaticExecutables drv;
+}
