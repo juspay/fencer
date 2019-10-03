@@ -85,7 +85,7 @@ timeUnitToSeconds = \case
 
 -- | Domain name. Several rate limiting rules can belong to the same domain.
 newtype DomainId = DomainId Text
-    deriving stock (Eq, Show)
+    deriving stock (Eq, Ord, Show)
     deriving newtype (Hashable, FromJSON)
 
 -- | Unwrap 'DomainId'.
