@@ -57,6 +57,7 @@ library
   build-depends:
     base,
     base-prelude,
+    extra,
     hashable,
     monad-loops,
     time,
@@ -110,6 +111,7 @@ test-suite test-fencer
     test
   other-modules:
     Fencer.Types.Test
+    Fencer.Rules.Test
     Fencer.Server.Test
   default-language:
     Haskell2010
@@ -118,12 +120,16 @@ test-suite test-fencer
     , aeson-qq
     , base
     , base-prelude
+    , directory
     , grpc-haskell
+    , filepath
+    , neat-interpolation
     , proto3-wire
     , proto3-suite
     , tasty
     , tasty-discover
     , tasty-hunit
+    , temporary
     , text
     , tinylog
     , unordered-containers

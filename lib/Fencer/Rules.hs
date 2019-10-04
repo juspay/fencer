@@ -4,16 +4,65 @@
 
 -- | Working with rate limiting rules.
 module Fencer.Rules
-    ( definitionsToRuleTree
+    ( loadRulesFromDirectory
+    , definitionsToRuleTree
     , applyRules
     )
 where
 
 import BasePrelude
 
+import Control.Monad.Extra (partitionM, concatMapM)
 import qualified Data.HashMap.Strict as HM
+import Named ((:!), arg)
+import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
+import System.FilePath ((</>), takeFileName)
+import qualified Data.Yaml as Yaml
 
 import Fencer.Types
+
+-- | Read rate limiting rules from a directory, recursively. Files are
+-- assumed to be YAML, but do not have to have a @.yml@ extension.
+--
+-- Throws an exception for unparseable or unreadable files.
+loadRulesFromDirectory
+    :: "directory" :! FilePath
+    -> "ignoreDotFiles" :! Bool
+    -> IO [DomainDefinition]
+loadRulesFromDirectory
+    (arg #directory -> directory)
+    (arg #ignoreDotFiles -> ignoreDotFiles)
+    =
+    do
+    files <- listAllFiles directory
+    mapM Yaml.decodeFileThrow $
+        if ignoreDotFiles
+            then filter (not . isDotFile) files
+            else files
+  where
+    isDotFile :: FilePath -> Bool
+    isDotFile file = "." `isPrefixOf` takeFileName file
+
+    -- | Is the path a true directory (not a symlink)?
+    isDirectory :: FilePath -> IO Bool
+    isDirectory dir =
+        liftA2 (&&)
+            (doesDirectoryExist dir)
+            (not <$> (pathIsSymbolicLink dir `catchIOError` \_ -> pure False))
+
+    -- | List all files in a directory, recursively, without following
+    -- symlinks.
+    listAllFiles :: FilePath -> IO [FilePath]
+    listAllFiles dir = do
+        -- TODO: log exceptions
+        contents <-
+            map (dir </>) <$>
+            (listDirectory dir `catchIOError` \_ -> pure [])
+        -- files = normal files and links to files
+        -- dirs = directories, but not links to directories
+        (files, other) <- partitionM doesFileExist contents
+        dirs <- filterM isDirectory other
+        (files ++) <$> concatMapM listAllFiles dirs
 
 -- | Convert a list of descriptors to a 'RuleTree'.
 definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree

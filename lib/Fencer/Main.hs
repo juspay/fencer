@@ -14,10 +14,7 @@ import BasePrelude
 
 import Control.Concurrent.STM (atomically)
 import qualified Data.List.NonEmpty as NE
-import Named ((:!), arg)
-import System.Directory (listDirectory, doesFileExist)
-import System.FilePath ((</>), takeExtension, takeFileName)
-import qualified Data.Yaml as Yaml
+import System.FilePath ((</>))
 import qualified System.Logger as Logger
 import System.Logger (Logger)
 
@@ -100,31 +97,3 @@ reloadRules logger settings appState = do
             ]
     Logger.info logger $
         Logger.msg (Logger.val "Applied new rules")
-
--- | Gather rate limiting rules (*.yml, *.yaml) from a directory.
--- Subdirectories are not included.
---
--- Throws an exception for unparseable or unreadable files.
-loadRulesFromDirectory
-    :: "directory" :! FilePath
-    -> "ignoreDotFiles" :! Bool
-    -> IO [DomainDefinition]
-loadRulesFromDirectory
-    (arg #directory -> directory)
-    (arg #ignoreDotFiles -> ignoreDotFiles)
-    =
-    do
-    files <-
-        filterM doesFileExist . map (directory </>) =<<
-        listDirectory directory
-    let ruleFiles =
-            (if ignoreDotFiles then filter (not . isDotFile) else id) $
-            filter isYaml files
-    mapM Yaml.decodeFileThrow ruleFiles
-    -- TODO: what does lyft/ratelimit do with unparseable files?
-  where
-    isYaml :: FilePath -> Bool
-    isYaml file = takeExtension file `elem` [".yml", ".yaml"]
-
-    isDotFile :: FilePath -> Bool
-    isDotFile file = "." `isPrefixOf` takeFileName file
