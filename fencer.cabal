@@ -57,6 +57,7 @@ library
   build-depends:
     base,
     base-prelude,
+    extra,
     hashable,
     monad-loops,
     time,
@@ -119,6 +120,7 @@ test-suite test-fencer
     , aeson-qq
     , base
     , base-prelude
+    , directory
     , grpc-haskell
     , filepath
     , neat-interpolation

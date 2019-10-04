@@ -6,6 +6,7 @@
 module Fencer.Rules.Test
   ( test_loadRulesYaml
   , test_loadRulesNonYaml
+  , test_loadRulesRecursively
   )
 where
 
@@ -18,6 +19,7 @@ import           Test.Tasty.HUnit (assertEqual, testCase)
 import qualified System.IO.Temp as Temp
 import           NeatInterpolation (text)
 import           System.FilePath ((</>))
+import           System.Directory (createDirectoryIfMissing)
 import           Data.List (sortOn)
 
 import           Fencer.Types
@@ -46,6 +48,23 @@ test_loadRulesNonYaml =
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.bin") domain1Text
       TIO.writeFile (tempDir </> "config2") domain2Text
+      definitions <-
+        loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
+      assertEqual "unexpected definitions"
+        (sortOn domainDefinitionId [domain1, domain2])
+        (sortOn domainDefinitionId definitions)
+
+-- | Test that 'loadRulesFromDirectory' loads rules recursively.
+--
+-- This matches the behavior of @lyft/ratelimit@.
+test_loadRulesRecursively :: TestTree
+test_loadRulesRecursively =
+  testCase "Rules are loaded recursively" $ do
+    Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
+      createDirectoryIfMissing True (tempDir </> "domain1")
+      TIO.writeFile (tempDir </> "domain1/config.yml") domain1Text
+      createDirectoryIfMissing True (tempDir </> "domain2/config")
+      TIO.writeFile (tempDir </> "domain2/config/config.yml") domain2Text
       definitions <-
         loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
       assertEqual "unexpected definitions"
