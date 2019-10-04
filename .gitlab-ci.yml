@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - release
 
 ### Build
 
@@ -73,3 +74,26 @@ integration:
         -e GRPC_HOST=fencer
         --network test
         test_integration_go
+
+### Release
+
+release_docker:
+  stage: release
+  image: docker:19.03.0
+  environment:
+    # GitLab provides the GitHub access token to all jobs tagged with
+    # 'release_docker' (i.e. only this job)
+    name: release_docker
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: "/certs"
+  services:
+    - docker:19.03.0-dind
+  script:
+    - echo "$GITHUB_ACCESS_TOKEN"
+        | docker login docker.pkg.github.com --username juspay --password-stdin
+    - docker load -i fencer.tar.gz
+    - docker tag juspay/fencer docker.pkg.github.com/juspay/fencer/fencer:master
+    - docker push docker.pkg.github.com/juspay/fencer/fencer:master
+  only:
+    - master
