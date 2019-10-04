@@ -8,13 +8,22 @@ stages:
 compile:
   stage: build
   image: nixos/nix
+  environment:
+    # GitLab provides the Cachix signing key to all jobs tagged with
+    # 'compile' (i.e. only this job)
+    name: compile
   script:
-    - nix-env -iA cachix -f https://cachix.org/api/v1/install
-    - cachix use fencer
-    - imagepath=$(nix-build docker.nix)
-    - nix-store -qR --include-outputs $(nix-instantiate docker.nix)
-        | cachix push fencer
-    - cp $imagepath fencer.tar.gz
+    # Build the Docker image and create a list of paths to push to Cachix.
+    # The secret signing key should not be available to the build process.
+    - ( unset CACHIX_SIGNING_KEY;
+        nix-env -iA cachix -f https://cachix.org/api/v1/install;
+        cachix use fencer;
+        imagepath=$(nix-build docker.nix);
+        cp $imagepath fencer.tar.gz;
+        nix-store -qR --include-outputs $(nix-instantiate docker.nix) > paths
+      )
+    # Push built paths to Cachix
+    - cachix push fencer < paths
   artifacts:
     paths:
       - fencer.tar.gz
