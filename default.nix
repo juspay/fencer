@@ -71,7 +71,7 @@ let
               (self.callPackage ./nix/grpc-haskell.nix { });
 
           fencer =
-            self.callCabal2nix "fencer" (./.) { };
+            self.callCabal2nix "fencer" (pkgs.lib.cleanSource ./.) { };
         };
       };
     };
