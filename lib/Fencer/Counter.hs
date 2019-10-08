@@ -24,6 +24,7 @@ import Fencer.Time
 data CounterKey = CounterKey
     { counterKeyDomain :: !DomainId
     , counterKeyDescriptor :: ![(RuleKey, RuleValue)]
+    , counterKeyUnit :: !TimeUnit
     }
     deriving stock (Eq, Generic)
     deriving anyclass (Hashable)

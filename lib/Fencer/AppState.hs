@@ -154,6 +154,16 @@ getLimit appState domain descriptor =
         Just ruleTree -> pure (applyRules descriptor ruleTree)
 
 -- | Set 'appStateRules' and 'appStateRulesLoaded'.
+--
+-- The 'appStateCounters' field stays unchanged. This is in accordance
+-- with the behavior of @lyft/ratelimit@.
+--
+-- There might be a change in rulsets with the same descriptors that
+-- updates the value of 'requests_per_unit' (with the time unit left
+-- intact), which allows a different number of requests to be
+-- made. This is as expected. However, if there is a change in the
+-- rate limit time unit, a new counter will be created, regardless of
+-- how many requests the previous counter had used up.
 setRules :: AppState -> [(DomainId, RuleTree)] -> STM ()
 setRules appState rules = do
     writeTVar (appStateRulesLoaded appState) True

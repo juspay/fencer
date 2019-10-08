@@ -136,13 +136,13 @@ shouldRateLimitDescriptor appState (arg #hits -> hits) domain descriptor =
     getLimit appState domain descriptor >>= \case
         Nothing -> pure Nothing
         Just limit -> do
+            let counterKey :: CounterKey
+                counterKey = CounterKey
+                  { counterKeyDomain = domain
+                  , counterKeyDescriptor = descriptor
+                  , counterKeyUnit = rateLimitUnit limit }
             status <- recordHits appState (#hits hits) (#limit limit) counterKey
             pure (Just (limit, status))
-  where
-    counterKey :: CounterKey
-    counterKey = CounterKey
-        { counterKeyDomain = domain
-        , counterKeyDescriptor = descriptor }
 
 ----------------------------------------------------------------------------
 -- Working with protobuf structures
