@@ -7,23 +7,33 @@ module Fencer.Rules.Test
   ( test_loadRulesYaml
   , test_loadRulesNonYaml
   , test_loadRulesRecursively
+  , test_ruleLimitUnitChange
   )
 where
 
 import           BasePrelude
 
+import qualified Data.HashMap.Strict as HM
+import           Data.List (sortOn)
+import qualified Data.List.NonEmpty as NE
+import           Data.Maybe (fromJust)
 import           Data.Text (Text)
 import qualified Data.Text.IO as TIO
-import           Test.Tasty (TestTree)
-import           Test.Tasty.HUnit (assertEqual, testCase)
-import qualified System.IO.Temp as Temp
 import           NeatInterpolation (text)
+import qualified StmContainers.Map as StmMap
+import qualified System.IO.Temp as Temp
 import           System.FilePath ((</>))
 import           System.Directory (createDirectoryIfMissing)
-import           Data.List (sortOn)
+import           Test.Tasty (TestTree, withResource)
+import           Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 
-import           Fencer.Types
+import           Fencer.AppState (appStateCounters, appStateRules, recordHits, setRules)
+import           Fencer.Counter (CounterKey(..), counterHits)
 import           Fencer.Rules
+import           Fencer.Types
+
+import           Fencer.Server.Test (createServerAppState, destroyServerAppState)
+
 
 -- | Test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_loadRulesYaml :: TestTree
@@ -71,6 +81,87 @@ test_loadRulesRecursively =
         (sortOn domainDefinitionId [domain1, domain2])
         (sortOn domainDefinitionId definitions)
 
+-- | Test that a rule limit unit change adds a new counter and leaves
+-- the old one intact.
+--
+-- TODO(md)-2019-10-11: Sometimes this test non-deterministically fails with:
+--
+-- Got wrong gRPC error response
+--         expected: ClientIOError (GRPCIOBadStatusCode StatusUnknown
+--           (StatusDetails {unStatusDetails = "rate limit descriptor
+--             list must not be empty"}))
+--          but got: ClientIOError (GRPCIOBadStatusCode StatusUnavailable
+--            (StatusDetails {unStatusDetails = "Endpoint read failed"}))
+test_ruleLimitUnitChange :: TestTree
+test_ruleLimitUnitChange =
+  -- TODO(md): creating a server here sometimes clashes with executing
+  -- server tests concurrently, which occasionally leads to test
+  -- failures. Fix this either by making sure the port hasn't been
+  -- binded or in some other way.
+  withResource createServerAppState destroyServerAppState $ \ioLogIdState ->
+    testCase "A rule limit unit change on rule reloading" $ do
+      Temp.withSystemTempDirectory "fencer-config-unit" $ \tempDir -> do
+        createDirectoryIfMissing True (tempDir </> dir)
+
+        definitions1 <- writeLoad tempDir merchantLimitsText1
+        (_, _, state) <- ioLogIdState
+
+        atomically $ setRules state (mapRuleDefs definitions1)
+
+        ruleTree :: RuleTree <- atomically $ fromJust <$> StmMap.lookup domainId (appStateRules state)
+        let ruleBranch :: RuleBranch = fromJust $ HM.lookup (ruleKey, Just ruleValue) ruleTree
+        let rateLimit = fromJust $ ruleBranchRateLimit ruleBranch
+
+        -- Record a hit
+        void $ atomically $ recordHits state (#hits 1) (#limit rateLimit) counterKey1
+
+        mV1 <- atomically $ StmMap.lookup counterKey1 $ appStateCounters state
+
+        -- Change rules in the configuration
+        definitions2 <- writeLoad tempDir merchantLimitsText2
+
+        -- Set the new rules and the rules reloaded flag
+        atomically $ setRules state (mapRuleDefs definitions2)
+
+        mV1' <- atomically $ StmMap.lookup counterKey1 $ appStateCounters state
+        mV2  <- atomically $ StmMap.lookup counterKey2 $ appStateCounters state
+
+        assertBool
+          "The original counter was not updated after recording a hit!"
+          ((counterHits <$> mV1) == Just 1)
+        assertBool
+          "The original counter was mistakenly updated in the meantime!"
+          (mV1 == mV1')
+        assertBool "The secondary counter was set!" (mV2 == Nothing)
+ where
+  mapRuleDefs :: [DomainDefinition] -> [(DomainId, RuleTree)]
+  mapRuleDefs defs =
+    [ ( domainDefinitionId rule
+      , definitionsToRuleTree (NE.toList . domainDefinitionDescriptors $ rule))
+    | rule <- defs
+    ]
+
+  dir     = "d11-ratelimits"
+  cfgFile = "d11-ratelimits1.yaml"
+
+  writeLoad :: FilePath -> Text -> IO [DomainDefinition]
+  writeLoad tempDir txt = do
+    TIO.writeFile (tempDir </> dir </> cfgFile) txt
+    loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
+
+  ruleKey   = RuleKey   "generic_key"
+  ruleValue = RuleValue "dream11_order_create"
+  domainId  = DomainId  "merchant_rate_limits"
+
+  counterKey1 = CounterKey
+    { counterKeyDomain     = domainId
+    , counterKeyDescriptor = [ (ruleKey, ruleValue) ]
+    , counterKeyUnit       = Minute }
+
+  counterKey2 :: CounterKey
+  counterKey2 = counterKey1 { counterKeyUnit = Hour }
+
+
 ----------------------------------------------------------------------------
 -- Sample definitions
 ----------------------------------------------------------------------------
@@ -116,4 +207,26 @@ domain2Text = [text|
   domain: domain2
   descriptors:
     - key: some key 2
+  |]
+
+merchantLimitsText1 :: Text
+merchantLimitsText1 = [text|
+  domain: merchant_rate_limits
+  descriptors:
+  - key: generic_key
+    value: dream11_order_create
+    rate_limit:
+      unit: minute
+      requests_per_unit: 400000
+  |]
+
+merchantLimitsText2 :: Text
+merchantLimitsText2 = [text|
+  domain: merchant_rate_limits
+  descriptors:
+  - key: generic_key
+    value: dream11_order_create
+    rate_limit:
+      unit: hour
+      requests_per_unit: 400000
   |]

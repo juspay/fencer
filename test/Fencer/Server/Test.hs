@@ -6,6 +6,8 @@
 -- | Tests for "Fencer.Server".
 module Fencer.Server.Test
   ( test_responseNoRules
+  , createServerAppState
+  , destroyServerAppState
   )
 where
 
@@ -72,19 +74,29 @@ test_responseNoRules =
 -- | Start Fencer on port 50051.
 createServer :: IO (Logger.Logger, ThreadId)
 createServer = do
+  (logger, threadId, _) <- createServerAppState
+  pure (logger, threadId)
+
+-- | Start Fencer on port 50051.
+createServerAppState :: IO (Logger.Logger, ThreadId, AppState)
+createServerAppState = do
   -- TODO: not the best approach. Ideally we should use e.g.
   -- https://hackage.haskell.org/package/tasty-hunit/docs/Test-Tasty-HUnit.html#v:testCaseSteps
   -- but we can't convince @tinylog@ to use the provided step function.
   logger <- Logger.create (Logger.Path "/dev/null")
   appState <- initAppState
   threadId <- forkIO $ runServer logger appState
-  pure (logger, threadId)
+  pure (logger, threadId, appState)
 
 -- | Kill Fencer.
 destroyServer :: (Logger.Logger, ThreadId) -> IO ()
 destroyServer (logger, threadId) = do
   Logger.close logger
   killThread threadId
+
+-- | Kill Fencer.
+destroyServerAppState :: (Logger.Logger, ThreadId, AppState) -> IO ()
+destroyServerAppState (logger, threadId, _) = destroyServer (logger, threadId)
 
 ----------------------------------------------------------------------------
 -- gRPC client

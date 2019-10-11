@@ -36,7 +36,7 @@ data Counter = Counter
       -- | Counter expiry date, inclusive (i.e. on 'counterExpiry' the
       -- counter is already expired).
     , counterExpiry :: !Timestamp
-    }
+    } deriving Eq
 
 data CounterStatus = CounterStatus
     { -- | How many hits can be taken before the limit is reached. Will be 0

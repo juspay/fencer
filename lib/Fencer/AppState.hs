@@ -5,6 +5,8 @@
 -- | In-memory state of Fencer.
 module Fencer.AppState
     ( AppState
+    , appStateCounters
+    , appStateRules
     , initAppState
 
     -- * Methods for working with 'AppState'
@@ -27,10 +29,10 @@ import Named ((:!), arg)
 import qualified Focus as Focus
 import Control.Monad.Trans.Class (lift)
 
-import Fencer.Types
 import Fencer.Counter
-import Fencer.Time
 import Fencer.Rules
+import Fencer.Time
+import Fencer.Types
 
 -- | Fencer runtime context and in-memory state.
 --
@@ -158,7 +160,7 @@ getLimit appState domain descriptor =
 -- The 'appStateCounters' field stays unchanged. This is in accordance
 -- with the behavior of @lyft/ratelimit@.
 --
--- There might be a change in rulsets with the same descriptors that
+-- There might be a change in rules with the same descriptors that
 -- updates the value of 'requests_per_unit' (with the time unit left
 -- intact), which allows a different number of requests to be
 -- made. This is as expected. However, if there is a change in the
