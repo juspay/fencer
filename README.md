@@ -68,12 +68,21 @@ Logging environment variables are:
 - `LOG_LEVEL` - The logging level. It can be one of the following:
   Trace, Debug, Info, Warn, Error and Fatal.
 - `LOG_NETSTR` - The flag indicating if netstring encoding is
-  enabled. It can be True or False.
+  enabled. It can be `True` or `False`.
 - `LOG_LEVEL_MAP` - A map for specifying log levels per (named)
   logger. The syntax uses standard haskell syntax for association
   lists of type `[(Text, Level)]`, e.g., `LOG_LEVEL_MAP='[("brown",
   Warn), ("fox", Trace)]'`.
 
+Fencer-specific environment variables are:
+
+- `RUNTIME_ROOT` - Symlink to a directory containing the settings
+  subdirectory. The default value is `/srv/runtime_data/current`.
+- `RUNTIME_SUBDIRECTORY` - The directory with Fencer settings.
+- `RUNTIME_IGNOREDOTFILES` - A flag indicating whether to ignore files
+  with names starting with a dot (hidden files on Linux-based systems
+  and macOS). It can be `True` or `False`. The default value is
+  `False`.
 
 ## Developing
 
