@@ -57,6 +57,24 @@ nix-env -iA cachix -f https://cachix.org/api/v1/install
 cachix use fencer
 ```
 
+## Environment variables
+
+There are environment variables that can be optionally set, which can
+have an effect on Fencer execution.
+
+Logging environment variables are:
+
+- `LOG_BUFFER` - The logging buffer size in bytes.
+- `LOG_LEVEL` - The logging level. It can be one of the following:
+  Trace, Debug, Info, Warn, Error and Fatal.
+- `LOG_NETSTR` - The flag indicating if netstring encoding is
+  enabled. It can be True or False.
+- `LOG_LEVEL_MAP` - A map for specifying log levels per (named)
+  logger. The syntax uses standard haskell syntax for association
+  lists of type `[(Text, Level)]`, e.g., `LOG_LEVEL_MAP='[("brown",
+  Warn), ("fox", Trace)]'`.
+
+
 ## Developing
 
 Install Nix as per instructions in the "Building" secion. Enter the Nix
