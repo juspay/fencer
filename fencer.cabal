@@ -106,7 +106,7 @@ test-suite test-fencer
   type:
     exitcode-stdio-1.0
   main-is:
-    Tests.hs
+    Main.hs
   hs-source-dirs:
     test
   other-modules:
@@ -128,7 +128,6 @@ test-suite test-fencer
     , proto3-suite
     , stm-containers
     , tasty
-    , tasty-discover
     , tasty-hunit
     , temporary
     , text

@@ -4,10 +4,10 @@
 
 -- | Tests for "Fencer.Rules".
 module Fencer.Rules.Test
-  ( test_loadRulesYaml
-  , test_loadRulesNonYaml
-  , test_loadRulesRecursively
-  , test_ruleLimitUnitChange
+  ( test_rulesLoadRulesYaml
+  , test_rulesLoadRulesNonYaml
+  , test_rulesLoadRulesRecursively
+  , test_rulesLimitUnitChange
   )
 where
 
@@ -36,8 +36,8 @@ import           Fencer.Server.Test (createServerAppState, destroyServerAppState
 
 
 -- | Test that 'loadRulesFromDirectory' loads rules from YAML files.
-test_loadRulesYaml :: TestTree
-test_loadRulesYaml =
+test_rulesLoadRulesYaml :: TestTree
+test_rulesLoadRulesYaml =
   testCase "Rules are loaded from YAML files" $ do
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.yml") domain1Text
@@ -52,8 +52,8 @@ test_loadRulesYaml =
 -- YAML files.
 --
 -- This counterintuitive behavior matches the behavior of @lyft/ratelimit@.
-test_loadRulesNonYaml :: TestTree
-test_loadRulesNonYaml =
+test_rulesLoadRulesNonYaml :: TestTree
+test_rulesLoadRulesNonYaml =
   testCase "Rules are loaded from non-YAML files" $ do
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.bin") domain1Text
@@ -67,8 +67,8 @@ test_loadRulesNonYaml =
 -- | Test that 'loadRulesFromDirectory' loads rules recursively.
 --
 -- This matches the behavior of @lyft/ratelimit@.
-test_loadRulesRecursively :: TestTree
-test_loadRulesRecursively =
+test_rulesLoadRulesRecursively :: TestTree
+test_rulesLoadRulesRecursively =
   testCase "Rules are loaded recursively" $ do
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       createDirectoryIfMissing True (tempDir </> "domain1")
@@ -83,21 +83,8 @@ test_loadRulesRecursively =
 
 -- | Test that a rule limit unit change adds a new counter and leaves
 -- the old one intact.
---
--- TODO(md)-2019-10-11: Sometimes this test non-deterministically fails with:
---
--- Got wrong gRPC error response
---         expected: ClientIOError (GRPCIOBadStatusCode StatusUnknown
---           (StatusDetails {unStatusDetails = "rate limit descriptor
---             list must not be empty"}))
---          but got: ClientIOError (GRPCIOBadStatusCode StatusUnavailable
---            (StatusDetails {unStatusDetails = "Endpoint read failed"}))
-test_ruleLimitUnitChange :: TestTree
-test_ruleLimitUnitChange =
-  -- TODO(md): creating a server here sometimes clashes with executing
-  -- server tests concurrently, which occasionally leads to test
-  -- failures. Fix this either by making sure the port hasn't been
-  -- binded or in some other way.
+test_rulesLimitUnitChange :: TestTree
+test_rulesLimitUnitChange =
   withResource createServerAppState destroyServerAppState $ \ioLogIdState ->
     testCase "A rule limit unit change on rule reloading" $ do
       Temp.withSystemTempDirectory "fencer-config-unit" $ \tempDir -> do

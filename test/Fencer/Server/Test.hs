@@ -5,7 +5,7 @@
 
 -- | Tests for "Fencer.Server".
 module Fencer.Server.Test
-  ( test_responseNoRules
+  ( test_serverResponseNoRules
   , createServerAppState
   , destroyServerAppState
   )
@@ -30,8 +30,8 @@ import qualified Fencer.Proto as Proto
 -- 'reloadRules' has never been ran), requests to Fencer will error out.
 --
 -- This behavior matches @lyft/ratelimit@.
-test_responseNoRules :: TestTree
-test_responseNoRules =
+test_serverResponseNoRules :: TestTree
+test_serverResponseNoRules =
   withResource createServer destroyServer $ \_ ->
     testCase "When no rules have been loaded, all requests error out" $ do
       Grpc.withGRPCClient clientConfig $ \grpcClient -> do
