@@ -32,7 +32,7 @@ data Settings = Settings
       -- value is @false@.
     , settingsIgnoreDotFiles :: Bool
       -- | @GRPC_PORT@: gRPC port to run the server on. The default
-      -- value is 50051.
+      -- value is 'defaultGRPCPort'.
     , settingsGRPCPort :: Port
     }
     deriving (Show)

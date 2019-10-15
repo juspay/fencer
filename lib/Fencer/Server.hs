@@ -10,17 +10,19 @@ module Fencer.Server
     )
 where
 
-import BasePrelude
+import BasePrelude hiding ((+++))
 
-import Control.Concurrent.STM (atomically)
-import Named ((:!), arg)
-import Data.Text (Text)
+import           Control.Concurrent.STM (atomically)
+import           Named ((:!), arg)
+import qualified Data.ByteString.Char8 as B
+import           Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 import qualified Proto3.Suite.Types as ProtoSuite
 import qualified System.Logger as Logger
-import System.Logger (Logger)
+import           System.Logger (Logger)
+import           System.Logger.Message ((+++))
 
 import           Fencer.AppState
 import           Fencer.Counter
@@ -46,11 +48,11 @@ runServerWithPort (Port port) logger appState = do
               -- TODO: set the logger
             }
     Logger.info logger $
-        Logger.msg (Logger.val "Starting gRPC server at 0.0.0.0:50051")
+        Logger.msg (("Starting gRPC server at 0.0.0.0:" :: B.ByteString) +++ port)
     Proto.rateLimitServiceServer handlers options
 
 -- | Run the gRPC server serving ratelimit requests on the default
--- 50051 port.
+-- port.
 runServer :: Logger -> AppState -> IO ()
 runServer = runServerWithPort defaultGRPCPort
 
