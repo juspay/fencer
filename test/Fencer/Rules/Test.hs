@@ -16,7 +16,7 @@ import           BasePrelude
 import qualified Data.HashMap.Strict as HM
 import           Data.List (sortOn)
 import qualified Data.List.NonEmpty as NE
-import           Data.Maybe (fromJust)
+import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text.IO as TIO
 import           NeatInterpolation (text)
@@ -95,9 +95,10 @@ test_rulesLimitUnitChange =
 
         atomically $ setRules state (mapRuleDefs definitions1)
 
-        ruleTree :: RuleTree <- atomically $ fromJust <$> StmMap.lookup domainId (appStateRules state)
-        let ruleBranch :: RuleBranch = fromJust $ HM.lookup (ruleKey, Just ruleValue) ruleTree
-        let rateLimit = fromJust $ ruleBranchRateLimit ruleBranch
+        ruleTree :: RuleTree <- atomically $
+          fromMaybe' <$> StmMap.lookup domainId (appStateRules state)
+        let ruleBranch = fromMaybe' $ HM.lookup (ruleKey, Just ruleValue) ruleTree
+        let rateLimit =  fromMaybe' $ ruleBranchRateLimit ruleBranch
 
         -- Record a hit
         void $ atomically $ recordHits state (#hits 1) (#limit rateLimit) counterKey1
@@ -147,6 +148,9 @@ test_rulesLimitUnitChange =
 
   counterKey2 :: CounterKey
   counterKey2 = counterKey1 { counterKeyUnit = Hour }
+
+  fromMaybe' :: Maybe a -> a
+  fromMaybe' = fromMaybe (error "")
 
 
 ----------------------------------------------------------------------------
