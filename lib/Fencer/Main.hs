@@ -62,7 +62,7 @@ main = do
             -- TODO: clarify the counter removal logic?
             mapM_ (deleteCountersWithExpiry appState) [before .. pred now]
     -- Start the gRPC server
-    runServer logger appState
+    runServerWithPort (settingsGRPCPort settings) logger appState
 
 ----------------------------------------------------------------------------
 -- Load rules

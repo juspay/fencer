@@ -1,4 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards  #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- | Fencer start-time config.
 module Fencer.Settings
@@ -8,6 +9,11 @@ module Fencer.Settings
 where
 
 import BasePrelude
+
+import Text.Read (readMaybe)
+
+import Fencer.Types (Port(..))
+
 
 -- | Fencer settings.
 data Settings = Settings
@@ -21,6 +27,9 @@ data Settings = Settings
       -- starting with a dot (hidden files on Linux and macOS). The default
       -- value is @false@.
     , settingsIgnoreDotFiles :: Bool
+      -- | @GRPC_PORT@: gRPC port to run the server on. The default
+      -- value is 50051.
+    , settingsGRPCPort :: Port
     }
     deriving (Show)
 
@@ -35,6 +44,11 @@ getSettingsFromEnvironment = do
         Just s -> case parseBool s of
             Just b -> pure b
             Nothing -> error ("Could not parse RUNTIME_IGNOREDOTFILES: " ++ show s)
+    settingsGRPCPort <- lookupEnv "GRPC_PORT" >>= \case
+        Nothing -> pure $ Port 50051
+        Just s  -> case readMaybe @Word s of
+            Nothing -> error ("Could not parse GRPC_PORT: " ++ show s)
+            Just p  -> pure $ Port p
     pure Settings{..}
 
 ----------------------------------------------------------------------------
