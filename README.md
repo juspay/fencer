@@ -186,12 +186,17 @@ you shouldn’t have made this request because you are over the limit".
 
 ### Rate limiting models
 
-There are two models for rate limiting – the "bucket" one and the "rolling
-window" one. In the bucket model you have a single counter which is as
-granular as the rate-limiting unit – say, if the limit is "N requests per
-hour" then the counter will get incremented for all requests for
-X:00:00–X:59:59. If you have spent your limit at the beginning of the hour,
-you don't get any credit until the next hour starts and the counter resets.
+There are two models for rate limiting – the "bucket" one and the
+"rolling window" one. In the bucket model you have a single counter
+which is as granular as the rate-limiting unit – say, if the limit is
+"N requests per hour" then the counter will get incremented for all
+requests for X:00:00–X:59:59. If you have spent your limit at the
+beginning of the hour, you don't get any credit until the next hour
+starts and the counter resets. Every counter is indexed by a time unit
+so that if there is an update in the configuration and rules are
+reloaded as a result, a change in time limit yields a new reset
+counter; if there is an update in the request rate only, an existing
+counter is updated.
 
 The "rolling window" model is more interesting. In this model, you are
 limited based on how many requests you’ve made in the past hour, which

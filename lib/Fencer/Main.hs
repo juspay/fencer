@@ -89,7 +89,11 @@ reloadRules logger settings appState = do
                     show (map (unDomainId . domainDefinitionId) ruleDefinitions))
 
     -- Recreate 'appStateRules'
+    --
+    -- There is no need to remove old rate limiting rules
     atomically $
+        -- See the documentation of 'setRules' for details on what
+        -- happens with counters during rule reloading.
         setRules appState
             [ ( domainDefinitionId rule
               , definitionsToRuleTree (NE.toList . domainDefinitionDescriptors $ rule))

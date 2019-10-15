@@ -5,7 +5,9 @@
 
 -- | Tests for "Fencer.Server".
 module Fencer.Server.Test
-  ( test_responseNoRules
+  ( test_serverResponseNoRules
+  , createServerAppState
+  , destroyServerAppState
   )
 where
 
@@ -28,8 +30,8 @@ import qualified Fencer.Proto as Proto
 -- 'reloadRules' has never been ran), requests to Fencer will error out.
 --
 -- This behavior matches @lyft/ratelimit@.
-test_responseNoRules :: TestTree
-test_responseNoRules =
+test_serverResponseNoRules :: TestTree
+test_serverResponseNoRules =
   withResource createServer destroyServer $ \_ ->
     testCase "When no rules have been loaded, all requests error out" $ do
       Grpc.withGRPCClient clientConfig $ \grpcClient -> do
@@ -72,19 +74,29 @@ test_responseNoRules =
 -- | Start Fencer on port 50051.
 createServer :: IO (Logger.Logger, ThreadId)
 createServer = do
+  (logger, threadId, _) <- createServerAppState
+  pure (logger, threadId)
+
+-- | Start Fencer on port 50051.
+createServerAppState :: IO (Logger.Logger, ThreadId, AppState)
+createServerAppState = do
   -- TODO: not the best approach. Ideally we should use e.g.
   -- https://hackage.haskell.org/package/tasty-hunit/docs/Test-Tasty-HUnit.html#v:testCaseSteps
   -- but we can't convince @tinylog@ to use the provided step function.
   logger <- Logger.create (Logger.Path "/dev/null")
   appState <- initAppState
   threadId <- forkIO $ runServer logger appState
-  pure (logger, threadId)
+  pure (logger, threadId, appState)
 
 -- | Kill Fencer.
 destroyServer :: (Logger.Logger, ThreadId) -> IO ()
 destroyServer (logger, threadId) = do
   Logger.close logger
   killThread threadId
+
+-- | Kill Fencer.
+destroyServerAppState :: (Logger.Logger, ThreadId, AppState) -> IO ()
+destroyServerAppState (logger, threadId, _) = destroyServer (logger, threadId)
 
 ----------------------------------------------------------------------------
 -- gRPC client
