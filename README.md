@@ -83,6 +83,7 @@ Fencer-specific environment variables are:
   with names starting with a dot (hidden files on Linux-based systems
   and macOS). It can be `True` or `False`. The default value is
   `False`.
+- `GRPC_PORT` - The port to run the gRPC server on. Default is 50051.
 
 ## Developing
 
