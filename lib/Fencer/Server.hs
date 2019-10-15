@@ -22,10 +22,11 @@ import qualified Proto3.Suite.Types as ProtoSuite
 import qualified System.Logger as Logger
 import System.Logger (Logger)
 
-import Fencer.Types
-import Fencer.AppState
-import Fencer.Counter
+import           Fencer.AppState
+import           Fencer.Counter
 import qualified Fencer.Proto as Proto
+import           Fencer.Settings (defaultGRPCPort)
+import           Fencer.Types
 
 ----------------------------------------------------------------------------
 -- Server
@@ -51,7 +52,7 @@ runServerWithPort (Port port) logger appState = do
 -- | Run the gRPC server serving ratelimit requests on the default
 -- 50051 port.
 runServer :: Logger -> AppState -> IO ()
-runServer = runServerWithPort (Port 50051)
+runServer = runServerWithPort defaultGRPCPort
 
 ----------------------------------------------------------------------------
 -- The "should rate limit" method

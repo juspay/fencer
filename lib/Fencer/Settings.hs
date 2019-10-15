@@ -5,6 +5,7 @@
 module Fencer.Settings
     ( Settings(..)
     , getSettingsFromEnvironment
+    , defaultGRPCPort
     )
 where
 
@@ -14,6 +15,9 @@ import Text.Read (readMaybe)
 
 import Fencer.Types (Port(..))
 
+-- | The default port for a gRPC server
+defaultGRPCPort :: Port
+defaultGRPCPort = Port 50051
 
 -- | Fencer settings.
 data Settings = Settings
@@ -45,7 +49,7 @@ getSettingsFromEnvironment = do
             Just b -> pure b
             Nothing -> error ("Could not parse RUNTIME_IGNOREDOTFILES: " ++ show s)
     settingsGRPCPort <- lookupEnv "GRPC_PORT" >>= \case
-        Nothing -> pure $ Port 50051
+        Nothing -> pure defaultGRPCPort
         Just s  -> case readMaybe @Word s of
             Nothing -> error ("Could not parse GRPC_PORT: " ++ show s)
             Just p  -> pure $ Port p
