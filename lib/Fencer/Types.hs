@@ -28,6 +28,9 @@ module Fencer.Types
     -- * Rate limit rules in tree form
     , RuleTree
     , RuleBranch(..)
+
+    -- * Server
+    , Port(..)
     )
 where
 
@@ -179,3 +182,10 @@ data RuleBranch = RuleBranch
     { ruleBranchRateLimit :: !(Maybe RateLimit)
     , ruleBranchNested :: !RuleTree
     }
+
+----------------------------------------------------------------------------
+-- Fencer server
+----------------------------------------------------------------------------
+
+-- | A network port wrapper
+newtype Port = Port Word deriving newtype (Eq, Show)

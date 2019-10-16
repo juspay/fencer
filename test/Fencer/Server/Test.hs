@@ -71,13 +71,13 @@ test_serverResponseNoRules =
 -- gRPC server
 ----------------------------------------------------------------------------
 
--- | Start Fencer on port 50051.
+-- | Start Fencer on the default port.
 createServer :: IO (Logger.Logger, ThreadId)
 createServer = do
   (logger, threadId, _) <- createServerAppState
   pure (logger, threadId)
 
--- | Start Fencer on port 50051.
+-- | Start Fencer on the default port.
 createServerAppState :: IO (Logger.Logger, ThreadId, AppState)
 createServerAppState = do
   -- TODO: not the best approach. Ideally we should use e.g.

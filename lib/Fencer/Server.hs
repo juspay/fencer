@@ -6,25 +6,29 @@
 -- | The gRPC server definition.
 module Fencer.Server
     ( runServer
+    , runServerWithPort
     )
 where
 
-import BasePrelude
+import BasePrelude hiding ((+++))
 
-import Control.Concurrent.STM (atomically)
-import Named ((:!), arg)
-import Data.Text (Text)
+import           Control.Concurrent.STM (atomically)
+import           Named ((:!), arg)
+import qualified Data.ByteString.Char8 as B
+import           Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 import qualified Proto3.Suite.Types as ProtoSuite
 import qualified System.Logger as Logger
-import System.Logger (Logger)
+import           System.Logger (Logger)
+import           System.Logger.Message ((+++))
 
-import Fencer.Types
-import Fencer.AppState
-import Fencer.Counter
+import           Fencer.AppState
+import           Fencer.Counter
 import qualified Fencer.Proto as Proto
+import           Fencer.Settings (defaultGRPCPort)
+import           Fencer.Types
 
 ----------------------------------------------------------------------------
 -- Server
@@ -33,18 +37,24 @@ import qualified Fencer.Proto as Proto
 -- | Run the gRPC server serving ratelimit requests.
 --
 -- TODO: fail if the port is taken? or does it fail already?
-runServer :: Logger -> AppState -> IO ()
-runServer logger appState = do
+runServerWithPort :: Port -> Logger -> AppState -> IO ()
+runServerWithPort (Port port) logger appState = do
     let handlers = Proto.RateLimitService
             { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit logger appState
             }
     let options = Grpc.defaultServiceOptions
             { Grpc.serverHost = "0.0.0.0"
+            , Grpc.serverPort = fromIntegral port
               -- TODO: set the logger
             }
     Logger.info logger $
-        Logger.msg (Logger.val "Starting gRPC server at 0.0.0.0:50051")
+        Logger.msg (("Starting gRPC server at 0.0.0.0:" :: B.ByteString) +++ port)
     Proto.rateLimitServiceServer handlers options
+
+-- | Run the gRPC server serving ratelimit requests on the default
+-- port.
+runServer :: Logger -> AppState -> IO ()
+runServer = runServerWithPort defaultGRPCPort
 
 ----------------------------------------------------------------------------
 -- The "should rate limit" method
