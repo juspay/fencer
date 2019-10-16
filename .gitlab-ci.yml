@@ -53,7 +53,7 @@ integration:
     - docker info
   script:
     # Create a Docker network for the containers
-    - docker network create test
+    - docker network inspect test >/dev/null 2>&1 || docker network create test
 
     # Run Fencer
     - docker load -i fencer.tar.gz
