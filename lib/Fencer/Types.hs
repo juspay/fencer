@@ -188,4 +188,4 @@ data RuleBranch = RuleBranch
 ----------------------------------------------------------------------------
 
 -- | A network port wrapper
-newtype Port = Port Word deriving newtype (Eq, Show)
+newtype Port = Port { unPort :: Word } deriving newtype (Eq, Show)

@@ -45,7 +45,7 @@ runServerWithPort (Port port) logger appState = do
     let options = Grpc.defaultServiceOptions
             { Grpc.serverHost = "0.0.0.0"
             , Grpc.serverPort = fromIntegral port
-              -- TODO: set the logger
+            , Grpc.logger     = Logger.info logger . Logger.msg
             }
     Logger.info logger $
         Logger.msg (("Starting gRPC server at 0.0.0.0:" :: B.ByteString) +++ port)
