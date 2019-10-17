@@ -20,6 +20,8 @@ import qualified Network.GRPC.HighLevel.Generated as Grpc
 
 import           Fencer.AppState
 import           Fencer.Server
+import           Fencer.Settings (defaultGRPCPort)
+import           Fencer.Types (unPort)
 import qualified Fencer.Proto as Proto
 
 ----------------------------------------------------------------------------
@@ -107,7 +109,7 @@ destroyServerAppState (logger, threadId, _) = destroyServer (logger, threadId)
 clientConfig :: Grpc.ClientConfig
 clientConfig = Grpc.ClientConfig
   { Grpc.clientServerHost = "localhost"
-  , Grpc.clientServerPort = 50051
+  , Grpc.clientServerPort = fromIntegral . unPort $ defaultGRPCPort
   , Grpc.clientArgs = []
   , Grpc.clientSSLConfig = Nothing
   , Grpc.clientAuthority = Nothing
