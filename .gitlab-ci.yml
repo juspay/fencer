@@ -56,12 +56,13 @@ integration:
     - docker network inspect test >/dev/null 2>&1 || docker network create test
 
     # Run Fencer
+    - CNAME="fencer-"$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 25 ; echo '')
     - docker load -i fencer.tar.gz
     - docker run
         -v $(pwd)/test_integration_go/config:/srv/runtime_data/current
         -e RUNTIME_SUBDIRECTORY=ratelimit
         -p 50051:50051
-        --name fencer
+        --name $CNAME
         --network test
         --detach
         juspay/fencer
@@ -70,6 +71,6 @@ integration:
     # Run the test
     - docker load -i test_integration_go.tar.gz
     - docker run
-        -e GRPC_HOST=fencer
+        -e GRPC_HOST=$CNAME
         --network test
         test_integration_go
