@@ -87,7 +87,7 @@ Fencer-specific environment variables are:
 
 ## Developing
 
-Install Nix as per instructions in the "Building" secion. Enter the Nix
+Install Nix as per instructions in the "Building" section. Enter the Nix
 shell and build the project with `cabal`:
 
 ```
