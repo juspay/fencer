@@ -36,6 +36,20 @@ test_serverResponseNoRules :: TestTree
 test_serverResponseNoRules =
   withResource createServer destroyServer $ \_ ->
     testCase "When no rules have been loaded, all requests error out" $ do
+      -- NOTE(md): For reasons unkown, the delay in the thread makes a
+      -- server test failure for 'test_serverResponseNoRules' go
+      -- away. The delay was introduced by assuming it might help
+      -- based on the issue comment in gRPC's source code repository:
+      -- https://github.com/grpc/grpc/issues/14088#issuecomment-365852100
+      --
+      -- The length of the delay was fine tuned based on feedback from
+      -- test execution.
+      --
+      -- This delay interacts with the order of the rules and server
+      -- tests, which would have executed concurrently by default if
+      -- 'after' wasn't used in the Main test module.
+      threadDelay 5000 -- 5 ms
+
       Grpc.withGRPCClient clientConfig $ \grpcClient -> do
         client <- Proto.rateLimitServiceClient grpcClient
         response <-
