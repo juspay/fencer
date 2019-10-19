@@ -1,5 +1,5 @@
 { darwin, stdenv, lib, fetchgit, autoconf, automake, libtool, which, zlib
-, openssl, fixDarwinDylibNames
+, openssl_1_0_2, fixDarwinDylibNames
 }:
 
 stdenv.mkDerivation rec {
@@ -39,8 +39,9 @@ stdenv.mkDerivation rec {
     libtool
     which
     zlib
-    openssl
     fixDarwinDylibNames
+    # Old OpenSSL version due to https://github.com/grpc/grpc/issues/10589
+    openssl_1_0_2
   ];
 
   # Some versions of `ar` (such as the one provided by OS X) require an explicit

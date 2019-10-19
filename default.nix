@@ -54,11 +54,23 @@ let
 
           proto3-wire =
             pkgs.haskell.lib.dontCheck
-              (self.callPackage ./nix/proto3-wire.nix { });
+              (self.callCabal2nix "proto3-wire"
+                 (pkgs.fetchgit {
+                    url = "https://github.com/awakenetworks/proto3-wire.git";
+                    sha256 = "16l1rnnygwk1b2sb3l6klhr6ad0wvry204icxnc81c6rbzbk6rqc";
+                    rev = "4f355bbac895d577d8a28f567ab4380f042ccc24";
+                    fetchSubmodules = true;
+                  }) { });
 
           proto3-suite =
             pkgs.haskell.lib.dontCheck
-              (self.callPackage ./nix/proto3-suite.nix { });
+              (self.callCabal2nix "proto3-suite"
+                (pkgs.fetchgit {
+                   url = "https://github.com/awakesecurity/proto3-suite.git";
+                   sha256 = "0g7j7axx9rkrzw32ky9xl08zj34rx4mqafd89lrpnsi8lcq2z06j";
+                   rev = "3f6dd6f612cf2eba3c05798926ff924b0d5ab4fa";
+                   fetchSubmodules = true;
+                 }) { });
 
           grpc-haskell-core =
             pkgs.haskell.lib.dontCheck

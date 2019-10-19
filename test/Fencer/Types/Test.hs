@@ -99,7 +99,7 @@ test_parseJSONDomainAtLeastOneDescriptor :: TestTree
 test_parseJSONDomainAtLeastOneDescriptor =
   testCase "DomainDefinition has to have at least one descriptor" $
     assertEqual "parsing DomainDefinition failed"
-      (Left "Error in $.descriptors: Expected a NonEmpty but got an empty list")
+      (Left "Error in $.descriptors: parsing NonEmpty failed, unexpected empty list")
       (parseEither (parseJSON @DomainDefinition) domain)
  where
   domain :: Value

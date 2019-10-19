@@ -179,7 +179,7 @@ instance HsJSONPB.ToSchema RateLimitRequest where
                                        HsJSONPB._namedSchemaSchema =
                                          Hs.mempty{HsJSONPB._schemaParamSchema =
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
+                                                                 Hs.Just HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
                                                        [("domain", rateLimitRequestDomain),
@@ -260,7 +260,7 @@ instance HsJSONPB.ToSchema RateLimit where
                                        HsJSONPB._namedSchemaSchema =
                                          Hs.mempty{HsJSONPB._schemaParamSchema =
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
+                                                                 Hs.Just HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
                                                        [("requests_per_unit",
@@ -429,7 +429,7 @@ instance HsJSONPB.ToSchema RateLimitResponse where
                                        HsJSONPB._namedSchemaSchema =
                                          Hs.mempty{HsJSONPB._schemaParamSchema =
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
+                                                                 Hs.Just HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
                                                        [("overall_code",
@@ -595,7 +595,7 @@ instance HsJSONPB.ToSchema RateLimitResponse_DescriptorStatus where
                                        HsJSONPB._namedSchemaSchema =
                                          Hs.mempty{HsJSONPB._schemaParamSchema =
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
+                                                                 Hs.Just HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
                                                        [("code",
@@ -675,7 +675,7 @@ instance HsJSONPB.ToSchema HeaderValue where
                                        HsJSONPB._namedSchemaSchema =
                                          Hs.mempty{HsJSONPB._schemaParamSchema =
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
+                                                                 Hs.Just HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
                                                        [("key", headerValueKey),
@@ -744,7 +744,7 @@ instance HsJSONPB.ToSchema RateLimitDescriptor where
                                        HsJSONPB._namedSchemaSchema =
                                          Hs.mempty{HsJSONPB._schemaParamSchema =
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
+                                                                 Hs.Just HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
                                                        [("entries", rateLimitDescriptorEntries)]}})
@@ -824,7 +824,7 @@ instance HsJSONPB.ToSchema RateLimitDescriptor_Entry where
                                        HsJSONPB._namedSchemaSchema =
                                          Hs.mempty{HsJSONPB._schemaParamSchema =
                                                      Hs.mempty{HsJSONPB._paramSchemaType =
-                                                                 HsJSONPB.SwaggerObject},
+                                                                 Hs.Just HsJSONPB.SwaggerObject},
                                                    HsJSONPB._schemaProperties =
                                                      HsJSONPB.insOrdFromList
                                                        [("key", rateLimitDescriptor_EntryKey),
