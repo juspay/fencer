@@ -89,7 +89,7 @@ outofdate:
   stage: gencode
   image: nixos/nix
   script:
-    - nix-shell --run ./bin/protoGen.sh
+    - nix-shell -p git --run ./bin/protoGen.sh
 
 ### Release
 
