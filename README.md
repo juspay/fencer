@@ -302,6 +302,20 @@ At least, this is according to our understanding of the logic in the Go
 code. Ideally we should test this against `lyft/ratelimit` itself, which is
 a pending task.
 
+
+## Differences to Lyft's rate limit service
+
+Fencer differs in several ways compared to [Lyft's rate limit
+service](https://github.com/lyft/ratelimit/):
+
+* Fencer does not use Redis.
+* Fencer is implemented in Haskell, while `lyft/ratelimit` is
+  implemented in Go.
+* In Fencer, the `limitRemaining` key is left out altogether if the
+  remaining limit is zero. For all non-zero values it is given in the
+  usual key-value notation, e.g., `"limitRemaining": 4`.
+
+
 ## Limitations
 
 * Fencer does not listen on IPv6 `::`. This should be fixed once
