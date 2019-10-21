@@ -62,7 +62,6 @@ integration:
     - docker run
         -v $(pwd)/test_integration_go/config:/srv/runtime_data/current
         -e RUNTIME_SUBDIRECTORY=ratelimit
-        -p 50051:50051
         --name $CNAME
         --network test
         --detach
