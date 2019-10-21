@@ -106,12 +106,8 @@ You can use [`nix-cabal`](https://github.com/monadfix/nix-cabal) as a
 `proto/rls.proto`. To regenerate the Haskell code from the proto3 file, go
 into `nix-shell` and use the following command:
 
-```
-(cd proto; compile-proto-file --proto rls.proto --out ../lib/Fencer/) \
-  && mv lib/Fencer/Rls.hs lib/Fencer/Proto.hs \
-  && sed -i 's/module Rls/module Fencer.Proto/' lib/Fencer/Proto.hs \
-  && sed -i 's/Rls\./Fencer\.Proto\./g' lib/Fencer/Proto.hs \
-  && sed -i '1s/^/{- HLINT ignore -}\n\n/' lib/Fencer/Proto.hs
+```bash
+./bin/protoGen.sh
 ```
 
 Unfortunately, `compile-proto-file` does not allow customizing the module
