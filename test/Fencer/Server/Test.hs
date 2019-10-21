@@ -1,13 +1,14 @@
-{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE GADTs             #-}
 
 -- | Tests for "Fencer.Server".
 module Fencer.Server.Test
   ( test_serverResponseNoRules
-  , createServerAppState
-  , destroyServerAppState
+  , withServer
+  , serverAppState
   )
 where
 
@@ -16,6 +17,7 @@ import           BasePrelude
 import           Test.Tasty (TestTree, withResource)
 import           Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import qualified System.Logger as Logger
+import qualified System.IO.Temp as Temp
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 
 import           Fencer.AppState
@@ -87,32 +89,47 @@ test_serverResponseNoRules =
 -- gRPC server
 ----------------------------------------------------------------------------
 
--- | Start Fencer on the default port.
-createServer :: IO (Logger.Logger, ThreadId)
-createServer = do
-  (logger, threadId, _) <- createServerAppState
-  pure (logger, threadId)
+-- | A type combining a logger, a handle for the logging file, a
+-- thread id and an application state.
+data Server = Server
+  { serverLogger    :: Logger.Logger
+  , serverLogHandle :: Handle
+  , serverThreadId  :: ThreadId
+  , serverAppState  :: AppState
+  }
 
 -- | Start Fencer on the default port.
-createServerAppState :: IO (Logger.Logger, ThreadId, AppState)
-createServerAppState = do
+createServer :: IO Server
+createServer = do
   -- TODO: not the best approach. Ideally we should use e.g.
   -- https://hackage.haskell.org/package/tasty-hunit/docs/Test-Tasty-HUnit.html#v:testCaseSteps
   -- but we can't convince @tinylog@ to use the provided step function.
-  logger <- Logger.create (Logger.Path "/dev/null")
-  appState <- initAppState
-  threadId <- forkIO $ runServer logger appState
-  pure (logger, threadId, appState)
+
+  tmpDir <- Temp.getCanonicalTemporaryDirectory
+  -- This opens a temporary file in the ReadWrite mode
+  (loggerPath, serverLogHandle) <- Temp.openTempFile tmpDir "fencer-server.log"
+  -- The handle has to be closed. Otherwise trying to create a logger
+  -- would fail due to a file lock.
+  hClose serverLogHandle
+  serverLogger   <- Logger.create (Logger.Path loggerPath)
+  serverAppState <- initAppState
+  serverThreadId <- forkIO $ runServer serverLogger serverAppState
+  pure Server{..}
 
 -- | Kill Fencer.
-destroyServer :: (Logger.Logger, ThreadId) -> IO ()
-destroyServer (logger, threadId) = do
-  Logger.close logger
-  killThread threadId
+destroyServer :: Server -> IO ()
+destroyServer server =
+  Logger.close (serverLogger server)
+    `finally` hClose (serverLogHandle server)
+    `finally` killThread (serverThreadId server)
 
--- | Kill Fencer.
-destroyServerAppState :: (Logger.Logger, ThreadId, AppState) -> IO ()
-destroyServerAppState (logger, threadId, _) = destroyServer (logger, threadId)
+-- | Combines starting and destroying a server in a resource-safe
+-- manner.
+withServer
+  :: (IO Server -> TestTree)
+  -> TestTree
+withServer =
+  withResource createServer destroyServer
 
 ----------------------------------------------------------------------------
 -- gRPC client

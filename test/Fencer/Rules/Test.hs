@@ -24,7 +24,7 @@ import qualified StmContainers.Map as StmMap
 import qualified System.IO.Temp as Temp
 import           System.FilePath ((</>))
 import           System.Directory (createDirectoryIfMissing)
-import           Test.Tasty (TestTree, withResource)
+import           Test.Tasty (TestTree)
 import           Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 
 import           Fencer.AppState (appStateCounters, appStateRules, recordHits, setRules)
@@ -32,7 +32,7 @@ import           Fencer.Counter (CounterKey(..), counterHits)
 import           Fencer.Rules
 import           Fencer.Types
 
-import           Fencer.Server.Test (createServerAppState, destroyServerAppState)
+import           Fencer.Server.Test (withServer, serverAppState)
 
 
 -- | Test that 'loadRulesFromDirectory' loads rules from YAML files.
@@ -85,13 +85,13 @@ test_rulesLoadRulesRecursively =
 -- the old one intact.
 test_rulesLimitUnitChange :: TestTree
 test_rulesLimitUnitChange =
-  withResource createServerAppState destroyServerAppState $ \ioLogIdState ->
+  withServer $ \serverIO ->
     testCase "A rule limit unit change on rule reloading" $ do
       Temp.withSystemTempDirectory "fencer-config-unit" $ \tempDir -> do
         createDirectoryIfMissing True (tempDir </> dir)
 
         definitions1 <- writeLoad tempDir merchantLimitsText1
-        (_, _, state) <- ioLogIdState
+        state <- serverAppState <$> serverIO
 
         atomically $ setRules state (mapRuleDefs definitions1)
 
