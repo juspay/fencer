@@ -1,12 +1,14 @@
-{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE GADTs             #-}
 
 -- | Tests for "Fencer.Server".
 module Fencer.Server.Test
   ( test_serverResponseNoRules
-  , withServerAppState
+  , withServer
+  , serverAppState
   )
 where
 
@@ -89,51 +91,45 @@ test_serverResponseNoRules =
 
 -- | A type combining a logger, a handle for the logging file, a
 -- thread id and an application state.
-type LogIdSt = (Logger.Logger, Handle, ThreadId, AppState)
+data Server = Server
+  { serverLogger    :: Logger.Logger
+  , serverLogHandle :: Handle
+  , serverThreadId  :: ThreadId
+  , serverAppState  :: AppState
+  }
 
 -- | Start Fencer on the default port.
-createServer :: IO (Logger.Logger, Handle, ThreadId)
+createServer :: IO Server
 createServer = do
-  (logger, logHandle, threadId, _) <- createServerAppState
-  pure (logger, logHandle, threadId)
-
--- | Start Fencer on the default port.
-createServerAppState :: IO LogIdSt
-createServerAppState = do
   -- TODO: not the best approach. Ideally we should use e.g.
   -- https://hackage.haskell.org/package/tasty-hunit/docs/Test-Tasty-HUnit.html#v:testCaseSteps
   -- but we can't convince @tinylog@ to use the provided step function.
 
   tmpDir <- Temp.getCanonicalTemporaryDirectory
   -- This opens a temporary file in the ReadWrite mode
-  (loggerPath, logHandle) <- Temp.openTempFile tmpDir "fencer-server.log"
+  (loggerPath, serverLogHandle) <- Temp.openTempFile tmpDir "fencer-server.log"
   -- The handle has to be closed. Otherwise trying to create a logger
   -- would fail due to a file lock.
-  hClose logHandle
-  logger <- Logger.create (Logger.Path loggerPath)
-  appState <- initAppState
-  threadId <- forkIO $ runServer logger appState
-  pure (logger, logHandle, threadId, appState)
+  hClose serverLogHandle
+  serverLogger   <- Logger.create (Logger.Path loggerPath)
+  serverAppState <- initAppState
+  serverThreadId <- forkIO $ runServer serverLogger serverAppState
+  pure Server{..}
 
 -- | Kill Fencer.
-destroyServer :: (Logger.Logger, Handle, ThreadId) -> IO ()
-destroyServer (logger, logHandle, threadId) = do
-  Logger.close logger
-  hClose logHandle
-  killThread threadId
-
--- | Kill Fencer.
-destroyServerAppState :: LogIdSt -> IO ()
-destroyServerAppState (logger, logHandle, threadId, _) =
-  destroyServer (logger, logHandle, threadId)
+destroyServer :: Server -> IO ()
+destroyServer server =
+  Logger.close (serverLogger server)
+    `finally` hClose (serverLogHandle server)
+    `finally` killThread (serverThreadId server)
 
 -- | Combines starting and destroying a server in a resource-safe
 -- manner.
-withServerAppState
-  :: (IO LogIdSt -> TestTree)
+withServer
+  :: (IO Server -> TestTree)
   -> TestTree
-withServerAppState =
-  withResource createServerAppState destroyServerAppState
+withServer =
+  withResource createServer destroyServer
 
 ----------------------------------------------------------------------------
 -- gRPC client

@@ -32,7 +32,7 @@ import           Fencer.Counter (CounterKey(..), counterHits)
 import           Fencer.Rules
 import           Fencer.Types
 
-import           Fencer.Server.Test (withServerAppState)
+import           Fencer.Server.Test (withServer, serverAppState)
 
 
 -- | Test that 'loadRulesFromDirectory' loads rules from YAML files.
@@ -85,13 +85,13 @@ test_rulesLoadRulesRecursively =
 -- the old one intact.
 test_rulesLimitUnitChange :: TestTree
 test_rulesLimitUnitChange =
-  withServerAppState $ \ioLogIdState ->
+  withServer $ \serverIO ->
     testCase "A rule limit unit change on rule reloading" $ do
       Temp.withSystemTempDirectory "fencer-config-unit" $ \tempDir -> do
         createDirectoryIfMissing True (tempDir </> dir)
 
         definitions1 <- writeLoad tempDir merchantLimitsText1
-        (_, _, _, state) <- ioLogIdState
+        state <- serverAppState <$> serverIO
 
         atomically $ setRules state (mapRuleDefs definitions1)
 
