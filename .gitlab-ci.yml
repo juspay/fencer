@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - gencode
   - release
 
 ### Build
@@ -81,6 +82,20 @@ integration:
         -e GRPC_HOST=$CNAME
         --network test
         test_integration_go
+
+### Checking checked-in generated code is up to date
+
+outofdate:
+  stage: gencode
+  image: nixos/nix
+  script:
+    - (cd proto; compile-proto-file --proto rls.proto --out ../lib/Fencer/) \
+        && mv lib/Fencer/Rls.hs lib/Fencer/Proto2.hs \
+        && sed -i 's/module Rls/module Fencer.Proto/' lib/Fencer/Proto2.hs \
+        && sed -i 's/Rls\./Fencer\.Proto\./g' lib/Fencer/Proto2.hs \
+        && sed -i '1s/^/{- HLINT ignore -}\n\n/' lib/Fencer/Proto2.hs
+    - DIFF=$(diff lib/Fencer/Proto.hs lib/Fencer/Proto2.hs | wc -c)
+    - if [ "$DIFF" != "0" ]; then exit 1; fi
 
 ### Release
 
