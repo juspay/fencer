@@ -26,8 +26,8 @@ import           System.Directory (createDirectoryIfMissing)
 import           Test.Tasty (TestTree)
 import           Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 
-import           Fencer.AppState (appStateCounters, getLimit, recordHits, setRules)
 import           Fencer.Counter (CounterKey(..), counterHits)
+import           Fencer.Logic (appStateCounters, getLimit, recordHits, setRules)
 import           Fencer.Rules
 import           Fencer.Types
 

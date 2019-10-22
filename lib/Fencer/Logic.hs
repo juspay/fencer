@@ -2,8 +2,8 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE RecordWildCards #-}
 
--- | In-memory state of Fencer.
-module Fencer.AppState
+-- | In-memory state of Fencer and the logic for managing it.
+module Fencer.Logic
     ( AppState
     , appStateCounters
     , appStateRules

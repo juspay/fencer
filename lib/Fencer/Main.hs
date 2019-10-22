@@ -19,7 +19,7 @@ import qualified System.Logger as Logger
 import System.Logger (Logger)
 
 import Fencer.Types
-import Fencer.AppState
+import Fencer.Logic
 import Fencer.Server
 import Fencer.Rules
 import Fencer.Watch

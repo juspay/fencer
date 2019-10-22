@@ -23,7 +23,7 @@ import qualified System.Logger as Logger
 import           System.Logger (Logger)
 import           System.Logger.Message ((+++))
 
-import           Fencer.AppState
+import           Fencer.Logic
 import           Fencer.Counter
 import qualified Fencer.Proto as Proto
 import           Fencer.Settings (defaultGRPCPort)

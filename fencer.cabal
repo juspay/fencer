@@ -45,7 +45,7 @@ library
     common
   exposed-modules:
     Fencer.Main
-    Fencer.AppState
+    Fencer.Logic
     Fencer.Server
     Fencer.Counter
     Fencer.Rules

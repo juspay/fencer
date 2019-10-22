@@ -20,7 +20,7 @@ import qualified System.Logger as Logger
 import qualified System.IO.Temp as Temp
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 
-import           Fencer.AppState
+import           Fencer.Logic
 import           Fencer.Server
 import           Fencer.Settings (defaultGRPCPort)
 import           Fencer.Types (unPort)
