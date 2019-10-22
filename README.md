@@ -188,22 +188,6 @@ ghz --insecure \
   localhost:8081
 ```
 
-## Style guide
-
-* All modules should use `BasePrelude` as the prelude.
-* Imports from external libraries have to be either explicit or qualified.
-* Imports from `Fencer` modules can be implicit, and should be in most cases.
-* Avoid defining identifiers with the same names, to keep jump-to-definition happy.
-* All identifiers should have haddocks.
-* Top-level identifiers should not be abbreviated, where feasible. Do not
-  use `jsn` instead of `json`, or `dd` instead of `descriptor` or
-  `descriptorDefinition`.
-* Err on the side of using named arguments (with `Named`). Arguments of
-  types `Bool`, `Text`, etc should almost always be named.
-* Do not use `String`.
-* Do not use `deriving` without qualifying it. Write `deriving stock` or
-  `deriving newtype`.
-
 ## Design
 
 ### Intro
@@ -317,6 +301,11 @@ service](https://github.com/lyft/ratelimit/):
   in the usual key-value notation, e.g., `"limitRemaining": 4`. Fencer
   always returns the key, including when the value is zero:
   `"limitRemaining": 0`.
+
+
+## Contributing
+
+Please see our [Contribution Guidelines](CONTRIBUTING.md).
 
 
 ## Limitations
