@@ -5,7 +5,6 @@
 -- | In-memory state of Fencer and the logic for managing it.
 module Fencer.Logic
     ( AppState
-    , appStateCounters
     , appStateRules
     , initAppState
 

@@ -11,12 +11,11 @@ import           BasePrelude
 
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NE
-import qualified StmContainers.Map as StmMap
 import           Test.Tasty (TestTree)
 import           Test.Tasty.HUnit (assertBool, testCase)
 
-import           Fencer.Counter (CounterKey(..), counterHits)
-import           Fencer.Logic (appStateCounters, setRules, updateLimitCounter)
+import           Fencer.Counter (CounterStatus, counterRemainingLimit)
+import           Fencer.Logic (AppState, setRules, updateLimitCounter)
 import           Fencer.Rules (definitionsToRuleTree)
 import           Fencer.Server.Test (withServer, serverAppState)
 import           Fencer.Types
@@ -31,24 +30,35 @@ test_logicLimitUnitChange =
       state <- serverAppState <$> serverIO
       void $ atomically $ setRules state (mapRuleDefs definitions1)
 
-      -- Record a hit
-      void $ atomically $ updateLimitCounter state (#hits 1) domainId [(ruleKey, ruleValue)]
-      mV1 <- atomically $ StmMap.lookup counterKey1 $ appStateCounters state
+      -- Record a hit and get a remaining limit
+      st1 <- getRemainingLimit <$> makeAHit state
+      assertBool
+        "The remaining rate limit was not updated!"
+        (st1 == limit - hits)
 
       -- Set the new rules and the rules reloaded flag
       atomically $ setRules state (mapRuleDefs definitions2)
-
-      mV1' <- atomically $ StmMap.lookup counterKey1 $ appStateCounters state
-      mV2  <- atomically $ StmMap.lookup counterKey2 $ appStateCounters state
-
+      -- Record a hit and get a remaining limit
+      st2 <- getRemainingLimit <$> makeAHit state
       assertBool
-        "The original counter was not updated after recording a hit!"
-        ((counterHits <$> mV1) == Just 1)
+        "The remaining rate was affected by a different counter!"
+        (st2 == limit - hits)
+
+      -- Set the old rules again
+      void $ atomically $ setRules state (mapRuleDefs definitions1)
+      -- Record a hit and get a remaining limit
+      st1' <- getRemainingLimit <$> makeAHit state
       assertBool
-        "The original counter was mistakenly updated in the meantime!"
-        (mV1 == mV1')
-      assertBool "The secondary counter was set!" (mV2 == Nothing)
+        "The old counter did not persist!"
+        (st1' == st1 - hits)
  where
+  getRemainingLimit :: Maybe (RateLimit, CounterStatus) -> Word
+  getRemainingLimit = counterRemainingLimit . snd . fromMaybe (error "")
+
+  makeAHit :: AppState -> IO (Maybe (RateLimit, CounterStatus))
+  makeAHit st = atomically $
+    updateLimitCounter st (#hits hits) domainId ruleList
+
   mapRuleDefs :: [DomainDefinition] -> [(DomainId, RuleTree)]
   mapRuleDefs defs =
     [ ( domainDefinitionId rule
@@ -56,23 +66,20 @@ test_logicLimitUnitChange =
     | rule <- defs
     ]
 
+  -- rate limit and hits in the test
+  limit = 4 :: Word
+  hits  = 1 :: Word
+
   ruleKey   = RuleKey   "generic_key"
   ruleValue = RuleValue "dream11_order_create"
+  ruleList  = [(ruleKey, ruleValue)]
   domainId  = DomainId  "merchant_rate_limits"
-
-  counterKey1 = CounterKey
-    { counterKeyDomain     = domainId
-    , counterKeyDescriptor = [ (ruleKey, ruleValue) ]
-    , counterKeyUnit       = Minute }
-
-  counterKey2 :: CounterKey
-  counterKey2 = counterKey1 { counterKeyUnit = Hour }
 
   descriptor :: DescriptorDefinition
   descriptor = DescriptorDefinition
         { descriptorDefinitionKey         = ruleKey
         , descriptorDefinitionValue       = Just ruleValue
-        , descriptorDefinitionRateLimit   = Just $ RateLimit Minute 4
+        , descriptorDefinitionRateLimit   = Just $ RateLimit Minute limit
         , descriptorDefinitionDescriptors = Nothing
         }
 
@@ -88,7 +95,7 @@ test_logicLimitUnitChange =
   definition2 = definition1 {
     domainDefinitionDescriptors =
       (descriptor
-        { descriptorDefinitionRateLimit = Just $ RateLimit Hour 4 }
+        { descriptorDefinitionRateLimit = Just $ RateLimit Hour limit }
       ) :| []
     }
 

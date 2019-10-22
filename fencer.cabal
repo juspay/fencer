@@ -127,7 +127,6 @@ test-suite test-fencer
     , neat-interpolation
     , proto3-wire
     , proto3-suite
-    , stm-containers
     , tasty
     , tasty-hunit
     , temporary
