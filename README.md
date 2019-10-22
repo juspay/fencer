@@ -311,9 +311,11 @@ service](https://github.com/lyft/ratelimit/):
 * Fencer does not use Redis.
 * Fencer is implemented in Haskell, while `lyft/ratelimit` is
   implemented in Go.
-* In Fencer, the `limitRemaining` key is left out altogether if the
-  remaining limit is zero. For all non-zero values it is given in the
-  usual key-value notation, e.g., `"limitRemaining": 4`.
+* In `lyft/ratelimit`, the `limitRemaining` key is left out altogether
+  if the remaining limit is zero. For all non-zero values it is given
+  in the usual key-value notation, e.g., `"limitRemaining": 4`. Fencer
+  always returns the key, including when the value is zero:
+  `"limitRemaining": 0`.
 
 
 ## Limitations
