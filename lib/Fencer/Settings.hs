@@ -17,7 +17,7 @@ import Fencer.Types (Port(..))
 
 -- | The default port for a gRPC server
 defaultGRPCPort :: Port
-defaultGRPCPort = Port 50051
+defaultGRPCPort = Port 8081
 
 -- | Fencer settings.
 data Settings = Settings

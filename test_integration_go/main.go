@@ -85,7 +85,7 @@ func testBasicConfig() func(*testing.T) {
 	}
 	grpcPort, grpcPortSet := os.LookupEnv("GRPC_PORT")
 	if !grpcPortSet {
-		grpcPort = "50051"
+		grpcPort = "8081"
 	}
 	return func(t *testing.T) {
 		assert := assert.New(t)
