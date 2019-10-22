@@ -10,7 +10,6 @@ module Fencer.Logic
     , initAppState
 
     -- * Methods for working with 'AppState'
-    , recordHits
     , getLimit
     , setRules
     , getAppStateRulesLoaded

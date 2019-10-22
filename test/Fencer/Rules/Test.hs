@@ -15,7 +15,6 @@ import           BasePrelude
 
 import           Data.List (sortOn)
 import qualified Data.List.NonEmpty as NE
-import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text.IO as TIO
 import           NeatInterpolation (text)
@@ -27,7 +26,7 @@ import           Test.Tasty (TestTree)
 import           Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 
 import           Fencer.Counter (CounterKey(..), counterHits)
-import           Fencer.Logic (appStateCounters, getLimit, recordHits, setRules)
+import           Fencer.Logic (appStateCounters, setRules, updateLimitCounter)
 import           Fencer.Rules
 import           Fencer.Types
 
@@ -92,12 +91,10 @@ test_rulesLimitUnitChange =
         definitions1 <- writeLoad tempDir merchantLimitsText1
         state <- serverAppState <$> serverIO
 
-        rateLimit <- atomically $ do
-          setRules state (mapRuleDefs definitions1)
-          fromMaybe' <$> getLimit state domainId [(ruleKey, ruleValue)]
+        void $ atomically $ setRules state (mapRuleDefs definitions1)
 
         -- Record a hit
-        void $ atomically $ recordHits state (#hits 1) (#limit rateLimit) counterKey1
+        void $ atomically $ updateLimitCounter state (#hits 1) domainId [(ruleKey, ruleValue)]
 
         mV1 <- atomically $ StmMap.lookup counterKey1 $ appStateCounters state
 
@@ -144,9 +141,6 @@ test_rulesLimitUnitChange =
 
   counterKey2 :: CounterKey
   counterKey2 = counterKey1 { counterKeyUnit = Hour }
-
-  fromMaybe' :: Maybe a -> a
-  fromMaybe' = fromMaybe (error "")
 
 
 ----------------------------------------------------------------------------
