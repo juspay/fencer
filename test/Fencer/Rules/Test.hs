@@ -13,7 +13,6 @@ where
 
 import           BasePrelude
 
-import qualified Data.HashMap.Strict as HM
 import           Data.List (sortOn)
 import qualified Data.List.NonEmpty as NE
 import           Data.Maybe (fromMaybe)
@@ -27,7 +26,7 @@ import           System.Directory (createDirectoryIfMissing)
 import           Test.Tasty (TestTree)
 import           Test.Tasty.HUnit (assertBool, assertEqual, testCase)
 
-import           Fencer.AppState (appStateCounters, appStateRules, recordHits, setRules)
+import           Fencer.AppState (appStateCounters, getLimit, recordHits, setRules)
 import           Fencer.Counter (CounterKey(..), counterHits)
 import           Fencer.Rules
 import           Fencer.Types
@@ -93,12 +92,9 @@ test_rulesLimitUnitChange =
         definitions1 <- writeLoad tempDir merchantLimitsText1
         state <- serverAppState <$> serverIO
 
-        atomically $ setRules state (mapRuleDefs definitions1)
-
-        ruleTree :: RuleTree <- atomically $
-          fromMaybe' <$> StmMap.lookup domainId (appStateRules state)
-        let ruleBranch = fromMaybe' $ HM.lookup (ruleKey, Just ruleValue) ruleTree
-        let rateLimit =  fromMaybe' $ ruleBranchRateLimit ruleBranch
+        rateLimit <- atomically $ do
+          setRules state (mapRuleDefs definitions1)
+          fromMaybe' <$> getLimit state domainId [(ruleKey, ruleValue)]
 
         -- Record a hit
         void $ atomically $ recordHits state (#hits 1) (#limit rateLimit) counterKey1
