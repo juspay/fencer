@@ -24,6 +24,8 @@ contribute! There are several ways one can contribute:
 
 ## Style Guide
 
+This is our style guide for writing code:
+
 * All modules should use `BasePrelude` as the prelude.
 * Imports from external libraries have to be either explicit or
   qualified.
@@ -41,5 +43,34 @@ contribute! There are several ways one can contribute:
 * Do not use `deriving` without qualifying it. Write `deriving stock`
   or `deriving newtype`.
 
+
+### Git Policy
+
+When working with Git and interacting with GitHub, these are
+guidelines we follow:
+
+* The main Git branch is *master*. No development is done directly on
+  this branch.
+* Do not force-push to the main branch, namely *master*.
+* The development is done in branches other than *master*. To
+  contribute a feature, fix a bug or to implement an enhancement,
+  first find or open a corresponding issue in the [issue
+  tracker](https://github.com/juspay/fencer/issues). Next, create a
+  branch based on *master*. The branch should be named in accordance
+  with a template *<github nick>/<issue no>-<description>*, e.g., a
+  branch could be named *rocketman/42-concurrency-fix*.
+* Once your are satisfied with your contribution branch, [create a
+  pull
+  request](https://help.github.com/en/articles/creating-a-pull-request)
+  to the *juspay/fencer* repository's *master* branch. You will need
+  at least one approving review before you can merge your
+  contribution.
+* When merging a pull request, use "Squash and merge". We are working
+  hard to keep the commit history clean of noise, so e.g., pull
+  request fixes and improvements should not be visible in the history
+  of *master*. Alternatively, you can locally rebase your branch and
+  keep a few commits that logically organize your
+  contribution. Finally, no branch merge commits should get into the
+  *master* history.
 
 [1]: https://help.github.com/en/github/getting-started-with-github/fork-a-repo
