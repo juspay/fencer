@@ -16,6 +16,7 @@ module Fencer.AppState
     , getAppStateRulesLoaded
     , updateCurrentTime
     , deleteCountersWithExpiry
+    , updateLimitCounter
     )
 where
 
@@ -154,6 +155,31 @@ getLimit appState domain descriptor =
     StmMap.lookup domain (appStateRules appState) >>= \case
         Nothing -> pure Nothing
         Just ruleTree -> pure (applyRules descriptor ruleTree)
+
+-- | Handle a single descriptor in a 'shouldRateLimit' request.
+--
+-- Returns the current limit and response.
+--
+-- 'updateLimitCounter' will create a new counter if the counter does
+-- not exist, or update an existing counter otherwise. The counter will be
+-- reset if it has expired, and 'appStateCounterExpiry' will be updated.
+updateLimitCounter
+    :: AppState
+    -> "hits" :! Word
+    -> DomainId
+    -> [(RuleKey, RuleValue)]
+    -> STM (Maybe (RateLimit, CounterStatus))
+updateLimitCounter appState (arg #hits -> hits) domain descriptor =
+    getLimit appState domain descriptor >>= \case
+        Nothing -> pure Nothing
+        Just limit -> do
+            let counterKey :: CounterKey
+                counterKey = CounterKey
+                  { counterKeyDomain = domain
+                  , counterKeyDescriptor = descriptor
+                  , counterKeyUnit = rateLimitUnit limit }
+            status <- recordHits appState (#hits hits) (#limit limit) counterKey
+            pure (Just (limit, status))
 
 -- | Set 'appStateRules' and 'appStateRulesLoaded'.
 --
