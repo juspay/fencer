@@ -20,6 +20,9 @@ stdenv.mkDerivation rec {
     ./grpc-ipv4.patch
     # Disable compiler warnings to make the library compile
     ./grpc-warnings.patch
+    # Disable debug info to prevent Nix store paths from getting embedded
+    # into binaries (see <https://github.com/juspay/fencer/issues/31>)
+    ./grpc-nodebug.patch
   ];
 
   # `grpc`'s `Makefile` does some magic to detect the correct `ld` and `strip`
@@ -30,6 +33,8 @@ stdenv.mkDerivation rec {
     unset LD
     unset STRIP
   '';
+
+  disallowedReferences = [ stdenv.cc ];
 
   preInstall = "export prefix";
 
