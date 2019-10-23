@@ -90,7 +90,7 @@ outofdate:
   image: nixos/nix
   script:
     - apk add git
-    - nix-shell --run ./bin/protoGen.sh
+    - nix-shell --run ./scripts/protoGen.sh
 
 ### Release
 
