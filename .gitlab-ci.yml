@@ -85,7 +85,7 @@ integration:
 
 ### Checking checked-in generated code is up to date
 
-outofdate:
+protogen:
   stage: gencode
   image: nixos/nix
   script:
