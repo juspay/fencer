@@ -49,6 +49,9 @@ stdenv.mkDerivation rec {
     openssl_1_0_2
   ];
 
+  # bin/ contains plugins like "grpc_cpp_plugin" that we don't need.
+  postInstall = "rm -rf $out/bin";
+
   # Some versions of `ar` (such as the one provided by OS X) require an explicit
   # `-r` flag, whereas other versions assume `-r` is the default if no mode is
   # specified.  For example, OS X requires the `-r` flag, so as a precaution we
