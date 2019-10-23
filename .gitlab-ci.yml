@@ -89,7 +89,8 @@ outofdate:
   stage: gencode
   image: nixos/nix
   script:
-    - nix-shell -p git --run ./bin/protoGen.sh
+    - sudo apt-get install -y git
+    - nix-shell --run ./bin/protoGen.sh
 
 ### Release
 
