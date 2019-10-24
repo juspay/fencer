@@ -38,7 +38,7 @@ import           Fencer.Server.Test (withServer, serverAppState)
 -- | Test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_rulesLoadRulesYaml :: TestTree
 test_rulesLoadRulesYaml =
-  testCase "Rules are loaded from YAML files" $ do
+  testCase "Rules are loaded from YAML files" $
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.yml") domain1Text
       TIO.writeFile (tempDir </> "config2.yaml") domain2Text
@@ -54,7 +54,7 @@ test_rulesLoadRulesYaml =
 -- This counterintuitive behavior matches the behavior of @lyft/ratelimit@.
 test_rulesLoadRulesNonYaml :: TestTree
 test_rulesLoadRulesNonYaml =
-  testCase "Rules are loaded from non-YAML files" $ do
+  testCase "Rules are loaded from non-YAML files" $
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.bin") domain1Text
       TIO.writeFile (tempDir </> "config2") domain2Text
@@ -69,7 +69,7 @@ test_rulesLoadRulesNonYaml =
 -- This matches the behavior of @lyft/ratelimit@.
 test_rulesLoadRulesRecursively :: TestTree
 test_rulesLoadRulesRecursively =
-  testCase "Rules are loaded recursively" $ do
+  testCase "Rules are loaded recursively" $
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       createDirectoryIfMissing True (tempDir </> "domain1")
       TIO.writeFile (tempDir </> "domain1/config.yml") domain1Text
@@ -86,7 +86,7 @@ test_rulesLoadRulesRecursively =
 test_rulesLimitUnitChange :: TestTree
 test_rulesLimitUnitChange =
   withServer $ \serverIO ->
-    testCase "A rule limit unit change on rule reloading" $ do
+    testCase "A rule limit unit change on rule reloading" $
       Temp.withSystemTempDirectory "fencer-config-unit" $ \tempDir -> do
         createDirectoryIfMissing True (tempDir </> dir)
 
@@ -120,7 +120,7 @@ test_rulesLimitUnitChange =
         assertBool
           "The original counter was mistakenly updated in the meantime!"
           (mV1 == mV1')
-        assertBool "The secondary counter was set!" (mV2 == Nothing)
+        assertBool "The secondary counter was set!" (isNothing mV2)
  where
   mapRuleDefs :: [DomainDefinition] -> [(DomainId, RuleTree)]
   mapRuleDefs defs =

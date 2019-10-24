@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - gen-code
   - release
 
 ### Build
@@ -81,6 +82,18 @@ integration:
         -e GRPC_HOST=$CNAME
         --network test
         test_integration_go
+
+### Checking checked-in generated code is up to date
+
+protogen:
+  stage: gen-code
+  image: nixos/nix
+  script:
+    - nix-env -iA cachix -iA git -f https://cachix.org/api/v1/install
+    - cachix use fencer
+    - nix-shell --run ./scripts/protoGen.sh;
+    - DIFF=$(git diff lib/Fencer/Proto.hs | wc -c)
+    - if [ "$DIFF" != "0" ]; then exit 1; fi
 
 ### Release
 
