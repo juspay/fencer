@@ -89,7 +89,7 @@ protogen:
   stage: gencode
   image: nixos/nix
   script:
-    - apk add git
+    - nix-env -iA nixpkgs.git
     - nix-shell --run ./scripts/protoGen.sh
 
 ### Release
