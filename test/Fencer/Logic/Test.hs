@@ -30,7 +30,7 @@ test_logicLimitUnitChange =
       state <- serverAppState <$> serverIO
       void $ atomically $ setRules state (mapRuleDefs definitions1)
 
-      -- Record a hit and get a remaining limit
+      -- Record a hit and get the remaining limit
       st1 <- getRemainingLimit <$> makeAHit state
       assertBool
         "The remaining rate limit was not updated!"
