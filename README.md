@@ -107,7 +107,7 @@ You can use [`nix-cabal`](https://github.com/monadfix/nix-cabal) as a
 into `nix-shell` and use the following command:
 
 ```bash
-./bin/protoGen.sh
+./scripts/protoGen.sh
 ```
 
 Unfortunately, `compile-proto-file` does not allow customizing the module
