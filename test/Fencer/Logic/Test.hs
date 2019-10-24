@@ -12,7 +12,7 @@ import           BasePrelude
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NE
 import           Test.Tasty (TestTree)
-import           Test.Tasty.HUnit (assertBool, testCase)
+import           Test.Tasty.HUnit (assertEqual, testCase)
 
 import           Fencer.Counter (CounterStatus, counterRemainingLimit)
 import           Fencer.Logic (AppState, setRules, updateLimitCounter)
@@ -32,25 +32,28 @@ test_logicLimitUnitChange =
 
       -- Record a hit and get the remaining limit
       st1 <- getRemainingLimit <$> makeAHit state
-      assertBool
+      assertEqual
         "The remaining rate limit was not updated!"
-        (st1 == limit - hits)
+        (limit - hits)
+        st1
 
       -- Set the new rules and the rules reloaded flag
       atomically $ setRules state (mapRuleDefs definitions2)
       -- Record a hit and get a remaining limit
       st2 <- getRemainingLimit <$> makeAHit state
-      assertBool
+      assertEqual
         "The remaining rate was affected by a different counter!"
-        (st2 == limit - hits)
+        (limit - hits)
+        st2
 
       -- Set the old rules again
       void $ atomically $ setRules state (mapRuleDefs definitions1)
       -- Record a hit and get a remaining limit
       st1' <- getRemainingLimit <$> makeAHit state
-      assertBool
+      assertEqual
         "The old counter did not persist!"
-        (st1' == st1 - hits)
+        (st1 - hits)
+        st1'
  where
   getRemainingLimit :: Maybe (RateLimit, CounterStatus) -> Word
   getRemainingLimit = counterRemainingLimit . snd . fromMaybe (error "")
