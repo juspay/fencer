@@ -29,7 +29,7 @@ import           Fencer.Types
 -- | Test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_rulesLoadRulesYaml :: TestTree
 test_rulesLoadRulesYaml =
-  testCase "Rules are loaded from YAML files" $ do
+  testCase "Rules are loaded from YAML files" $
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.yml") domain1Text
       TIO.writeFile (tempDir </> "config2.yaml") domain2Text
@@ -45,7 +45,7 @@ test_rulesLoadRulesYaml =
 -- This counterintuitive behavior matches the behavior of @lyft/ratelimit@.
 test_rulesLoadRulesNonYaml :: TestTree
 test_rulesLoadRulesNonYaml =
-  testCase "Rules are loaded from non-YAML files" $ do
+  testCase "Rules are loaded from non-YAML files" $
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.bin") domain1Text
       TIO.writeFile (tempDir </> "config2") domain2Text
@@ -60,7 +60,7 @@ test_rulesLoadRulesNonYaml =
 -- This matches the behavior of @lyft/ratelimit@.
 test_rulesLoadRulesRecursively :: TestTree
 test_rulesLoadRulesRecursively =
-  testCase "Rules are loaded recursively" $ do
+  testCase "Rules are loaded recursively" $
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       createDirectoryIfMissing True (tempDir </> "domain1")
       TIO.writeFile (tempDir </> "domain1/config.yml") domain1Text

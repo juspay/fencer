@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
 
 -- | Tests for "Fencer.Logic".
 module Fencer.Logic.Test

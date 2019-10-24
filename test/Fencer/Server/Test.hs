@@ -1,7 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE GADTs             #-}
 
 -- | Tests for "Fencer.Server".
@@ -62,7 +60,7 @@ test_serverResponseNoRules =
             assertEqual "Got wrong gRPC error response"
               expectedError
               actualError
-          Grpc.ClientNormalResponse result _ _ status _ -> do
+          Grpc.ClientNormalResponse result _ _ status _ ->
             assertFailure $
               "Expected an error response, got a normal response: " ++
               "status = " ++ show status ++ ", " ++
