@@ -57,7 +57,7 @@ guidelines we follow:
   first find or open a corresponding issue in the [issue
   tracker](https://github.com/juspay/fencer/issues). Next, create a
   branch based on *master*. The branch should be named in accordance
-  with a template *<github nick>/<issue no>-<description>*, e.g., a
+  with a template `<github nick>/<issue no>-<description>`, e.g., a
   branch could be named *rocketman/42-concurrency-fix*.
 * Once your are satisfied with your contribution branch, [create a
   pull
