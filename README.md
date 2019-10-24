@@ -110,9 +110,6 @@ into `nix-shell` and use the following command:
 ./scripts/protoGen.sh
 ```
 
-Unfortunately, `compile-proto-file` does not allow customizing the module
-name, so we have to resort to sed.
-
 ## Testing
 
 ### Go integration tests

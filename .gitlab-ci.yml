@@ -89,15 +89,11 @@ protogen:
   stage: gen-code
   image: nixos/nix
   script:
-    # Create a list of paths to push to Cachix.  The secret signing
-    # key should not be available to the build process.
-    - ( unset CACHIX_SIGNING_KEY;
-        nix-env -iA cachix -iA git -f https://cachix.org/api/v1/install;
-        cachix use fencer;
-        nix-shell --run ./scripts/protoGen.sh;
-        DIFF=$(git diff lib/Fencer/Proto.hs | wc -c);
-        if [ "$DIFF" != "0" ]; then exit 1; fi
-      )
+    - nix-env -iA cachix -iA git -f https://cachix.org/api/v1/install
+    - cachix use fencer
+    - nix-shell --run ./scripts/protoGen.sh;
+    - DIFF=$(git diff lib/Fencer/Proto.hs | wc -c)
+    - if [ "$DIFF" != "0" ]; then exit 1; fi
 
 ### Release
 
