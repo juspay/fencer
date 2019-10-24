@@ -38,3 +38,11 @@
 - ignore: { name: 'Use const' }
 - ignore: { name: 'Move brackets to avoid $' }
 - ignore: { name: 'Use ?~' }
+
+# Custom hints
+- warn:
+    lhs: "assertBool x (a == b)"
+    rhs: "assertEqual x a b"
+    note: >-
+      'assertEqual' takes arguments in order /expected, actual/;
+      make sure that the order is right.
