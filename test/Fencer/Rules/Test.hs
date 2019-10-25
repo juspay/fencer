@@ -3,12 +3,7 @@
 {-# LANGUAGE OverloadedLabels  #-}
 
 -- | Tests for "Fencer.Rules".
-module Fencer.Rules.Test
-  ( test_rulesLoadRulesYaml
-  , test_rulesLoadRulesNonYaml
-  , test_rulesLoadRulesRecursively
-  )
-where
+module Fencer.Rules.Test (tests) where
 
 import           BasePrelude
 
@@ -19,14 +14,21 @@ import           NeatInterpolation (text)
 import qualified System.IO.Temp as Temp
 import           System.FilePath ((</>))
 import           System.Directory (createDirectoryIfMissing)
-import           Test.Tasty (TestTree)
+import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.HUnit (assertEqual, testCase)
 
 import           Fencer.Rules
 import           Fencer.Types
 
 
--- | Test that 'loadRulesFromDirectory' loads rules from YAML files.
+tests :: TestTree
+tests = testGroup "Rule tests"
+  [ test_rulesLoadRulesYaml
+  , test_rulesLoadRulesNonYaml
+  , test_rulesLoadRulesRecursively
+  ]
+
+-- | test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_rulesLoadRulesYaml :: TestTree
 test_rulesLoadRulesYaml =
   testCase "Rules are loaded from YAML files" $

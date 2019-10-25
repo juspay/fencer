@@ -4,7 +4,7 @@
 
 -- | Tests for "Fencer.Server".
 module Fencer.Server.Test
-  ( test_serverResponseNoRules
+  ( tests
   , withServer
   , serverAppState
   )
@@ -12,7 +12,7 @@ where
 
 import           BasePrelude
 
-import           Test.Tasty (TestTree, withResource)
+import           Test.Tasty (TestTree, testGroup, withResource)
 import           Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import qualified System.Logger as Logger
 import qualified System.IO.Temp as Temp
@@ -27,6 +27,10 @@ import qualified Fencer.Proto as Proto
 ----------------------------------------------------------------------------
 -- Tests
 ----------------------------------------------------------------------------
+
+tests :: TestTree
+tests = testGroup "Server tests" [ test_serverResponseNoRules ]
+
 
 -- | Test that when Fencer is started without any rules provided to it (i.e.
 -- 'reloadRules' has never been ran), requests to Fencer will error out.
