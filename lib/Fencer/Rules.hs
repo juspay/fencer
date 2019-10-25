@@ -5,6 +5,7 @@
 -- | Working with rate limiting rules.
 module Fencer.Rules
     ( LoadRulesError(..)
+    , showErrors
     , loadRulesFromDirectory
     , definitionsToRuleTree
     , applyRules
@@ -16,7 +17,7 @@ import BasePrelude
 import Control.Applicative (liftA2)
 import Control.Monad.Extra (partitionM, concatMapM)
 import Data.List (foldl')
-import Data.Validation (liftError, Validation(Success))
+import Data.Validation (liftError, Validation(Failure, Success))
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
@@ -32,10 +33,16 @@ instance Show LoadRulesError where
   show (InvalidYaml file yamlEx) = show file ++ ", " ++ show yamlEx
 
 
+-- | Show a list of 'LoadRulesError's.
+showErrors :: [LoadRulesError] -> String
+showErrors fs = join . intersperse ", " $ show <$> fs
+
+
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension.
 --
--- Returns a list of exceptions for unparsable or unreadable files.
+-- In case of unparsable or unreadable files returns a list of
+-- exceptions.
 loadRulesFromDirectory
     :: "directory" :! FilePath
     -> "ignoreDotFiles" :! Bool
@@ -60,13 +67,22 @@ loadRulesFromDirectory
       -> IO (Validation [LoadRulesError] [DomainDefinition])
     combine acc file = do
       let res = liftBoth file <$> Yaml.decodeFileEither @DomainDefinition file
-      liftA2 (<>) res acc
+      liftA2 merge res acc
 
     liftBoth
       :: FilePath
       -> Either Yaml.ParseException DomainDefinition
       -> Validation [LoadRulesError] [DomainDefinition]
     liftBoth file v = pure <$> liftError (pure . InvalidYaml file) v
+
+    merge
+      :: Validation [LoadRulesError] [DomainDefinition]
+      -> Validation [LoadRulesError] [DomainDefinition]
+      -> Validation [LoadRulesError] [DomainDefinition]
+    merge (Failure fs1) (Failure fs2) = Failure $ fs1 ++ fs2
+    merge (Failure fs1) (Success _  ) = Failure fs1
+    merge (Success _  ) (Failure fs2) = Failure fs2
+    merge (Success ds1) (Success ds2) = Success $ ds1 ++ ds2
 
     isDotFile :: FilePath -> Bool
     isDotFile file = "." `isPrefixOf` takeFileName file

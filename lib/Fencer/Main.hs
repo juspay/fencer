@@ -89,7 +89,7 @@ reloadRules logger settings appState = do
         Failure fs ->
             Logger.err logger $
                 Logger.msg ("error loading new configuration from runtime: " ++
-                            (join . intersperse ", " $ show <$> fs))
+                            showErrors fs)
         Success ruleDefinitions -> do
             Logger.info logger $
                 Logger.msg ("Parsed rules for domains: " ++

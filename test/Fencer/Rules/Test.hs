@@ -15,12 +15,13 @@ import           BasePrelude
 import           Data.List (sortOn)
 import           Data.Text (Text)
 import qualified Data.Text.IO as TIO
+import           Data.Validation (Validation(Failure, Success))
 import           NeatInterpolation (text)
 import qualified System.IO.Temp as Temp
 import           System.FilePath ((</>))
 import           System.Directory (createDirectoryIfMissing)
 import           Test.Tasty (TestTree)
-import           Test.Tasty.HUnit (assertEqual, testCase)
+import           Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 
 import           Fencer.Rules
 import           Fencer.Types
@@ -33,11 +34,15 @@ test_rulesLoadRulesYaml =
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.yml") domain1Text
       TIO.writeFile (tempDir </> "config2.yaml") domain2Text
-      definitions <-
+      definitionsVal <-
         loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
-      assertEqual "unexpected definitions"
-        (sortOn domainDefinitionId [domain1, domain2])
-        (sortOn domainDefinitionId definitions)
+      case definitionsVal of
+        Failure fs ->
+          assertFailure $ "Invalid configuration: " ++ showErrors fs
+        Success definitions ->
+          assertEqual "unexpected definitions"
+          (sortOn domainDefinitionId [domain1, domain2])
+          (sortOn domainDefinitionId definitions)
 
 -- | Test that 'loadRulesFromDirectory' loads rules from all files, not just
 -- YAML files.
@@ -49,11 +54,15 @@ test_rulesLoadRulesNonYaml =
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.bin") domain1Text
       TIO.writeFile (tempDir </> "config2") domain2Text
-      definitions <-
+      definitionsVal <-
         loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
-      assertEqual "unexpected definitions"
-        (sortOn domainDefinitionId [domain1, domain2])
-        (sortOn domainDefinitionId definitions)
+      case definitionsVal of
+        Failure fs ->
+          assertFailure $ "Invalid configuration: " ++ showErrors fs
+        Success definitions ->
+          assertEqual "unexpected definitions"
+            (sortOn domainDefinitionId [domain1, domain2])
+            (sortOn domainDefinitionId definitions)
 
 -- | Test that 'loadRulesFromDirectory' loads rules recursively.
 --
@@ -66,11 +75,15 @@ test_rulesLoadRulesRecursively =
       TIO.writeFile (tempDir </> "domain1/config.yml") domain1Text
       createDirectoryIfMissing True (tempDir </> "domain2/config")
       TIO.writeFile (tempDir </> "domain2/config/config.yml") domain2Text
-      definitions <-
+      definitionsVal <-
         loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
-      assertEqual "unexpected definitions"
-        (sortOn domainDefinitionId [domain1, domain2])
-        (sortOn domainDefinitionId definitions)
+      case definitionsVal of
+        Failure fs ->
+          assertFailure $ "Invalid configuration: " ++ showErrors fs
+        Success definitions ->
+          assertEqual "unexpected definitions"
+            (sortOn domainDefinitionId [domain1, domain2])
+            (sortOn domainDefinitionId definitions)
 
 
 ----------------------------------------------------------------------------

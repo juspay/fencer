@@ -134,6 +134,7 @@ test-suite test-fencer
     , text
     , tinylog
     , unordered-containers
+    , validation
     , vector
     -- Internal dependencies
     , fencer
