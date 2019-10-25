@@ -14,6 +14,7 @@ import BasePrelude
 
 import Control.Concurrent.STM (atomically)
 import qualified Data.List.NonEmpty as NE
+import Data.Validation (Validation(Success, Failure))
 import System.FilePath ((</>))
 import qualified System.Logger as Logger
 import System.Logger (Logger)
@@ -80,24 +81,30 @@ reloadRules logger settings appState = do
         Logger.msg ("Loading rules from " ++ configDir)
 
     -- Read and parse the rules
-    ruleDefinitions :: [DomainDefinition] <-
+    ruleDefinitionsVal :: Validation [LoadRulesError] [DomainDefinition] <-
         loadRulesFromDirectory
             (#directory configDir)
             (#ignoreDotFiles (settingsIgnoreDotFiles settings))
-    Logger.info logger $
-        Logger.msg ("Parsed rules for domains: " ++
+    case ruleDefinitionsVal of
+        Failure fs ->
+            Logger.err logger $
+                Logger.msg ("error loading new configuration from runtime: " ++
+                            (join . intersperse ", " $ show <$> fs))
+        Success ruleDefinitions -> do
+            Logger.info logger $
+                Logger.msg ("Parsed rules for domains: " ++
                     show (map (unDomainId . domainDefinitionId) ruleDefinitions))
 
-    -- Recreate 'appStateRules'
-    --
-    -- There is no need to remove old rate limiting rules
-    atomically $
-        -- See the documentation of 'setRules' for details on what
-        -- happens with counters during rule reloading.
-        setRules appState
-            [ ( domainDefinitionId rule
-              , definitionsToRuleTree (NE.toList . domainDefinitionDescriptors $ rule))
-            | rule <- ruleDefinitions
-            ]
-    Logger.info logger $
-        Logger.msg (Logger.val "Applied new rules")
+            -- Recreate 'appStateRules'
+            --
+            -- There is no need to remove old rate limiting rules
+            atomically $
+                -- See the documentation of 'setRules' for details on what
+                -- happens with counters during rule reloading.
+                setRules appState
+                    [ ( domainDefinitionId rule
+                      , definitionsToRuleTree (NE.toList . domainDefinitionDescriptors $ rule))
+                    | rule <- ruleDefinitions
+                    ]
+            Logger.info logger $
+                Logger.msg (Logger.val "Applied new rules")

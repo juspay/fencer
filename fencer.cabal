@@ -81,6 +81,7 @@ library
     directory,
     filepath,
     fsnotify,
+    validation,
     tinylog
   hs-source-dirs:
     lib

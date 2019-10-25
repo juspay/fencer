@@ -4,7 +4,8 @@
 
 -- | Working with rate limiting rules.
 module Fencer.Rules
-    ( loadRulesFromDirectory
+    ( LoadRulesError(..)
+    , loadRulesFromDirectory
     , definitionsToRuleTree
     , applyRules
     )
@@ -12,7 +13,10 @@ where
 
 import BasePrelude
 
+import Control.Applicative (liftA2)
 import Control.Monad.Extra (partitionM, concatMapM)
+import Data.List (foldl')
+import Data.Validation (liftError, Validation(Success))
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
@@ -21,25 +25,49 @@ import qualified Data.Yaml as Yaml
 
 import Fencer.Types
 
+data LoadRulesError
+  = InvalidYaml FilePath Yaml.ParseException
+
+instance Show LoadRulesError where
+  show (InvalidYaml file yamlEx) = show file ++ ", " ++ show yamlEx
+
+
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension.
 --
--- Throws an exception for unparseable or unreadable files.
+-- Returns a list of exceptions for unparsable or unreadable files.
 loadRulesFromDirectory
     :: "directory" :! FilePath
     -> "ignoreDotFiles" :! Bool
-    -> IO [DomainDefinition]
+    -> IO (Validation [LoadRulesError] [DomainDefinition])
 loadRulesFromDirectory
     (arg #directory -> directory)
     (arg #ignoreDotFiles -> ignoreDotFiles)
     =
     do
     files <- listAllFiles directory
-    mapM Yaml.decodeFileThrow $
-        if ignoreDotFiles
-            then filter (not . isDotFile) files
-            else files
+    let filteredFiles = if ignoreDotFiles
+        then filter (not . isDotFile) files
+        else files
+    foldl'
+      combine
+      (pure . Success $ [])
+      filteredFiles
   where
+    combine
+      :: IO (Validation [LoadRulesError] [DomainDefinition])
+      -> FilePath
+      -> IO (Validation [LoadRulesError] [DomainDefinition])
+    combine acc file = do
+      let res = liftBoth file <$> Yaml.decodeFileEither @DomainDefinition file
+      liftA2 (<>) res acc
+
+    liftBoth
+      :: FilePath
+      -> Either Yaml.ParseException DomainDefinition
+      -> Validation [LoadRulesError] [DomainDefinition]
+    liftBoth file v = pure <$> liftError (pure . InvalidYaml file) v
+
     isDotFile :: FilePath -> Bool
     isDotFile file = "." `isPrefixOf` takeFileName file
 
