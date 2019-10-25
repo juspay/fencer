@@ -45,7 +45,7 @@ library
     common
   exposed-modules:
     Fencer.Main
-    Fencer.AppState
+    Fencer.Logic
     Fencer.Server
     Fencer.Counter
     Fencer.Rules
@@ -110,6 +110,7 @@ test-suite test-fencer
   hs-source-dirs:
     test
   other-modules:
+    Fencer.Logic.Test
     Fencer.Types.Test
     Fencer.Rules.Test
     Fencer.Server.Test
@@ -126,7 +127,6 @@ test-suite test-fencer
     , neat-interpolation
     , proto3-wire
     , proto3-suite
-    , stm-containers
     , tasty
     , tasty-hunit
     , temporary

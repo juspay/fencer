@@ -20,6 +20,9 @@ stdenv.mkDerivation rec {
     ./grpc-ipv4.patch
     # Disable compiler warnings to make the library compile
     ./grpc-warnings.patch
+    # Disable debug info to prevent Nix store paths from getting embedded
+    # into binaries (see <https://github.com/juspay/fencer/issues/31>)
+    ./grpc-nodebug.patch
   ];
 
   # `grpc`'s `Makefile` does some magic to detect the correct `ld` and `strip`
@@ -30,6 +33,8 @@ stdenv.mkDerivation rec {
     unset LD
     unset STRIP
   '';
+
+  disallowedReferences = [ stdenv.cc ];
 
   preInstall = "export prefix";
 
@@ -43,6 +48,9 @@ stdenv.mkDerivation rec {
     # Old OpenSSL version due to https://github.com/grpc/grpc/issues/10589
     openssl_1_0_2
   ];
+
+  # bin/ contains plugins like "grpc_cpp_plugin" that we don't need.
+  postInstall = "rm -rf $out/bin";
 
   # Some versions of `ar` (such as the one provided by OS X) require an explicit
   # `-r` flag, whereas other versions assume `-r` is the default if no mode is

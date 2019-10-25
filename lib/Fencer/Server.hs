@@ -13,7 +13,6 @@ where
 import BasePrelude hiding ((+++))
 
 import           Control.Concurrent.STM (atomically)
-import           Named ((:!), arg)
 import qualified Data.ByteString.Char8 as B
 import           Data.Text (Text)
 import qualified Data.Text.Lazy as TL
@@ -24,7 +23,7 @@ import qualified System.Logger as Logger
 import           System.Logger (Logger)
 import           System.Logger.Message ((+++))
 
-import           Fencer.AppState
+import           Fencer.Logic
 import           Fencer.Counter
 import qualified Fencer.Proto as Proto
 import           Fencer.Settings (defaultGRPCPort)
@@ -107,7 +106,7 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = 
      statuses :: [Proto.RateLimitResponse_DescriptorStatus]) <-
         fmap (unzip . map (maybe ruleNotFoundResponse counterStatusToProto)) $
         atomically $ forM descriptors $ \descriptor ->
-            shouldRateLimitDescriptor appState (#hits hits) domain descriptor
+            updateLimitCounter appState (#hits hits) domain descriptor
 
     -- Return server response.
     let overallCode =
@@ -128,31 +127,6 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = 
     let metadata = mempty
     let statusDetails = ""
     pure $ Grpc.ServerNormalResponse answer metadata Grpc.StatusOk statusDetails
-
--- | Handle a single descriptor in a 'shouldRateLimit' request.
---
--- Returns the current limit and response.
---
--- 'shouldRateLimitDescriptor' will create a new counter if the counter does
--- not exist, or update an existing counter otherwise. The counter will be
--- reset if it has expired, and 'appStateCounterExpiry' will be updated.
-shouldRateLimitDescriptor
-    :: AppState
-    -> "hits" :! Word
-    -> DomainId
-    -> [(RuleKey, RuleValue)]
-    -> STM (Maybe (RateLimit, CounterStatus))
-shouldRateLimitDescriptor appState (arg #hits -> hits) domain descriptor =
-    getLimit appState domain descriptor >>= \case
-        Nothing -> pure Nothing
-        Just limit -> do
-            let counterKey :: CounterKey
-                counterKey = CounterKey
-                  { counterKeyDomain = domain
-                  , counterKeyDescriptor = descriptor
-                  , counterKeyUnit = rateLimitUnit limit }
-            status <- recordHits appState (#hits hits) (#limit limit) counterKey
-            pure (Just (limit, status))
 
 ----------------------------------------------------------------------------
 -- Working with protobuf structures

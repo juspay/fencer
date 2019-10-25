@@ -7,26 +7,18 @@ module Fencer.Rules.Test (tests) where
 
 import           BasePrelude
 
-import qualified Data.HashMap.Strict as HM
 import           Data.List (sortOn)
-import qualified Data.List.NonEmpty as NE
-import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text.IO as TIO
 import           NeatInterpolation (text)
-import qualified StmContainers.Map as StmMap
 import qualified System.IO.Temp as Temp
 import           System.FilePath ((</>))
 import           System.Directory (createDirectoryIfMissing)
 import           Test.Tasty (TestTree, testGroup)
-import           Test.Tasty.HUnit (assertBool, assertEqual, testCase)
+import           Test.Tasty.HUnit (assertEqual, testCase)
 
-import           Fencer.AppState (appStateCounters, appStateRules, recordHits, setRules)
-import           Fencer.Counter (CounterKey(..), counterHits)
 import           Fencer.Rules
 import           Fencer.Types
-
-import           Fencer.Server.Test (withServer, serverAppState)
 
 
 tests :: TestTree
@@ -34,7 +26,6 @@ tests = testGroup "Rule tests"
   [ test_rulesLoadRulesYaml
   , test_rulesLoadRulesNonYaml
   , test_rulesLoadRulesRecursively
-  , test_rulesLimitUnitChange
   ]
 
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
@@ -83,77 +74,6 @@ test_rulesLoadRulesRecursively =
         (sortOn domainDefinitionId [domain1, domain2])
         (sortOn domainDefinitionId definitions)
 
--- | Test that a rule limit unit change adds a new counter and leaves
--- the old one intact.
-test_rulesLimitUnitChange :: TestTree
-test_rulesLimitUnitChange =
-  withServer $ \serverIO ->
-    testCase "A rule limit unit change on rule reloading" $
-      Temp.withSystemTempDirectory "fencer-config-unit" $ \tempDir -> do
-        createDirectoryIfMissing True (tempDir </> dir)
-
-        definitions1 <- writeLoad tempDir merchantLimitsText1
-        state <- serverAppState <$> serverIO
-
-        atomically $ setRules state (mapRuleDefs definitions1)
-
-        ruleTree :: RuleTree <- atomically $
-          fromMaybe' <$> StmMap.lookup domainId (appStateRules state)
-        let ruleBranch = fromMaybe' $ HM.lookup (ruleKey, Just ruleValue) ruleTree
-        let rateLimit =  fromMaybe' $ ruleBranchRateLimit ruleBranch
-
-        -- Record a hit
-        void $ atomically $ recordHits state (#hits 1) (#limit rateLimit) counterKey1
-
-        mV1 <- atomically $ StmMap.lookup counterKey1 $ appStateCounters state
-
-        -- Change rules in the configuration
-        definitions2 <- writeLoad tempDir merchantLimitsText2
-
-        -- Set the new rules and the rules reloaded flag
-        atomically $ setRules state (mapRuleDefs definitions2)
-
-        mV1' <- atomically $ StmMap.lookup counterKey1 $ appStateCounters state
-        mV2  <- atomically $ StmMap.lookup counterKey2 $ appStateCounters state
-
-        assertBool
-          "The original counter was not updated after recording a hit!"
-          ((counterHits <$> mV1) == Just 1)
-        assertBool
-          "The original counter was mistakenly updated in the meantime!"
-          (mV1 == mV1')
-        assertBool "The secondary counter was set!" (isNothing mV2)
- where
-  mapRuleDefs :: [DomainDefinition] -> [(DomainId, RuleTree)]
-  mapRuleDefs defs =
-    [ ( domainDefinitionId rule
-      , definitionsToRuleTree (NE.toList . domainDefinitionDescriptors $ rule))
-    | rule <- defs
-    ]
-
-  dir     = "d11-ratelimits"
-  cfgFile = "d11-ratelimits1.yaml"
-
-  writeLoad :: FilePath -> Text -> IO [DomainDefinition]
-  writeLoad tempDir txt = do
-    TIO.writeFile (tempDir </> dir </> cfgFile) txt
-    loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
-
-  ruleKey   = RuleKey   "generic_key"
-  ruleValue = RuleValue "dream11_order_create"
-  domainId  = DomainId  "merchant_rate_limits"
-
-  counterKey1 = CounterKey
-    { counterKeyDomain     = domainId
-    , counterKeyDescriptor = [ (ruleKey, ruleValue) ]
-    , counterKeyUnit       = Minute }
-
-  counterKey2 :: CounterKey
-  counterKey2 = counterKey1 { counterKeyUnit = Hour }
-
-  fromMaybe' :: Maybe a -> a
-  fromMaybe' = fromMaybe (error "")
-
 
 ----------------------------------------------------------------------------
 -- Sample definitions
@@ -200,26 +120,4 @@ domain2Text = [text|
   domain: domain2
   descriptors:
     - key: some key 2
-  |]
-
-merchantLimitsText1 :: Text
-merchantLimitsText1 = [text|
-  domain: merchant_rate_limits
-  descriptors:
-  - key: generic_key
-    value: dream11_order_create
-    rate_limit:
-      unit: minute
-      requests_per_unit: 400000
-  |]
-
-merchantLimitsText2 :: Text
-merchantLimitsText2 = [text|
-  domain: merchant_rate_limits
-  descriptors:
-  - key: generic_key
-    value: dream11_order_create
-    rate_limit:
-      unit: hour
-      requests_per_unit: 400000
   |]
