@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLabels  #-}
@@ -10,12 +11,13 @@ import           BasePrelude
 import           Data.List (sortOn)
 import           Data.Text (Text)
 import qualified Data.Text.IO as TIO
+import           Named ((:!), arg)
 import           NeatInterpolation (text)
 import qualified System.IO.Temp as Temp
-import           System.FilePath ((</>))
+import           System.FilePath (splitFileName, (</>))
 import           System.Directory (createDirectoryIfMissing)
 import           Test.Tasty (TestTree, testGroup)
-import           Test.Tasty.HUnit (assertEqual, testCase)
+import           Test.Tasty.HUnit (assertEqual, Assertion, testCase)
 
 import           Fencer.Rules
 import           Fencer.Settings (getSettingsFromEnvironment, settingsIgnoreDotFiles)
@@ -31,35 +33,53 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesRUNTIME_IGNOREDOTFILES
   ]
 
--- | A helper function for loading rules and making sure they are as
--- expected.
-loadRules :: String -> Bool -> IO ()
-loadRules dirTemplate ignoreDotFiles =
-  Temp.withSystemTempDirectory dirTemplate $ \tempDir -> do
-    TIO.writeFile (tempDir </> "config1.yml") domain1Text
-    TIO.writeFile (tempDir </> "config2.yaml") domain2Text
-    definitions <-
-      loadRulesFromDirectory
-        (#directory tempDir)
-        (#ignoreDotFiles ignoreDotFiles)
+-- | Create given directory structure and check that 'loadRulesFromDirectory'
+-- produces expected result.
+expectLoadRules
+  :: "ignoreDotFiles" :! Bool
+  -> "files" :! [(FilePath, Text)]
+  -> "result" :! [DomainDefinition]
+  -> Assertion
+expectLoadRules
+  (arg #ignoreDotFiles -> ignoreDotFiles)
+  (arg #files -> files)
+  (arg #result -> result) =
+  Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
+    forM_ files $ \(path, txt) -> do
+      let (dir, file) = splitFileName path
+      createDirectoryIfMissing True (tempDir </> dir)
+      TIO.writeFile (tempDir </> dir </> file) txt
+    definitions <- loadRulesFromDirectory
+      (#directory tempDir)
+      (#ignoreDotFiles ignoreDotFiles)
     assertEqual "unexpected definitions"
-      (sortOn domainDefinitionId [domain1, domain2])
+      (sortOn domainDefinitionId result)
       (sortOn domainDefinitionId definitions)
-
 
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_rulesLoadRulesYaml :: TestTree
 test_rulesLoadRulesYaml =
   testCase "Rules are loaded from YAML files" $
-    loadRules "fencer-config" True
+    expectLoadRules
+      (#ignoreDotFiles True)
+      (#files
+        [ ("config1.yml", domain1Text)
+        , ("config2.yaml", domain2Text) ]
+      )
+      (#result [domain1, domain2])
 
 -- | test that 'loadRulesFromDirectory' loads rules from a
 -- dot-directory when dot-files should be ignored.
 test_rulesLoadRulesDotDirectory :: TestTree
 test_rulesLoadRulesDotDirectory =
   testCase "Rules are loaded from a dot-directory" $
-    loadRules ".fencer-config" True
-
+    expectLoadRules
+      (#ignoreDotFiles True)
+      (#files
+        [ (".domain1/config1.yml", domain1Text)
+        , (".domain2/config2.yaml", domain2Text) ]
+      )
+      (#result [domain1, domain2])
 
 -- | test that 'loadRulesFromDirectory' respects the
 -- RUNTIME_IGNOREDOTFILES environment variable.
@@ -87,14 +107,13 @@ test_rulesLoadRulesRUNTIME_IGNOREDOTFILES =
 test_rulesLoadRulesNonYaml :: TestTree
 test_rulesLoadRulesNonYaml =
   testCase "Rules are loaded from non-YAML files" $
-    Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
-      TIO.writeFile (tempDir </> "config1.bin") domain1Text
-      TIO.writeFile (tempDir </> "config2") domain2Text
-      definitions <-
-        loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
-      assertEqual "unexpected definitions"
-        (sortOn domainDefinitionId [domain1, domain2])
-        (sortOn domainDefinitionId definitions)
+    expectLoadRules
+      (#ignoreDotFiles True)
+      (#files
+        [ ("config1.bin", domain1Text)
+        , ("config2", domain2Text) ]
+      )
+      (#result [domain1, domain2])
 
 -- | Test that 'loadRulesFromDirectory' loads rules recursively.
 --
@@ -102,16 +121,13 @@ test_rulesLoadRulesNonYaml =
 test_rulesLoadRulesRecursively :: TestTree
 test_rulesLoadRulesRecursively =
   testCase "Rules are loaded recursively" $
-    Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
-      createDirectoryIfMissing True (tempDir </> "domain1")
-      TIO.writeFile (tempDir </> "domain1/config.yml") domain1Text
-      createDirectoryIfMissing True (tempDir </> "domain2/config")
-      TIO.writeFile (tempDir </> "domain2/config/config.yml") domain2Text
-      definitions <-
-        loadRulesFromDirectory (#directory tempDir) (#ignoreDotFiles True)
-      assertEqual "unexpected definitions"
-        (sortOn domainDefinitionId [domain1, domain2])
-        (sortOn domainDefinitionId definitions)
+    expectLoadRules
+      (#ignoreDotFiles True)
+      (#files
+        [ ("domain1/config.yml", domain1Text)
+        , ("domain2/config/config.yml", domain2Text) ]
+      )
+      (#result [domain1, domain2])
 
 ----------------------------------------------------------------------------
 -- Sample definitions
