@@ -93,7 +93,7 @@ shell and build the project with `cabal`:
 
 ```
 nix-shell
-cabal v2-build
+cabal build
 ```
 
 You can use [`nix-cabal`](https://github.com/monadfix/nix-cabal) as a
