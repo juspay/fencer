@@ -18,6 +18,7 @@ import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.HUnit (assertEqual, testCase)
 
 import           Fencer.Rules
+import           Fencer.Settings (getSettingsFromEnvironment, settingsIgnoreDotFiles)
 import           Fencer.Types
 
 
@@ -27,6 +28,7 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesNonYaml
   , test_rulesLoadRulesRecursively
   , test_rulesLoadRulesDotDirectory
+  , test_rulesLoadRulesRUNTIME_IGNOREDOTFILES
   ]
 
 -- | A helper function for loading rules and making sure they are as
@@ -58,6 +60,25 @@ test_rulesLoadRulesDotDirectory =
   testCase "Rules are loaded from a dot-directory" $
     loadRules ".fencer-config" True
 
+
+-- | test that 'loadRulesFromDirectory' respects the
+-- RUNTIME_IGNOREDOTFILES environment variable.
+test_rulesLoadRulesRUNTIME_IGNOREDOTFILES :: TestTree
+test_rulesLoadRulesRUNTIME_IGNOREDOTFILES =
+  testCase "Rules are not loaded from a dot-file" $ do
+    setEnv "RUNTIME_IGNOREDOTFILES" "true"
+    setEnv "RUNTIME_SUBDIRECTORY" "sub" -- this value will not be used anyway
+    settings <- getSettingsFromEnvironment
+    Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
+      TIO.writeFile (tempDir </> "config1.yml") domain1Text
+      TIO.writeFile (tempDir </> ".config2.yaml") domain2Text
+      definitions <-
+        loadRulesFromDirectory
+          (#directory tempDir)
+          (#ignoreDotFiles $ settingsIgnoreDotFiles settings)
+      assertEqual "RUNTIME_IGNOREDOTFILES not respected!"
+        [domain1]
+        definitions
 
 -- | Test that 'loadRulesFromDirectory' loads rules from all files, not just
 -- YAML files.
