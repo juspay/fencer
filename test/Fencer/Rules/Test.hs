@@ -35,16 +35,14 @@ tests = testGroup "Rule tests"
 -- produces expected result.
 expectLoadRules
   :: "ignoreDotFiles" :! Bool
-  -> "dirTemplate" :! String
   -> "files" :! [(FilePath, Text)]
   -> "result" :! [DomainDefinition]
   -> Assertion
 expectLoadRules
   (arg #ignoreDotFiles -> ignoreDotFiles)
-  (arg #dirTemplate -> dirTemplate)
   (arg #files -> files)
   (arg #result -> result) =
-  Temp.withSystemTempDirectory dirTemplate $ \tempDir -> do
+  Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
     forM_ files $ \(path, txt) -> do
       let (dir, file) = splitFileName path
       createDirectoryIfMissing True (tempDir </> dir)
@@ -62,7 +60,6 @@ test_rulesLoadRulesYaml =
   testCase "Rules are loaded from YAML files" $
     expectLoadRules
       (#ignoreDotFiles True)
-      (#dirTemplate "fencer-config")
       (#files
         [ ("config1.yml", domain1Text)
         , ("config2.yaml", domain2Text) ]
@@ -76,10 +73,9 @@ test_rulesLoadRulesDotDirectory =
   testCase "Rules are loaded from a dot-directory" $
     expectLoadRules
       (#ignoreDotFiles True)
-      (#dirTemplate ".fencer-config")
       (#files
-        [ ("config1.yml", domain1Text)
-        , ("config2.yaml", domain2Text) ]
+        [ (".domain1/config1.yml", domain1Text)
+        , (".domain2/config2.yaml", domain2Text) ]
       )
       (#result [domain1, domain2])
 
@@ -92,7 +88,6 @@ test_rulesLoadRulesNonYaml =
   testCase "Rules are loaded from non-YAML files" $
     expectLoadRules
       (#ignoreDotFiles True)
-      (#dirTemplate "fencer-config")
       (#files
         [ ("config1.bin", domain1Text)
         , ("config2", domain2Text) ]
@@ -107,7 +102,6 @@ test_rulesLoadRulesRecursively =
   testCase "Rules are loaded recursively" $
     expectLoadRules
       (#ignoreDotFiles True)
-      (#dirTemplate "fencer-config")
       (#files
         [ ("domain1/config.yml", domain1Text)
         , ("domain2/config/config.yml", domain2Text) ]
