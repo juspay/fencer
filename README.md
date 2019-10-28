@@ -280,6 +280,13 @@ At least, this is according to our understanding of the logic in the Go
 code. Ideally we should test this against `lyft/ratelimit` itself, which is
 a pending task.
 
+Keep in mind that Fencer can load configuration from any YAML files
+and not just files with the `.yml` extension. For example, Fencer will
+load configuration from a YAML file named `limit` so long as the file
+is located in the runtime directory given with the
+`RUNTIME_SUBDIRECTORY` environment variable. Furthermore, it will load
+configuration from a runtime subdirectory recursively, thereby
+traversing the whole subdirectory.
 
 ## Differences to Lyft's rate limit service
 
