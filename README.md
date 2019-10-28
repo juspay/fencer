@@ -7,6 +7,60 @@ logic, etc, are compatible with `lyft/ratelimit` as far as possible.
 Questions? [Open an issue](https://github.com/juspay/fencer/issues) or get
 in touch at <opensource@juspay.in>.
 
+## Usage
+
+We publish Docker images of Fencer in GitHub package registry:
+<https://github.com/juspay/fencer/packages/31371>. You can either use images
+tagged with commit hashes, or with `master` for the latest build. At the
+moment you have to be logged into the registry before pulling the image –
+see [Configuring Docker for use with GitHub Package Registry][github-docker]
+for details.
+
+[github-docker]: https://help.github.com/en/github/managing-packages-with-github-package-registry/configuring-docker-for-use-with-github-package-registry
+
+```
+docker pull docker.pkg.github.com/juspay/fencer/fencer:master
+```
+
+You will need the following directory structure:
+
+```
+.
+├── current -> config1    # symlink to ./config1
+└── config1
+    └── ratelimit
+        └── config
+            ├── some_rule.yaml
+            └── another_rule.yaml
+```
+
+Start Fencer:
+
+```
+docker run -d \
+  -p 8081:8081 \
+  -v $(pwd):/srv/runtime_data \
+  -e RUNTIME_SUBDIRECTORY=ratelimit \
+  docker.pkg.github.com/juspay/fencer/fencer:master
+```
+
+To modify configuration, create a new directory (e.g. `./config2`) and
+update the `current` symlink to point to it. The configuration will be
+reloaded automatically. If the configuration in `./config2` is invalid,
+Fencer will keep using the existing configuration.
+
+In production it is recommended to set logging level to `Info` instead of
+`Debug` – this significantly increates Fencer's throughput:
+
+```
+docker run -d \
+  -p 8081:8081 \
+  -v $(pwd):/srv/runtime_data \
+  -e RUNTIME_SUBDIRECTORY=ratelimit \
+  -e LOG_LEVEL=Info \
+  docker.pkg.github.com/juspay/fencer/fencer:master
+```
+
 ## Building
 
 Install [Nix](https://nixos.org/nix/). On macOS and Linux, this can be done
