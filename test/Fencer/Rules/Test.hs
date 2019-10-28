@@ -31,7 +31,7 @@ tests = testGroup "Rule tests"
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_rulesLoadRulesYaml :: TestTree
 test_rulesLoadRulesYaml =
-  testCase "Rules are loaded from YAML files" $
+  testCase "Rules are loaded from YAML files" $ do
     Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
       TIO.writeFile (tempDir </> "config1.yml") domain1Text
       TIO.writeFile (tempDir </> "config2.yaml") domain2Text
