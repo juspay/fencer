@@ -50,7 +50,7 @@ reloaded automatically. If the configuration in `./config2` is invalid,
 Fencer will keep using the existing configuration.
 
 In production it is recommended to set logging level to `Info` instead of
-`Debug` – this significantly increates Fencer's throughput:
+`Debug` – this significantly increases Fencer's throughput:
 
 ```
 docker run -d \
