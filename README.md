@@ -93,7 +93,7 @@ shell and build the project with `cabal`:
 
 ```
 nix-shell
-cabal v2-build
+cabal build
 ```
 
 You can use [`nix-cabal`](https://github.com/monadfix/nix-cabal) as a
@@ -280,6 +280,13 @@ At least, this is according to our understanding of the logic in the Go
 code. Ideally we should test this against `lyft/ratelimit` itself, which is
 a pending task.
 
+Keep in mind that Fencer can load configuration from any YAML files
+and not just files with the `.yml` extension. For example, Fencer will
+load configuration from a YAML file named `limit` so long as the file
+is located in the runtime directory given with the
+`RUNTIME_SUBDIRECTORY` environment variable. Furthermore, it will load
+configuration from a runtime subdirectory recursively, thereby
+traversing the whole subdirectory.
 
 ## Differences to Lyft's rate limit service
 
@@ -287,14 +294,38 @@ Fencer differs in several ways compared to [Lyft's rate limit
 service](https://github.com/lyft/ratelimit/):
 
 * Fencer does not use Redis.
+
 * Fencer is implemented in Haskell, while `lyft/ratelimit` is
   implemented in Go.
+
 * In `lyft/ratelimit`, the `limitRemaining` key is left out altogether
   if the remaining limit is zero. For all non-zero values it is given
   in the usual key-value notation, e.g., `"limitRemaining": 4`. Fencer
   always returns the key, including when the value is zero:
   `"limitRemaining": 0`.
 
+* Due to an implementation detail, `lyft/ratelimit` can resolve rate limit
+  requests containing underscores incorrectly. For instance, given the
+  following rule:
+
+  ```yaml
+  domain: mongo_cps
+  descriptors:
+    - key: database
+      rate_limit:
+        unit: second
+        requests_per_unit: 500
+  ```
+
+  `lyft/ratelimit` will apply it to the following descriptor, even though it
+  should not:
+
+  ```
+  domain: mongo
+  descriptor: ("cps_database", "dbname")
+  ```
+
+  Fencer does not suffer from this misfeature.
 
 ## Contributing
 
