@@ -29,7 +29,8 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesNonYaml
   , test_rulesLoadRulesRecursively
   , test_rulesLoadRulesDotDirectory
-  , test_rulesLoadRulesRUNTIME_IGNOREDOTFILES
+  , test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue
+  , test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse
   ]
 
 -- | Create given directory structure and check that 'loadRulesFromDirectory'
@@ -75,23 +76,36 @@ test_rulesLoadRulesDotDirectory =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ (".domain1/config1.yml", domain1Text)
-        , (".domain2/config2.yaml", domain2Text) ]
+        [ (".domain1" </> "config1.yml", domain1Text)
+        , (".domain2" </> "config2.yaml", domain2Text) ]
       )
       (#result [domain1, domain2])
 
--- | test that 'loadRulesFromDirectory' respects the
--- RUNTIME_IGNOREDOTFILES environment variable.
-test_rulesLoadRulesRUNTIME_IGNOREDOTFILES :: TestTree
-test_rulesLoadRulesRUNTIME_IGNOREDOTFILES =
+-- | test that 'loadRulesFromDirectory' correctly implements the case
+-- RUNTIME_IGNOREDOTFILES=true.
+test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue :: TestTree
+test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue =
   testCase "Rules are not loaded from a dot-file" $ do
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
         [ ("config1.yml", domain1Text)
-        , ("dir/.config2.yaml", domain2Text) ]
+        , ("dir" </> ".config2.yaml", domain2Text) ]
       )
       (#result [domain1])
+
+-- | test that 'loadRulesFromDirectory' correctly implements the case
+-- RUNTIME_IGNOREDOTFILES=false.
+test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse :: TestTree
+test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse =
+  testCase "Rules are not loaded from a dot-file" $ do
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files
+        [ ("config1.yml", domain1Text)
+        , ("dir" </> ".config2.yaml", domain2Text) ]
+      )
+      (#result [domain1, domain2])
 
 -- | Test that 'loadRulesFromDirectory' loads rules from all files, not just
 -- YAML files.
@@ -117,8 +131,8 @@ test_rulesLoadRulesRecursively =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ ("domain1/config.yml", domain1Text)
-        , ("domain2/config/config.yml", domain2Text) ]
+        [ ("domain1" </> "config.yml", domain1Text)
+        , ("domain2" </> "config" </> "config.yml", domain2Text) ]
       )
       (#result [domain1, domain2])
 
