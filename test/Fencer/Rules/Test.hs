@@ -85,7 +85,7 @@ test_rulesLoadRulesDotDirectory =
 -- RUNTIME_IGNOREDOTFILES=true.
 test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue :: TestTree
 test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue =
-  testCase "Rules are not loaded from a dot-file" $ do
+  testCase "Rules are not loaded from a dot-file" $
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
@@ -98,7 +98,7 @@ test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue =
 -- RUNTIME_IGNOREDOTFILES=false.
 test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse :: TestTree
 test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse =
-  testCase "Rules are not loaded from a dot-file" $ do
+  testCase "Rules are not loaded from a dot-file" $
     expectLoadRules
       (#ignoreDotFiles False)
       (#files
