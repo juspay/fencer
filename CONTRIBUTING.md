@@ -73,6 +73,9 @@ guidelines we follow:
   contribution. Finally, no branch merge commits should get into the
   *master* history.
 
+
+### Linting
+
 When developing Fencer, it is important to keep in mind that linting
 is performed automatically during continuous integration, i.e., before
 a pull request is approved for merging. This means that Haskell code
@@ -89,13 +92,13 @@ hlint --git
 If there are any issues with the code that match a curated list of
 linting patterns, the `hlint` tool will report them and exit with a
 non-zero status. To make sure you do not forget to lint before
-Git-pushing, you can set up a pre-push Git hook:
+Git-pushing, you can set up a pre-push Git hook. Copy a script
+`scripts/pre-push` to the `.git/hooks` subdirectory. It is important
+to keep the script name as is so Git can know when exactly to run it:
 
-1. Copy a script `scripts/pre-push` to the `.git/hooks`
-   subdirectory. It is important to keep the script name as is so Git
-   can know when exactly to run it.
-2. Make the script executable, e.g., by running `chmod +x
-   .git/hooks/pre-push`.
+```bash
+cp scripts/pre-push .git/hooks/
+```
 
 Now if you try to push a Haskell source code file that does not pass
 linting, Git will print out problems and suggestions how to fix them
@@ -129,5 +132,8 @@ Perhaps:
 error: failed to push some refs to 'git@github.com:juspay/fencer.git'
 ```
 
+Finally, keep in mind that a clean worktree is assumed when using this
+pre-push hook. If you would still like to use the hook with unstaged
+changes, please `git-stash` before pushing to a remote repository.
 
 [1]: https://help.github.com/en/github/getting-started-with-github/fork-a-repo
