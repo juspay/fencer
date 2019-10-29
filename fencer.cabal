@@ -45,6 +45,7 @@ library
     common
   exposed-modules:
     Fencer.Main
+    Fencer.Logger
     Fencer.Logic
     Fencer.Server
     Fencer.Counter
@@ -81,7 +82,8 @@ library
     directory,
     filepath,
     fsnotify,
-    tinylog
+    tinylog,
+    titlecase
   hs-source-dirs:
     lib
 

@@ -18,6 +18,7 @@ import qualified System.Logger as Logger
 import qualified System.IO.Temp as Temp
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 
+import           Fencer.Logger (adjustCase)
 import           Fencer.Logic
 import           Fencer.Server
 import           Fencer.Settings (defaultGRPCPort)
@@ -103,6 +104,8 @@ data Server = Server
 -- | Start Fencer on the default port.
 createServer :: IO Server
 createServer = do
+  adjustCase
+
   -- TODO: not the best approach. Ideally we should use e.g.
   -- https://hackage.haskell.org/package/tasty-hunit/docs/Test-Tasty-HUnit.html#v:testCaseSteps
   -- but we can't convince @tinylog@ to use the provided step function.

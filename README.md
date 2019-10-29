@@ -1,3 +1,4 @@
+
 # Fencer
 
 Fencer is a port of <https://github.com/lyft/ratelimit> into Haskell. The
@@ -66,8 +67,8 @@ Logging environment variables are:
 
 - `LOG_BUFFER` - The logging buffer size in bytes.
 - `LOG_LEVEL` - The logging level. It can be one of the following:
-  Trace, Debug, Info, Warn, Error and Fatal. The default value is
-  Debug.
+  trace, debug, info, warn, error and fatal. The default value is
+  debug.
 - `LOG_NETSTR` - The flag indicating if netstring encoding is
   enabled. It can be `True` or `False`. The default value is `False`.
 - `LOG_LEVEL_MAP` - A map for specifying log levels per (named)

@@ -19,6 +19,7 @@ import qualified System.Logger as Logger
 import System.Logger (Logger)
 
 import Fencer.Types
+import qualified Fencer.Logger
 import Fencer.Logic
 import Fencer.Server
 import Fencer.Rules
@@ -33,6 +34,7 @@ import Fencer.Settings
 -- server serving ratelimit requests.
 main :: IO ()
 main = do
+    Fencer.Logger.adjustCase
     -- Initialize logging
     logger <- Logger.new $
         Logger.setOutput Logger.StdErr $
