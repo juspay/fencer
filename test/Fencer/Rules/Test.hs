@@ -50,7 +50,8 @@ expectLoadRules
       createDirectoryIfMissing True (tempDir </> dir)
       TIO.writeFile (tempDir </> dir </> file) txt
     definitions <- loadRulesFromDirectory
-      (#directory tempDir)
+      (#rootDirectory tempDir)
+      (#subDirectory ".")
       (#ignoreDotFiles ignoreDotFiles)
     assertEqual "unexpected definitions"
       (sortOn domainDefinitionId result)
@@ -68,18 +69,18 @@ test_rulesLoadRulesYaml =
       )
       (#result [domain1, domain2])
 
--- | test that 'loadRulesFromDirectory' loads rules from a
+-- | test that 'loadRulesFromDirectory' does not load rules from a
 -- dot-directory when dot-files should be ignored.
 test_rulesLoadRulesDotDirectory :: TestTree
 test_rulesLoadRulesDotDirectory =
-  testCase "Rules are loaded from a dot-directory" $
+  testCase "Rules are not loaded from a dot-directory" $
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
         [ (".domain1" </> "config1.yml", domain1Text)
-        , (".domain2" </> "config2.yaml", domain2Text) ]
+        , ("domain2" </> "config2.yaml", domain2Text) ]
       )
-      (#result [domain1, domain2])
+      (#result [domain2])
 
 -- | test that 'loadRulesFromDirectory' correctly implements the case
 -- RUNTIME_IGNOREDOTFILES=true.
@@ -98,7 +99,7 @@ test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue =
 -- RUNTIME_IGNOREDOTFILES=false.
 test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse :: TestTree
 test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse =
-  testCase "Rules are not loaded from a dot-file" $
+  testCase "Rules are loaded from a dot-file" $
     expectLoadRules
       (#ignoreDotFiles False)
       (#files
