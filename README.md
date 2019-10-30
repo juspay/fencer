@@ -135,9 +135,9 @@ Fencer-specific environment variables are:
   subdirectory. The default value is `/srv/runtime_data/current`.
 - `RUNTIME_SUBDIRECTORY` - The directory with Fencer settings.
 - `RUNTIME_IGNOREDOTFILES` - A flag indicating whether to ignore files
-  with names starting with a dot (hidden files on Linux-based systems
-  and macOS). It can be `True` or `False`. The default value is
-  `False`.
+  and directories with names starting with a dot (hidden files on
+  Linux-based systems and macOS). It can be `True` or `False`. The
+  default value is `False`.
 - `GRPC_PORT` - The port to run the gRPC server on. Default is 8081.
 
 ## Developing

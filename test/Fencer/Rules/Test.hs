@@ -29,6 +29,8 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesNonYaml
   , test_rulesLoadRulesRecursively
   , test_rulesLoadRulesDotDirectory
+  , test_rulesLoadRules_ignoreDotFiles
+  , test_rulesLoadRules_dontIgnoreDotFiles
   ]
 
 -- | Create given directory structure and check that 'loadRulesFromDirectory'
@@ -71,7 +73,7 @@ test_rulesLoadRulesYaml =
 -- dot-directory when dot-files should be ignored.
 test_rulesLoadRulesDotDirectory :: TestTree
 test_rulesLoadRulesDotDirectory =
-  testCase "Rules are loaded from a dot-directory" $
+  testCase "Rules are not loaded from a dot-directory" $
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
@@ -79,6 +81,30 @@ test_rulesLoadRulesDotDirectory =
         , ("domain2" </> "config2.yaml", domain2Text) ]
       )
       (#result [domain2])
+
+-- | test that 'loadRulesFromDirectory' ignores dot-files.
+test_rulesLoadRules_ignoreDotFiles :: TestTree
+test_rulesLoadRules_ignoreDotFiles =
+  testCase "Rules are not loaded from a dot-file" $
+    expectLoadRules
+      (#ignoreDotFiles True)
+      (#files
+        [ ("config1.yml", domain1Text)
+        , ("dir" </> ".config2.yaml", domain2Text) ]
+      )
+      (#result [domain1])
+
+-- | test that 'loadRulesFromDirectory' does not ignore dot files.
+test_rulesLoadRules_dontIgnoreDotFiles :: TestTree
+test_rulesLoadRules_dontIgnoreDotFiles =
+  testCase "Rules are loaded from a dot-file" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files
+        [ ("config1.yml", domain1Text)
+        , ("dir" </> ".config2.yaml", domain2Text) ]
+      )
+      (#result [domain1, domain2])
 
 -- | Test that 'loadRulesFromDirectory' loads rules from all files, not just
 -- YAML files.
