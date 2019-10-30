@@ -50,11 +50,11 @@ expectLoadRules
       let (dir, file) = splitFileName path
       createDirectoryIfMissing True (tempDir </> dir)
       TIO.writeFile (tempDir </> dir </> file) txt
-    definitionsEither <- loadRulesFromDirectory
+    definitionsVal <- loadRulesFromDirectory
       (#rootDirectory tempDir)
       (#subDirectory ".")
       (#ignoreDotFiles ignoreDotFiles)
-    case definitionsEither of
+    case definitionsVal of
       Failure fs          -> assertFailure $ showErrors fs
       Success definitions -> assertEqual "unexpected definitions"
         (sortOn domainDefinitionId result)
