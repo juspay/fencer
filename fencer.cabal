@@ -58,6 +58,7 @@ library
     base,
     base-prelude,
     extra,
+    either,
     hashable,
     monad-loops,
     time,

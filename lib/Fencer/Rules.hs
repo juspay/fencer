@@ -16,6 +16,7 @@ import BasePrelude
 
 import Control.Applicative (liftA2)
 import Control.Monad.Extra (partitionM, concatMapM)
+import Data.Either.Combinators (mapLeft)
 import Data.List (foldl')
 import Data.Validation (liftError, Validation(Failure, Success))
 import qualified Data.HashMap.Strict as HM
@@ -27,15 +28,17 @@ import qualified Data.Yaml as Yaml
 import Fencer.Types
 
 data LoadRulesError
-  = InvalidYaml FilePath Yaml.ParseException
+  = ParseException FilePath Yaml.ParseException
+  | IOEx IOException
 
 instance Show LoadRulesError where
-  show (InvalidYaml file yamlEx) = show file ++ ", " ++ show yamlEx
-
+  show (ParseException file yamlEx) =
+    show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
+  show (IOEx ex) = "IO exception: " ++ show ex
 
 -- | Show a list of 'LoadRulesError's.
 showErrors :: [LoadRulesError] -> String
-showErrors fs = join . intersperse ", " $ show <$> fs
+showErrors = join . intersperse ", " . fmap show
 
 
 -- | Read rate limiting rules from a directory, recursively. Files are
@@ -72,14 +75,17 @@ loadRulesFromDirectory
       -> FilePath
       -> IO (Validation [LoadRulesError] [DomainDefinition])
     combine acc file = do
-      let res = liftBoth file <$> Yaml.decodeFileEither @DomainDefinition file
+      let
+        res = fmap liftBoth $
+          catch
+            ((mapLeft (ParseException file)) <$> Yaml.decodeFileEither @DomainDefinition file)
+            (pure . Left . IOEx)
       liftA2 merge res acc
 
     liftBoth
-      :: FilePath
-      -> Either Yaml.ParseException DomainDefinition
+      :: Either LoadRulesError DomainDefinition
       -> Validation [LoadRulesError] [DomainDefinition]
-    liftBoth file v = pure <$> liftError (pure . InvalidYaml file) v
+    liftBoth v = pure <$> liftError pure v
 
     merge
       :: Validation [LoadRulesError] [DomainDefinition]

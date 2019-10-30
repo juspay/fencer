@@ -18,7 +18,7 @@ import qualified System.IO.Temp as Temp
 import           System.FilePath (splitFileName, (</>))
 import           System.Directory (createDirectoryIfMissing)
 import           Test.Tasty (TestTree, testGroup)
-import           Test.Tasty.HUnit (assertEqual, Assertion, testCase)
+import           Test.Tasty.HUnit (assertEqual, assertFailure, Assertion, testCase)
 
 import           Fencer.Rules
 import           Fencer.Types
@@ -50,13 +50,15 @@ expectLoadRules
       let (dir, file) = splitFileName path
       createDirectoryIfMissing True (tempDir </> dir)
       TIO.writeFile (tempDir </> dir </> file) txt
-    definitions <- loadRulesFromDirectory
+    definitionsEither <- loadRulesFromDirectory
       (#rootDirectory tempDir)
       (#subDirectory ".")
       (#ignoreDotFiles ignoreDotFiles)
-    assertEqual "unexpected definitions"
-      (sortOn domainDefinitionId result)
-      (sortOn domainDefinitionId definitions)
+    case definitionsEither of
+      Failure fs          -> assertFailure $ showErrors fs
+      Success definitions -> assertEqual "unexpected definitions"
+        (sortOn domainDefinitionId result)
+        (sortOn domainDefinitionId definitions)
 
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_rulesLoadRulesYaml :: TestTree
