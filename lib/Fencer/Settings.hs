@@ -87,7 +87,7 @@ parseLogLevel :: Maybe String -> Logger.Level
 parseLogLevel Nothing  = Logger.Debug
 parseLogLevel (Just s) = case readMaybe @Logger.Level s of
   Just l  -> l
-  Nothing -> case (toLower <$> s) of
+  Nothing -> case toLower <$> s of
     "panic"   -> Logger.Fatal -- tinylog does not have Panic
     "fatal"   -> Logger.Fatal
     "error"   -> Logger.Error
