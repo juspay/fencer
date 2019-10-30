@@ -21,7 +21,7 @@ import Data.Validation (liftError, Validation(Failure, Success))
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
-import System.FilePath ((</>), takeFileName)
+import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
 import qualified Data.Yaml as Yaml
 
 import Fencer.Types
@@ -39,19 +39,25 @@ showErrors fs = join . intersperse ", " $ show <$> fs
 
 
 -- | Read rate limiting rules from a directory, recursively. Files are
--- assumed to be YAML, but do not have to have a @.yml@ extension.
+-- assumed to be YAML, but do not have to have a @.yml@ extension. If
+-- any of directories below, including the main sub-directory, starts
+-- with a dot and dot-files are ignored, this function will skip
+-- loading rules from it and all directories below it.
 --
 -- In case of unparsable or unreadable files returns a list of
 -- exceptions.
 loadRulesFromDirectory
-    :: "directory" :! FilePath
+    :: "rootDirectory" :! FilePath
+    -> "subDirectory" :! FilePath
     -> "ignoreDotFiles" :! Bool
     -> IO (Validation [LoadRulesError] [DomainDefinition])
 loadRulesFromDirectory
-    (arg #directory -> directory)
+    (arg #rootDirectory -> rootDirectory)
+    (arg #subDirectory -> subDirectory)
     (arg #ignoreDotFiles -> ignoreDotFiles)
     =
     do
+    let directory = rootDirectory </> subDirectory
     files <- listAllFiles directory
     let filteredFiles = if ignoreDotFiles
         then filter (not . isDotFile) files
@@ -85,7 +91,10 @@ loadRulesFromDirectory
     merge (Success ds1) (Success ds2) = Success $ ds1 ++ ds2
 
     isDotFile :: FilePath -> Bool
-    isDotFile file = "." `isPrefixOf` takeFileName file
+    isDotFile file =
+      let
+        normRelPath = normalise $ makeRelative rootDirectory file
+      in any ("." `isPrefixOf`) $ splitDirectories normRelPath
 
     -- | Is the path a true directory (not a symlink)?
     isDirectory :: FilePath -> IO Bool

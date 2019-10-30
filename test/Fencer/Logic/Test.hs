@@ -2,15 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Tests for "Fencer.Logic".
-module Fencer.Logic.Test
-  ( test_logicLimitUnitChange
-  ) where
+module Fencer.Logic.Test (tests) where
 
 import           BasePrelude
 
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NE
-import           Test.Tasty (TestTree)
+import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.HUnit (assertEqual, testCase)
 
 import           Fencer.Counter (CounterStatus, counterRemainingLimit)
@@ -19,6 +17,9 @@ import           Fencer.Rules (definitionsToRuleTree)
 import           Fencer.Server.Test (withServer, serverAppState)
 import           Fencer.Types
 
+
+tests :: TestTree
+tests = testGroup "Logic tests" [test_logicLimitUnitChange]
 
 -- | Test that a rule limit unit change adds a new counter and leaves
 -- the old one intact.

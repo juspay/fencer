@@ -83,7 +83,8 @@ reloadRules logger settings appState = do
     -- Read and parse the rules
     ruleDefinitionsVal :: Validation [LoadRulesError] [DomainDefinition] <-
         loadRulesFromDirectory
-            (#directory configDir)
+            (#rootDirectory $ settingsRoot settings)
+            (#subDirectory $ settingsSubdirectory settings </> "config")
             (#ignoreDotFiles (settingsIgnoreDotFiles settings))
     case ruleDefinitionsVal of
         Failure fs ->

@@ -3,14 +3,7 @@
 {-# LANGUAGE TypeApplications  #-}
 
 -- | Tests for types from the "Fencer.Types" module.
-module Fencer.Types.Test
-  ( test_parseJSONDescriptorDefinition
-  , test_parseJSONDomainDefinition
-  , test_parseJSONDomainAtLeastOneDescriptor
-  , test_parseJSONNonEmptyDomainId
-  , test_parseJSONOptionalDescriptorFields
-  )
-where
+module Fencer.Types.Test (tests) where
 
 import           BasePrelude
 
@@ -19,9 +12,18 @@ import           Data.Aeson.QQ (aesonQQ)
 import           Data.Aeson.Types (parseEither, Value(..))
 import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Fencer.Types (DescriptorDefinition(..), DomainDefinition(..), DomainId(..), RateLimit(..), RuleKey(..), RuleValue(..), TimeUnit(..))
-import           Test.Tasty (TestTree)
+import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.HUnit (assertEqual, testCase)
 
+
+tests :: TestTree
+tests = testGroup "Type tests"
+  [ test_parseJSONDescriptorDefinition
+  , test_parseJSONDomainDefinition
+  , test_parseJSONDomainAtLeastOneDescriptor
+  , test_parseJSONNonEmptyDomainId
+  , test_parseJSONOptionalDescriptorFields
+  ]
 
 descriptor1 :: Value
 descriptor1 = [aesonQQ|

@@ -7,6 +7,60 @@ logic, etc, are compatible with `lyft/ratelimit` as far as possible.
 Questions? [Open an issue](https://github.com/juspay/fencer/issues) or get
 in touch at <opensource@juspay.in>.
 
+## Usage
+
+We publish Docker images of Fencer in GitHub package registry:
+<https://github.com/juspay/fencer/packages/31371>. You can either use images
+tagged with commit hashes, or with `master` for the latest build. At the
+moment you have to be logged into the registry before pulling the image –
+see [Configuring Docker for use with GitHub Package Registry][github-docker]
+for details.
+
+[github-docker]: https://help.github.com/en/github/managing-packages-with-github-package-registry/configuring-docker-for-use-with-github-package-registry
+
+```
+docker pull docker.pkg.github.com/juspay/fencer/fencer:master
+```
+
+You will need the following directory structure:
+
+```
+.
+├── current -> config1    # symlink to ./config1
+└── config1
+    └── ratelimit
+        └── config
+            ├── some_rule.yaml
+            └── another_rule.yaml
+```
+
+Start Fencer:
+
+```
+docker run -d \
+  -p 8081:8081 \
+  -v $(pwd):/srv/runtime_data \
+  -e RUNTIME_SUBDIRECTORY=ratelimit \
+  docker.pkg.github.com/juspay/fencer/fencer:master
+```
+
+To modify configuration, create a new directory (e.g. `./config2`) and
+update the `current` symlink to point to it. The configuration will be
+reloaded automatically. If the configuration in `./config2` is invalid,
+Fencer will keep using the existing configuration.
+
+In production it is recommended to set logging level to `Info` instead of
+`Debug` – this significantly increases Fencer's throughput:
+
+```
+docker run -d \
+  -p 8081:8081 \
+  -v $(pwd):/srv/runtime_data \
+  -e RUNTIME_SUBDIRECTORY=ratelimit \
+  -e LOG_LEVEL=Info \
+  docker.pkg.github.com/juspay/fencer/fencer:master
+```
+
 ## Building
 
 Install [Nix](https://nixos.org/nix/). On macOS and Linux, this can be done
@@ -81,9 +135,9 @@ Fencer-specific environment variables are:
   subdirectory. The default value is `/srv/runtime_data/current`.
 - `RUNTIME_SUBDIRECTORY` - The directory with Fencer settings.
 - `RUNTIME_IGNOREDOTFILES` - A flag indicating whether to ignore files
-  with names starting with a dot (hidden files on Linux-based systems
-  and macOS). It can be `True` or `False`. The default value is
-  `False`.
+  and directories with names starting with a dot (hidden files on
+  Linux-based systems and macOS). It can be `True` or `False`. The
+  default value is `False`.
 - `GRPC_PORT` - The port to run the gRPC server on. Default is 8081.
 
 ## Developing
@@ -93,7 +147,7 @@ shell and build the project with `cabal`:
 
 ```
 nix-shell
-cabal v2-build
+cabal build
 ```
 
 You can use [`nix-cabal`](https://github.com/monadfix/nix-cabal) as a
@@ -280,6 +334,13 @@ At least, this is according to our understanding of the logic in the Go
 code. Ideally we should test this against `lyft/ratelimit` itself, which is
 a pending task.
 
+Keep in mind that Fencer can load configuration from any YAML files
+and not just files with the `.yml` extension. For example, Fencer will
+load configuration from a YAML file named `limit` so long as the file
+is located in the runtime directory given with the
+`RUNTIME_SUBDIRECTORY` environment variable. Furthermore, it will load
+configuration from a runtime subdirectory recursively, thereby
+traversing the whole subdirectory.
 
 ## Differences to Lyft's rate limit service
 
@@ -287,14 +348,38 @@ Fencer differs in several ways compared to [Lyft's rate limit
 service](https://github.com/lyft/ratelimit/):
 
 * Fencer does not use Redis.
+
 * Fencer is implemented in Haskell, while `lyft/ratelimit` is
   implemented in Go.
+
 * In `lyft/ratelimit`, the `limitRemaining` key is left out altogether
   if the remaining limit is zero. For all non-zero values it is given
   in the usual key-value notation, e.g., `"limitRemaining": 4`. Fencer
   always returns the key, including when the value is zero:
   `"limitRemaining": 0`.
 
+* Due to an implementation detail, `lyft/ratelimit` can resolve rate limit
+  requests containing underscores incorrectly. For instance, given the
+  following rule:
+
+  ```yaml
+  domain: mongo_cps
+  descriptors:
+    - key: database
+      rate_limit:
+        unit: second
+        requests_per_unit: 500
+  ```
+
+  `lyft/ratelimit` will apply it to the following descriptor, even though it
+  should not:
+
+  ```
+  domain: mongo
+  descriptor: ("cps_database", "dbname")
+  ```
+
+  Fencer does not suffer from this misfeature.
 
 ## Contributing
 
