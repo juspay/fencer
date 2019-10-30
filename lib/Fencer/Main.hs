@@ -83,7 +83,8 @@ reloadRules logger settings appState = do
     -- Read and parse the rules
     ruleDefinitions :: [DomainDefinition] <-
         loadRulesFromDirectory
-            (#directory configDir)
+            (#rootDirectory $ settingsRoot settings)
+            (#subDirectory $ settingsSubdirectory settings </> "config")
             (#ignoreDotFiles (settingsIgnoreDotFiles settings))
     Logger.info logger $
         Logger.msg ("Parsed rules for domains: " ++

@@ -124,6 +124,7 @@ test-suite test-fencer
     , directory
     , filepath
     , grpc-haskell
+    , named
     , neat-interpolation
     , proto3-wire
     , proto3-suite

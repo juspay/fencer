@@ -16,24 +16,30 @@ import Control.Monad.Extra (partitionM, concatMapM)
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
-import System.FilePath ((</>), takeFileName)
+import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
 import qualified Data.Yaml as Yaml
 
 import Fencer.Types
 
 -- | Read rate limiting rules from a directory, recursively. Files are
--- assumed to be YAML, but do not have to have a @.yml@ extension.
+-- assumed to be YAML, but do not have to have a @.yml@ extension. If
+-- any of directories below, including the main sub-directory, starts
+-- with a dot and dot-files are ignored, this function will skip
+-- loading rules from it and all directories below it.
 --
 -- Throws an exception for unparseable or unreadable files.
 loadRulesFromDirectory
-    :: "directory" :! FilePath
+    :: "rootDirectory" :! FilePath
+    -> "subDirectory" :! FilePath
     -> "ignoreDotFiles" :! Bool
     -> IO [DomainDefinition]
 loadRulesFromDirectory
-    (arg #directory -> directory)
+    (arg #rootDirectory -> rootDirectory)
+    (arg #subDirectory -> subDirectory)
     (arg #ignoreDotFiles -> ignoreDotFiles)
     =
     do
+    let directory = rootDirectory </> subDirectory
     files <- listAllFiles directory
     mapM Yaml.decodeFileThrow $
         if ignoreDotFiles
@@ -41,7 +47,10 @@ loadRulesFromDirectory
             else files
   where
     isDotFile :: FilePath -> Bool
-    isDotFile file = "." `isPrefixOf` takeFileName file
+    isDotFile file =
+      let
+        normRelPath = normalise $ makeRelative rootDirectory file
+      in any ("." `isPrefixOf`) $ splitDirectories normRelPath
 
     -- | Is the path a true directory (not a symlink)?
     isDirectory :: FilePath -> IO Bool
