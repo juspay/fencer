@@ -138,6 +138,7 @@ test-suite test-fencer
     , unordered-containers
     , validation
     , vector
+    , yaml
     -- Internal dependencies
     , fencer
   ghc-options:

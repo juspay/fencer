@@ -36,6 +36,9 @@ instance Show LoadRulesError where
     show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
   show (IOEx ex) = "IO exception: " ++ show ex
 
+instance Eq LoadRulesError where
+  e1 == e2 = show e1 == show e2
+
 -- | Show a list of 'LoadRulesError's.
 showErrors :: [LoadRulesError] -> String
 showErrors = join . intersperse ", " . fmap show
@@ -76,7 +79,7 @@ loadRulesFromDirectory
       -> IO (Validation [LoadRulesError] [DomainDefinition])
     combine acc file = do
       let
-        res = fmap liftBoth $
+        res = liftBoth <$>
           catch
             ((mapLeft (ParseException file)) <$> Yaml.decodeFileEither @DomainDefinition file)
             (pure . Left . IOEx)
