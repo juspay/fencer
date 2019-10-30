@@ -22,7 +22,10 @@ import qualified Data.Yaml as Yaml
 import Fencer.Types
 
 -- | Read rate limiting rules from a directory, recursively. Files are
--- assumed to be YAML, but do not have to have a @.yml@ extension.
+-- assumed to be YAML, but do not have to have a @.yml@ extension. If
+-- any of directories below, including the main sub-directory, starts
+-- with a dot and dot-files are ignored, this function will skip
+-- loading rules from it and all directories below it.
 --
 -- Throws an exception for unparseable or unreadable files.
 loadRulesFromDirectory
