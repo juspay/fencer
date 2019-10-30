@@ -29,8 +29,8 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesNonYaml
   , test_rulesLoadRulesRecursively
   , test_rulesLoadRulesDotDirectory
-  , test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue
-  , test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse
+  , test_rulesLoadRules_ignoreDotFiles
+  , test_rulesLoadRules_dontIgnoreDotFiles
   ]
 
 -- | Create given directory structure and check that 'loadRulesFromDirectory'
@@ -82,10 +82,9 @@ test_rulesLoadRulesDotDirectory =
       )
       (#result [domain2])
 
--- | test that 'loadRulesFromDirectory' correctly implements the case
--- RUNTIME_IGNOREDOTFILES=true.
-test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue :: TestTree
-test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue =
+-- | test that 'loadRulesFromDirectory' ignores dot-files.
+test_rulesLoadRules_ignoreDotFiles :: TestTree
+test_rulesLoadRules_ignoreDotFiles =
   testCase "Rules are not loaded from a dot-file" $
     expectLoadRules
       (#ignoreDotFiles True)
@@ -95,10 +94,9 @@ test_rulesLoadRulesRUNTIME_IGNOREDOTFILEStrue =
       )
       (#result [domain1])
 
--- | test that 'loadRulesFromDirectory' correctly implements the case
--- RUNTIME_IGNOREDOTFILES=false.
-test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse :: TestTree
-test_rulesLoadRulesRUNTIME_IGNOREDOTFILESfalse =
+-- | test that 'loadRulesFromDirectory' does not ignore dot files.
+test_rulesLoadRules_dontIgnoreDotFiles :: TestTree
+test_rulesLoadRules_dontIgnoreDotFiles =
   testCase "Rules are loaded from a dot-file" $
     expectLoadRules
       (#ignoreDotFiles False)
