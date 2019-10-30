@@ -7,6 +7,7 @@ module Fencer.Settings
     , getSettingsFromEnvironment
     , defaultGRPCPort
     , getLogLevel
+    , newLogger
     )
 where
 
@@ -39,7 +40,7 @@ data Settings = Settings
     , settingsGRPCPort :: Port
       -- | @LOG_LEVEL@: the logging level. This is a value translated
       -- from Go's logrus logging library to a value accepted by
-      -- Haskell's tinylog library.
+      -- Haskell's tinylog library. The default value is Logger.Debug.
     , settingsLogLevel :: Logger.Level
     }
     deriving (Show)
@@ -66,7 +67,7 @@ getSettingsFromEnvironment = do
 -- | Get 'Logger.Level' from the environment variable LOG_LEVEL and
 -- map it to tinylog's 'System.Logger.Level'.
 getLogLevel :: IO Logger.Level
-getLogLevel = lookupEnv "LOG_LEVEL" >>= pure . parseLogLevel
+getLogLevel = parseLogLevel <$> lookupEnv "LOG_LEVEL"
 
 ----------------------------------------------------------------------------
 -- Utilities
@@ -97,3 +98,13 @@ parseLogLevel (Just s) = case readMaybe @Logger.Level s of
     "debug"   -> Logger.Debug
     "trace"   -> Logger.Trace
     _         -> error ("Could not parse LOG_LEVEL: " ++ s)
+
+-- | Creates a new loger from default settings, where the output and
+-- logging level are overriden with values provided as function
+-- arguments. Reading from the environment is disabled in creating the
+-- logger.
+newLogger :: MonadIO m => Logger.Output -> Logger.Level -> m Logger.Logger
+newLogger output level = Logger.new $
+  Logger.setOutput output $
+  Logger.setLogLevel level $
+  Logger.setReadEnvironment False Logger.defSettings

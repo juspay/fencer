@@ -36,10 +36,7 @@ main = do
     -- Read environment variables
     settings <- getSettingsFromEnvironment
     -- Initialize logging
-    logger <- Logger.new $
-        Logger.setOutput Logger.StdErr $
-        Logger.setLogLevel (settingsLogLevel settings)
-        Logger.defSettings
+    logger <- newLogger Logger.StdErr (settingsLogLevel settings)
     -- Create in-memory state
     appState <- initAppState
     -- Load rate limiting rules for the first time

@@ -20,7 +20,7 @@ import qualified Network.GRPC.HighLevel.Generated as Grpc
 
 import           Fencer.Logic
 import           Fencer.Server
-import           Fencer.Settings (defaultGRPCPort, getLogLevel)
+import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
 import           Fencer.Types (unPort)
 import qualified Fencer.Proto as Proto
 
@@ -108,16 +108,12 @@ createServer = do
   -- but we can't convince @tinylog@ to use the provided step function.
 
   tmpDir <- Temp.getCanonicalTemporaryDirectory
-  lvl <- getLogLevel
   -- This opens a temporary file in the ReadWrite mode
   (loggerPath, serverLogHandle) <- Temp.openTempFile tmpDir "fencer-server.log"
   -- The handle has to be closed. Otherwise trying to create a logger
   -- would fail due to a file lock.
   hClose serverLogHandle
-  serverLogger   <- Logger.new $
-    Logger.setOutput (Logger.Path loggerPath) $
-    Logger.setLogLevel lvl
-    Logger.defSettings
+  serverLogger   <- getLogLevel >>= newLogger (Logger.Path loggerPath)
   serverAppState <- initAppState
   serverThreadId <- forkIO $ runServer serverLogger serverAppState
   pure Server{..}

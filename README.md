@@ -116,18 +116,11 @@ cachix use fencer
 There are environment variables that can be optionally set, which can
 have an effect on Fencer execution.
 
-Logging environment variables are:
+For logging there is one environment variable:
 
-- `LOG_BUFFER` - The logging buffer size in bytes.
 - `LOG_LEVEL` - The logging level. It can be one of the following:
   trace, debug, info, warn, error and fatal. The default value is
   debug.
-- `LOG_NETSTR` - The flag indicating if netstring encoding is
-  enabled. It can be `True` or `False`. The default value is `False`.
-- `LOG_LEVEL_MAP` - A map for specifying log levels per (named)
-  logger. The syntax uses standard haskell syntax for association
-  lists of type `[(Text, Level)]`, e.g., `LOG_LEVEL_MAP='[("brown",
-  Warn), ("fox", Trace)]'`.
 
 Fencer-specific environment variables are:
 
