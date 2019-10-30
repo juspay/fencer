@@ -20,7 +20,7 @@ import qualified Network.GRPC.HighLevel.Generated as Grpc
 
 import           Fencer.Logic
 import           Fencer.Server
-import           Fencer.Settings (defaultGRPCPort)
+import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
 import           Fencer.Types (unPort)
 import qualified Fencer.Proto as Proto
 
@@ -113,7 +113,7 @@ createServer = do
   -- The handle has to be closed. Otherwise trying to create a logger
   -- would fail due to a file lock.
   hClose serverLogHandle
-  serverLogger   <- Logger.create (Logger.Path loggerPath)
+  serverLogger   <- getLogLevel >>= newLogger (Logger.Path loggerPath)
   serverAppState <- initAppState
   serverThreadId <- forkIO $ runServer serverLogger serverAppState
   pure Server{..}

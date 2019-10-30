@@ -33,14 +33,12 @@ import Fencer.Settings
 -- server serving ratelimit requests.
 main :: IO ()
 main = do
-    -- Initialize logging
-    logger <- Logger.new $
-        Logger.setOutput Logger.StdErr $
-        Logger.defSettings
-    -- Create in-memory state
-    appState <- initAppState
     -- Read environment variables
     settings <- getSettingsFromEnvironment
+    -- Initialize logging
+    logger <- newLogger Logger.StdErr (settingsLogLevel settings)
+    -- Create in-memory state
+    appState <- initAppState
     -- Load rate limiting rules for the first time
     reloadRules logger settings appState
     -- Create a thread watching the config directory for changes
