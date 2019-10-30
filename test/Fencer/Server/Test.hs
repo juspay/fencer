@@ -18,10 +18,9 @@ import qualified System.Logger as Logger
 import qualified System.IO.Temp as Temp
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 
-import           Fencer.Logger (adjustCase)
 import           Fencer.Logic
 import           Fencer.Server
-import           Fencer.Settings (defaultGRPCPort)
+import           Fencer.Settings (defaultGRPCPort, getLogLevel)
 import           Fencer.Types (unPort)
 import qualified Fencer.Proto as Proto
 
@@ -104,19 +103,21 @@ data Server = Server
 -- | Start Fencer on the default port.
 createServer :: IO Server
 createServer = do
-  adjustCase
-
   -- TODO: not the best approach. Ideally we should use e.g.
   -- https://hackage.haskell.org/package/tasty-hunit/docs/Test-Tasty-HUnit.html#v:testCaseSteps
   -- but we can't convince @tinylog@ to use the provided step function.
 
   tmpDir <- Temp.getCanonicalTemporaryDirectory
+  lvl <- getLogLevel
   -- This opens a temporary file in the ReadWrite mode
   (loggerPath, serverLogHandle) <- Temp.openTempFile tmpDir "fencer-server.log"
   -- The handle has to be closed. Otherwise trying to create a logger
   -- would fail due to a file lock.
   hClose serverLogHandle
-  serverLogger   <- Logger.create (Logger.Path loggerPath)
+  serverLogger   <- Logger.new $
+    Logger.setOutput (Logger.Path loggerPath) $
+    Logger.setLogLevel lvl
+    Logger.defSettings
   serverAppState <- initAppState
   serverThreadId <- forkIO $ runServer serverLogger serverAppState
   pure Server{..}

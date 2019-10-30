@@ -6,14 +6,17 @@ module Fencer.Settings
     ( Settings(..)
     , getSettingsFromEnvironment
     , defaultGRPCPort
+    , getLogLevel
     )
 where
 
 import BasePrelude
 
-import Text.Read (readMaybe)
+import           Data.Char (toLower)
+import qualified System.Logger as Logger
+import           Text.Read (readMaybe)
 
-import Fencer.Types (Port(..))
+import           Fencer.Types (Port(..))
 
 -- | The default port for a gRPC server
 defaultGRPCPort :: Port
@@ -34,6 +37,10 @@ data Settings = Settings
       -- | @GRPC_PORT@: gRPC port to run the server on. The default
       -- value is 'defaultGRPCPort'.
     , settingsGRPCPort :: Port
+      -- | @LOG_LEVEL@: the logging level. This is a value translated
+      -- from Go's logrus logging library to a value accepted by
+      -- Haskell's tinylog library.
+    , settingsLogLevel :: Logger.Level
     }
     deriving (Show)
 
@@ -53,7 +60,13 @@ getSettingsFromEnvironment = do
         Just s  -> case readMaybe @Word s of
             Nothing -> error ("Could not parse GRPC_PORT: " ++ show s)
             Just p  -> pure $ Port p
+    settingsLogLevel <- getLogLevel
     pure Settings{..}
+
+-- | Get 'Logger.Level' from the environment variable LOG_LEVEL and
+-- map it to tinylog's 'System.Logger.Level'.
+getLogLevel :: IO Logger.Level
+getLogLevel = lookupEnv "LOG_LEVEL" >>= pure . parseLogLevel
 
 ----------------------------------------------------------------------------
 -- Utilities
@@ -66,3 +79,21 @@ parseBool s
     | s `elem` ["1", "t", "T", "TRUE", "true", "True"] = Just True
     | s `elem` ["0", "f", "F", "FALSE", "false", "False"] = Just False
     | otherwise = Nothing
+
+-- | Parse the string value of the LOG_LEVEL environment variable and
+-- map it to a 'System.Logger.Level'. Use the default Debug level if
+-- the environment variable was not set.
+parseLogLevel :: Maybe String -> Logger.Level
+parseLogLevel Nothing  = Logger.Debug
+parseLogLevel (Just s) = case readMaybe @Logger.Level s of
+  Just l  -> l
+  Nothing -> case (toLower <$> s) of
+    "panic"   -> Logger.Fatal -- tinylog does not have Panic
+    "fatal"   -> Logger.Fatal
+    "error"   -> Logger.Error
+    "warn"    -> Logger.Warn
+    "warning" -> Logger.Warn
+    "info"    -> Logger.Info
+    "debug"   -> Logger.Debug
+    "trace"   -> Logger.Trace
+    _         -> error ("Could not parse LOG_LEVEL: " ++ s)

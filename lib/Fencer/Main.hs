@@ -19,7 +19,6 @@ import qualified System.Logger as Logger
 import System.Logger (Logger)
 
 import Fencer.Types
-import qualified Fencer.Logger
 import Fencer.Logic
 import Fencer.Server
 import Fencer.Rules
@@ -34,15 +33,15 @@ import Fencer.Settings
 -- server serving ratelimit requests.
 main :: IO ()
 main = do
-    Fencer.Logger.adjustCase
+    -- Read environment variables
+    settings <- getSettingsFromEnvironment
     -- Initialize logging
     logger <- Logger.new $
         Logger.setOutput Logger.StdErr $
+        Logger.setLogLevel (settingsLogLevel settings)
         Logger.defSettings
     -- Create in-memory state
     appState <- initAppState
-    -- Read environment variables
-    settings <- getSettingsFromEnvironment
     -- Load rate limiting rules for the first time
     reloadRules logger settings appState
     -- Create a thread watching the config directory for changes

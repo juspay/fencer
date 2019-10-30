@@ -1,4 +1,3 @@
-
 # Fencer
 
 Fencer is a port of <https://github.com/lyft/ratelimit> into Haskell. The
