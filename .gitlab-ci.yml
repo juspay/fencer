@@ -113,6 +113,11 @@ release_docker:
     - echo "$GITHUB_ACCESS_TOKEN"
         | docker login docker.pkg.github.com --username juspay --password-stdin
     - docker load -i fencer.tar.gz
+    # Tag the image with commit hash and push
+    - HASH=$(git log -1 --pretty=%h)
+    - docker tag juspay/fencer "docker.pkg.github.com/juspay/fencer/fencer:$HASH"
+    - docker push "docker.pkg.github.com/juspay/fencer/fencer:$HASH"
+    # Tag the same image with "master" and push
     - docker tag juspay/fencer docker.pkg.github.com/juspay/fencer/fencer:master
     - docker push docker.pkg.github.com/juspay/fencer/fencer:master
   only:

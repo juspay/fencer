@@ -73,4 +73,67 @@ guidelines we follow:
   contribution. Finally, no branch merge commits should get into the
   *master* history.
 
+
+### Linting
+
+When developing Fencer, it is important to keep in mind that linting
+is performed automatically during continuous integration, i.e., before
+a pull request is approved for merging. This means that Haskell code
+will be checked against a number of stylistic or programmatic errors
+and if any of them match, the pull request will not get an
+approval. To save you from waiting on a continuous integration job to
+give a linting verdict, you can quickly lint locally before
+Git-pushing to a remote repository. When in a `nix-shell`, run:
+
+```bash
+hlint --git
+```
+
+If there are any issues with the code that match a curated list of
+linting patterns, the `hlint` tool will report them and exit with a
+non-zero status. To make sure you do not forget to lint before
+Git-pushing, you can set up a pre-push Git hook. Copy a script
+`scripts/pre-push` to the `.git/hooks` subdirectory. It is important
+to keep the script name as is so Git can know when exactly to run it:
+
+```bash
+cp scripts/pre-push .git/hooks/
+```
+
+Now if you try to push a Haskell source code file that does not pass
+linting, Git will print out problems and suggestions how to fix them
+as reported by `hlint` and finally it will fail the push to the remote
+repository with an error message, e.g.:
+
+```
+test/Fencer/Rules/Test.hs:34:49: Warning: Redundant do
+Found:
+  do Temp.withSystemTempDirectory "fencer-config" $
+       \ tempDir ->
+         do TIO.writeFile (tempDir </> "config1.yml") domain1Text
+            TIO.writeFile (tempDir </> "config2.yaml") domain2Text
+            definitions <- loadRulesFromDirectory (#directory tempDir)
+                             (#ignoreDotFiles True)
+            assertEqual "unexpected definitions"
+              (sortOn domainDefinitionId [domain1, domain2])
+              (sortOn domainDefinitionId definitions)
+Perhaps:
+  Temp.withSystemTempDirectory "fencer-config" $
+    \ tempDir ->
+      do TIO.writeFile (tempDir </> "config1.yml") domain1Text
+         TIO.writeFile (tempDir </> "config2.yaml") domain2Text
+         definitions <- loadRulesFromDirectory (#directory tempDir)
+                          (#ignoreDotFiles True)
+         assertEqual "unexpected definitions"
+           (sortOn domainDefinitionId [domain1, domain2])
+           (sortOn domainDefinitionId definitions)
+
+1 hint
+error: failed to push some refs to 'git@github.com:juspay/fencer.git'
+```
+
+Finally, keep in mind that a clean worktree is assumed when using this
+pre-push hook. If you would still like to use the hook with unstaged
+changes, please `git-stash` before pushing to a remote repository.
+
 [1]: https://help.github.com/en/github/getting-started-with-github/fork-a-repo
