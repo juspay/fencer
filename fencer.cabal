@@ -83,7 +83,7 @@ library
     filepath,
     fsnotify,
     validation,
-    tinylog
+    tinylog >= 0.15.0
   hs-source-dirs:
     lib
 
