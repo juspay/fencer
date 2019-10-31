@@ -60,7 +60,7 @@ library
     extra,
     hashable,
     monad-loops,
-    time,
+    clock,
     stm,
     vector,
     text,

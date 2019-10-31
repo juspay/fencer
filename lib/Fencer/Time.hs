@@ -14,7 +14,7 @@ import BasePrelude
 
 import Data.Hashable (Hashable)
 import Named ((:!), arg)
-import Data.Time.Clock.System (systemSeconds, getSystemTime)
+import System.Clock (getTime, Clock(Monotonic), sec)
 
 ----------------------------------------------------------------------------
 -- Timestamp
@@ -27,7 +27,7 @@ newtype Timestamp = Timestamp Int64
 
 -- | Get current time as a 'Timestamp'.
 getTimestamp :: IO Timestamp
-getTimestamp = Timestamp . systemSeconds <$> getSystemTime
+getTimestamp = Timestamp . sec <$> getTime Monotonic
 
 -- | Divide time into slots and round a 'Timestamp' up to a slot boundary.
 --
