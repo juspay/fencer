@@ -31,6 +31,7 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesDotDirectory
   , test_rulesLoadRules_ignoreDotFiles
   , test_rulesLoadRules_dontIgnoreDotFiles
+  , test_rulesLoadRulesMinimal
   ]
 
 -- | Create given directory structure and check that 'loadRulesFromDirectory'
@@ -135,6 +136,18 @@ test_rulesLoadRulesRecursively =
       )
       (#result [domain1, domain2])
 
+-- | test that 'loadRulesFromDirectory' accepts a minimal
+-- configuration containing only the domain id.
+--
+-- This matches the behavior of @lyft/ratelimit@.
+test_rulesLoadRulesMinimal :: TestTree
+test_rulesLoadRulesMinimal =
+  testCase "Minimal rules contain domain id only" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files [("min.yaml", minimalDomainText)] )
+      (#result [minimalDomain])
+
 ----------------------------------------------------------------------------
 -- Sample definitions
 ----------------------------------------------------------------------------
@@ -142,7 +155,7 @@ test_rulesLoadRulesRecursively =
 domain1 :: DomainDefinition
 domain1 = DomainDefinition
   { domainDefinitionId = DomainId "domain1"
-  , domainDefinitionDescriptors = descriptor1 :| []
+  , domainDefinitionDescriptors = Just $ descriptor1 :| []
   }
   where
     descriptor1 :: DescriptorDefinition
@@ -164,7 +177,7 @@ domain1Text = [text|
 domain2 :: DomainDefinition
 domain2 = DomainDefinition
   { domainDefinitionId = DomainId "domain2"
-  , domainDefinitionDescriptors = descriptor2 :| []
+  , domainDefinitionDescriptors = Just $ descriptor2 :| []
   }
   where
     descriptor2 :: DescriptorDefinition
@@ -181,3 +194,12 @@ domain2Text = [text|
   descriptors:
     - key: some key 2
   |]
+
+minimalDomain :: DomainDefinition
+minimalDomain = DomainDefinition
+  { domainDefinitionId = DomainId "min"
+  , domainDefinitionDescriptors = Nothing
+  }
+
+minimalDomainText :: Text
+minimalDomainText = [text| domain: min |]

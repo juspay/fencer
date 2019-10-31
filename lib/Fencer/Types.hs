@@ -138,7 +138,7 @@ instance FromJSON RateLimit where
 -- Corresponds to one YAML file.
 data DomainDefinition = DomainDefinition
     { domainDefinitionId :: !DomainId
-    , domainDefinitionDescriptors :: !(NE.NonEmpty DescriptorDefinition)
+    , domainDefinitionDescriptors :: !(Maybe (NE.NonEmpty DescriptorDefinition))
     }
     deriving stock (Eq, Show)
 
@@ -156,7 +156,7 @@ instance FromJSON DomainDefinition where
         domainDefinitionId <- o .: "domain"
         when (domainDefinitionId == DomainId "") $
           fail "rate limit domain must not be empty"
-        domainDefinitionDescriptors <- o .: "descriptors"
+        domainDefinitionDescriptors <- o .:? "descriptors"
         pure DomainDefinition{..}
 
 instance FromJSON DescriptorDefinition where

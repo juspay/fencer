@@ -65,7 +65,7 @@ test_logicLimitUnitChange =
   mapRuleDefs :: [DomainDefinition] -> [(DomainId, RuleTree)]
   mapRuleDefs defs =
     [ ( domainDefinitionId rule
-      , definitionsToRuleTree (NE.toList . domainDefinitionDescriptors $ rule))
+      , definitionsToRuleTree (maybe [] NE.toList (domainDefinitionDescriptors rule)))
     | rule <- defs
     ]
 
@@ -89,14 +89,14 @@ test_logicLimitUnitChange =
   definition1 :: DomainDefinition
   definition1 = DomainDefinition
     { domainDefinitionId          = domainId
-    , domainDefinitionDescriptors = descriptor :| []
+    , domainDefinitionDescriptors = Just $ descriptor :| []
     }
 
   definitions1 :: [DomainDefinition]
   definitions1 = [definition1]
 
   definition2 = definition1 {
-    domainDefinitionDescriptors =
+    domainDefinitionDescriptors = Just $
       (descriptor
         { descriptorDefinitionRateLimit = Just $ RateLimit Hour limit }
       ) :| []

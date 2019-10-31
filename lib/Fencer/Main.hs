@@ -95,7 +95,7 @@ reloadRules logger settings appState = do
         -- happens with counters during rule reloading.
         setRules appState
             [ ( domainDefinitionId rule
-              , definitionsToRuleTree (NE.toList . domainDefinitionDescriptors $ rule))
+              , definitionsToRuleTree (maybe [] NE.toList (domainDefinitionDescriptors rule)))
             | rule <- ruleDefinitions
             ]
     Logger.info logger $

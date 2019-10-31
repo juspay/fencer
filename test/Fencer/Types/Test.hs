@@ -80,7 +80,7 @@ test_parseJSONDomainDefinition =
   expected :: DomainDefinition
   expected = DomainDefinition
     { domainDefinitionId = DomainId "some domain"
-    , domainDefinitionDescriptors = descriptor1' :| [descriptor2']
+    , domainDefinitionDescriptors = Just $ descriptor1' :| [descriptor2']
     }
   descriptor1' :: DescriptorDefinition
   descriptor1' = DescriptorDefinition
@@ -185,5 +185,5 @@ test_parseJSONOptionalDescriptorFields =
   domain = DomainDefinition
     {
       domainDefinitionId          = DomainId "messaging"
-    , domainDefinitionDescriptors = desc1 :| [desc2]
+    , domainDefinitionDescriptors = Just $ desc1 :| [desc2]
     }
