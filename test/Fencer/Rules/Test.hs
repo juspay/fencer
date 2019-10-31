@@ -155,7 +155,7 @@ test_rulesLoadRulesMinimal =
 domain1 :: DomainDefinition
 domain1 = DomainDefinition
   { domainDefinitionId = DomainId "domain1"
-  , domainDefinitionDescriptors = Just $ descriptor1 :| []
+  , domainDefinitionDescriptors = [descriptor1]
   }
   where
     descriptor1 :: DescriptorDefinition
@@ -177,7 +177,7 @@ domain1Text = [text|
 domain2 :: DomainDefinition
 domain2 = DomainDefinition
   { domainDefinitionId = DomainId "domain2"
-  , domainDefinitionDescriptors = Just $ descriptor2 :| []
+  , domainDefinitionDescriptors = [descriptor2]
   }
   where
     descriptor2 :: DescriptorDefinition
@@ -198,7 +198,7 @@ domain2Text = [text|
 minimalDomain :: DomainDefinition
 minimalDomain = DomainDefinition
   { domainDefinitionId = DomainId "min"
-  , domainDefinitionDescriptors = Nothing
+  , domainDefinitionDescriptors = []
   }
 
 minimalDomainText :: Text

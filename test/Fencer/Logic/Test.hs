@@ -6,8 +6,6 @@ module Fencer.Logic.Test (tests) where
 
 import           BasePrelude
 
-import           Data.List.NonEmpty (NonEmpty((:|)))
-import qualified Data.List.NonEmpty as NE
 import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.HUnit (assertEqual, testCase)
 
@@ -65,7 +63,7 @@ test_logicLimitUnitChange =
   mapRuleDefs :: [DomainDefinition] -> [(DomainId, RuleTree)]
   mapRuleDefs defs =
     [ ( domainDefinitionId rule
-      , definitionsToRuleTree (maybe [] NE.toList (domainDefinitionDescriptors rule)))
+      , definitionsToRuleTree $ domainDefinitionDescriptors rule )
     | rule <- defs
     ]
 
@@ -89,17 +87,17 @@ test_logicLimitUnitChange =
   definition1 :: DomainDefinition
   definition1 = DomainDefinition
     { domainDefinitionId          = domainId
-    , domainDefinitionDescriptors = Just $ descriptor :| []
+    , domainDefinitionDescriptors = [descriptor]
     }
 
   definitions1 :: [DomainDefinition]
   definitions1 = [definition1]
 
   definition2 = definition1 {
-    domainDefinitionDescriptors = Just $
-      (descriptor
+    domainDefinitionDescriptors =
+      [descriptor
         { descriptorDefinitionRateLimit = Just $ RateLimit Hour limit }
-      ) :| []
+      ]
     }
 
   definitions2 :: [DomainDefinition]
