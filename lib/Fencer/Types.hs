@@ -38,9 +38,8 @@ import BasePrelude
 
 import Data.Hashable (Hashable)
 import Data.Text (Text)
-import Data.Aeson (FromJSON(..), (.:), (.:?), withObject, withText)
+import Data.Aeson (FromJSON(..), (.:), (.:?), (.!=), withObject, withText)
 import Data.HashMap.Strict (HashMap)
-import qualified Data.List.NonEmpty as NE
 
 
 ----------------------------------------------------------------------------
@@ -138,7 +137,7 @@ instance FromJSON RateLimit where
 -- Corresponds to one YAML file.
 data DomainDefinition = DomainDefinition
     { domainDefinitionId :: !DomainId
-    , domainDefinitionDescriptors :: !(NE.NonEmpty DescriptorDefinition)
+    , domainDefinitionDescriptors :: ![DescriptorDefinition]
     }
     deriving stock (Eq, Show)
 
@@ -156,7 +155,7 @@ instance FromJSON DomainDefinition where
         domainDefinitionId <- o .: "domain"
         when (domainDefinitionId == DomainId "") $
           fail "rate limit domain must not be empty"
-        domainDefinitionDescriptors <- o .: "descriptors"
+        domainDefinitionDescriptors <- o .:? "descriptors" .!= []
         pure DomainDefinition{..}
 
 instance FromJSON DescriptorDefinition where
