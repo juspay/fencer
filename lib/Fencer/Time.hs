@@ -27,12 +27,11 @@ newtype Timestamp = Timestamp Int64
 
 -- | Get current time as a 'Timestamp'.
 --
--- The 'clock' library is used here because it has support for leap
--- seconds. We do not want to use e.g. the 'time' library's
--- getSystemTime because it will report the same timestamp twice on a
--- leap second. The 'clock' library's getTime function with the
--- Monotonic clock cannot have negative clock jumps and report the
--- same timestamp twice.
+-- We do not want to use e.g. the 'time' library's getSystemTime
+-- because it will report the same timestamp twice on a leap
+-- second. The 'clock' library's getTime function with the Monotonic
+-- clock cannot have negative clock jumps and report the same
+-- timestamp twice.
 getTimestamp :: IO Timestamp
 getTimestamp = Timestamp . sec <$> getTime Monotonic
 
