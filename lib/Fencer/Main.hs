@@ -13,7 +13,6 @@ where
 import BasePrelude
 
 import Control.Concurrent.STM (atomically)
-import qualified Data.List.NonEmpty as NE
 import Data.Validation (Validation(Success, Failure))
 import System.FilePath ((</>))
 import qualified System.Logger as Logger
@@ -102,7 +101,7 @@ reloadRules logger settings appState = do
                 -- happens with counters during rule reloading.
                 setRules appState
                     [ ( domainDefinitionId rule
-                      , definitionsToRuleTree (NE.toList . domainDefinitionDescriptors $ rule))
+                      , definitionsToRuleTree $ domainDefinitionDescriptors rule )
                     | rule <- ruleDefinitions
                     ]
             Logger.info logger $

@@ -10,7 +10,6 @@ import           BasePrelude
 import           Data.Aeson (parseJSON)
 import           Data.Aeson.QQ (aesonQQ)
 import           Data.Aeson.Types (parseEither, Value(..))
-import           Data.List.NonEmpty (NonEmpty((:|)))
 import           Fencer.Types (DescriptorDefinition(..), DomainDefinition(..), DomainId(..), RateLimit(..), RuleKey(..), RuleValue(..), TimeUnit(..))
 import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.HUnit (assertEqual, testCase)
@@ -20,7 +19,7 @@ tests :: TestTree
 tests = testGroup "Type tests"
   [ test_parseJSONDescriptorDefinition
   , test_parseJSONDomainDefinition
-  , test_parseJSONDomainAtLeastOneDescriptor
+  , test_parseJSONDomainEmptyDescriptors
   , test_parseJSONNonEmptyDomainId
   , test_parseJSONOptionalDescriptorFields
   ]
@@ -80,7 +79,7 @@ test_parseJSONDomainDefinition =
   expected :: DomainDefinition
   expected = DomainDefinition
     { domainDefinitionId = DomainId "some domain"
-    , domainDefinitionDescriptors = descriptor1' :| [descriptor2']
+    , domainDefinitionDescriptors = [descriptor1', descriptor2']
     }
   descriptor1' :: DescriptorDefinition
   descriptor1' = DescriptorDefinition
@@ -97,11 +96,11 @@ test_parseJSONDomainDefinition =
     , descriptorDefinitionDescriptors = Just [descriptor1']
     }
 
-test_parseJSONDomainAtLeastOneDescriptor :: TestTree
-test_parseJSONDomainAtLeastOneDescriptor =
-  testCase "DomainDefinition has to have at least one descriptor" $
+test_parseJSONDomainEmptyDescriptors :: TestTree
+test_parseJSONDomainEmptyDescriptors =
+  testCase "DomainDefinition can have an empty descriptor array" $
     assertEqual "parsing DomainDefinition failed"
-      (Left "Error in $.descriptors: parsing NonEmpty failed, unexpected empty list")
+      (Right $ DomainDefinition (DomainId "some domain #2") [])
       (parseEither (parseJSON @DomainDefinition) domain)
  where
   domain :: Value
@@ -185,5 +184,5 @@ test_parseJSONOptionalDescriptorFields =
   domain = DomainDefinition
     {
       domainDefinitionId          = DomainId "messaging"
-    , domainDefinitionDescriptors = desc1 :| [desc2]
+    , domainDefinitionDescriptors = [desc1, desc2]
     }

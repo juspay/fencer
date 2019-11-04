@@ -61,7 +61,7 @@ library
     either,
     hashable,
     monad-loops,
-    time,
+    clock,
     stm,
     vector,
     text,
