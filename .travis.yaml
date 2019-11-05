@@ -1,0 +1,94 @@
+language: nix
+os: linux
+dist: bionic
+services:
+  - docker
+
+stages:
+  - build
+  - test
+  - gen-code
+  - release
+
+jobs:
+  include:
+    # Build the Fencer Docker image
+    #
+    # The compile part of the GitLab CI
+    - stage: build
+      script:
+        # Build the Docker image and create a list of paths to push to Cachix.
+        # The secret signing key should not be available to the build process.
+        - ( unset CACHIX_SIGNING_KEY;
+            nix-env -iA cachix -f https://cachix.org/api/v1/install;
+            cachix use fencer;
+            imagepath=$(nix-build docker.nix);
+            cp $imagepath fencer.tar.gz;
+            nix-store -qR --include-outputs $(nix-instantiate docker.nix) > paths
+          )
+        # Push built paths to Cachix
+        - cachix push fencer < paths
+    # The compile_integration part of the GitLab CI
+    # Build the Go integration test
+        - imagepath=$(nix-build test_integration_go/docker.nix)
+        - cp $imagepath test_integration_go.tar.gz
+    - stage: test
+      env:
+        - DOCKER_DRIVER=overlay2
+        - DOCKER_TLS_CERTDIR="/certs"
+        - CNAME="fencer-"$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 25 ; echo '')
+      before_script:
+        - docker info
+      script:
+        # Create a Docker network for the containers
+        - docker network create test
+        #
+        # Run Fencer
+        #
+        # A pipeline would report that a container named "fencer" already
+        # exists (possibly from a job for a different pull request) so
+        # choosing a random container name deals with this
+        # issue. Furthermore, using a named constant helps with informing
+        # where this name is used (compared to "fencer" which has an
+        # overloaded meaning in the CI).
+        - docker load -i fencer.tar.gz
+        - docker run
+            -v $(pwd)/test_integration_go/config:/srv/runtime_data/current
+            -e RUNTIME_SUBDIRECTORY=ratelimit
+            --name $CNAME
+            --network test
+            --detach
+            juspay/fencer
+        - sleep 5
+        # Run the test
+        - docker load -i test_integration_go.tar.gz
+        - docker run
+            -e GRPC_HOST=$CNAME
+            --network test
+            test_integration_go
+      ### Checking checked-in generated code is up to date
+    - stage: gen-code
+      script:
+        - nix-env -iA cachix -iA git -f https://cachix.org/api/v1/install
+        - cachix use fencer
+        - nix-shell --run ./scripts/protoGen.sh
+        - DIFF=$(git diff lib/Fencer/Proto.hs | wc -c)
+        - if [ "$DIFF" != "0" ]; then exit 1; fi
+      ### Release
+    - stage: release
+      env:
+        - NAME="release_docker"
+        - DOCKER_DRIVER=overlay2
+        - DOCKER_TLS_CERTDIR="/certs"
+      script:
+        - echo "$GITHUB_ACCESS_TOKEN" | docker login docker.pkg.github.com --username juspay --password-stdin
+        - docker load -i fencer.tar.gz
+        # Tag the image with commit hash and push
+        - HASH=$(git log -1 --pretty=%h)
+        - docker tag juspay/fencer "docker.pkg.github.com/juspay/fencer/fencer:$HASH"
+        - docker push "docker.pkg.github.com/juspay/fencer/fencer:$HASH"
+        # Tag the same image with "master" and push
+        - docker tag juspay/fencer docker.pkg.github.com/juspay/fencer/fencer:master
+        - docker push docker.pkg.github.com/juspay/fencer/fencer:master
+        only:
+          - master
