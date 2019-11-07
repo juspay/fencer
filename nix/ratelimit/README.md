@@ -1,18 +1,23 @@
 # ratelimit
 
-To build the ratelimit binaries:
+To build lyft/ratelimit:
 
 ```
 nix-build
 ```
 
-This will create three binaries under the `./result-bin/bin` directory.
+This will create the three ratelimit binaries under the `./result/bin` directory, in addition
+to a `ratelimit-server-example` script that will launch the ratelimit service
+using the "examples/ratelimit" configuration in the ratelimit source repo.
 
-To run the ratelimit server with the examples config (at `./ratelimit/examples`):
+To run the service with the aforementioned example config:
 
 ```
-ratelimit-server-example
+./result/bin/ratelimit-server-example
 ```
+
+Alternatively you can also use `nix-shell` to drop into the shell. This includes
+other runtime dependencies like `grpcurl`.
 
 ## How to update ratelimit
 

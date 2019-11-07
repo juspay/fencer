@@ -36,6 +36,21 @@ export RUNTIME_SUBDIRECTORY=ratelimit
 ${ratelimit}/bin/service_cmd
 ";
 
-in pkgs.mkShell {
-  buildInputs = [ pkgs.grpcurl ratelimit ratelimit-server-example ];
+  ratelimit-renamed = pkgs.runCommand "ratelimit-renamed" {
+    buildInputs = [ pkgs.grpcurl ratelimit ratelimit-server-example ];
+  } ''
+    mkdir -p "$out/bin"
+    cp ${ratelimit-server-example}/bin/* $out/bin/
+    # Rename binaries as ratelimit's Makefile does.
+    cp ${ratelimit}/bin/service_cmd $out/bin/ratelimit
+    cp ${ratelimit}/bin/client_cmd $out/bin/ratelimit_client
+    cp ${ratelimit}/bin/config_check_cmd $out/bin/ratelimit_config_check
+    '';
+
+in pkgs.runCommand "dummy" {
+  buildInputs = [ pkgs.grpcurl ratelimit-renamed ratelimit-server-example ];
 }
+  ''
+  mkdir -p $out/bin
+  cp -r ${ratelimit-renamed}/bin $out/
+  ''
