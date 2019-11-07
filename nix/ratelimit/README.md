@@ -11,8 +11,7 @@ This will create three binaries under the `./result-bin/bin` directory.
 To run the ratelimit server with the examples config (at `./ratelimit/examples`):
 
 ```
-git clone https://github.com/lyft/ratelimit.git
-USE_STATSD=false LOG_LEVEL=debug REDIS_SOCKET_TYPE=tcp REDIS_URL=localhost:6379 RUNTIME_ROOT=ratelimit/examples RUNTIME_SUBDIRECTORY=ratelimit ./result-bin/bin/service_cmd
+ratelimit-server-example
 ```
 
 ## How to update ratelimit
