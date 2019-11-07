@@ -28,16 +28,13 @@ import qualified Data.Yaml as Yaml
 import Fencer.Types
 
 data LoadRulesError
-  = ParseException FilePath Yaml.ParseException
-  | IOEx IOException
+  = LoadRulesParseError FilePath Yaml.ParseException
+  | LoadRulesIOError IOException
 
 instance Show LoadRulesError where
-  show (ParseException file yamlEx) =
+  show (LoadRulesParseError file yamlEx) =
     show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
-  show (IOEx ex) = "IO exception: " ++ show ex
-
-instance Eq LoadRulesError where
-  e1 == e2 = show e1 == show e2
+  show (LoadRulesIOError ex) = "IO error: " ++ show ex
 
 -- | Show a list of 'LoadRulesError's.
 showErrors :: [LoadRulesError] -> String
@@ -81,8 +78,8 @@ loadRulesFromDirectory
       let
         res = liftBoth <$>
           catch
-            ((mapLeft (ParseException file)) <$> Yaml.decodeFileEither @DomainDefinition file)
-            (pure . Left . IOEx)
+            ((mapLeft (LoadRulesParseError file)) <$> Yaml.decodeFileEither @DomainDefinition file)
+            (pure . Left . LoadRulesIOError)
       liftA2 merge res acc
 
     liftBoth

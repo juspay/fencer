@@ -19,7 +19,7 @@ import qualified System.IO.Temp as Temp
 import           System.FilePath (splitFileName, (</>))
 import           System.Directory (createDirectoryIfMissing)
 import           Test.Tasty (TestTree, testGroup)
-import           Test.Tasty.HUnit (assertEqual, Assertion, testCase)
+import           Test.Tasty.HUnit (assertBool, assertEqual, Assertion, testCase)
 
 import           Fencer.Rules
 import           Fencer.Types
@@ -67,9 +67,10 @@ expectLoadRules
           "unexpected failure"
           (length . toErrorList $ result)
           (length . toErrorList $ f)
-      Success definitions -> assertEqual "unexpected definitions"
+      Success definitions -> assertBool "unexpected definitions"
+        (((==) `on` show)
         (sortOn domainDefinitionId <$> result)
-        (Success $ sortOn domainDefinitionId definitions)
+        (Success $ sortOn domainDefinitionId definitions))
  where
   toErrorList :: Validation [LoadRulesError] [DomainDefinition] -> [LoadRulesError]
   toErrorList (Success _) = []
@@ -166,7 +167,7 @@ test_rulesLoadRulesException =
         ]
       )
       (#result $ Failure
-         [ParseException "faultyDomain.yaml" $ Yaml.AesonException ""])
+         [LoadRulesParseError "faultyDomain.yaml" $ Yaml.AesonException ""])
 
 -- | test that 'loadRulesFromDirectory' accepts a minimal
 -- configuration containing only the domain id.
