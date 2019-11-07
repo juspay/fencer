@@ -13,7 +13,6 @@ where
 import BasePrelude
 
 import Control.Concurrent.STM (atomically)
-import Data.Validation (Validation(Success, Failure))
 import System.FilePath ((</>))
 import qualified System.Logger as Logger
 import System.Logger (Logger)
@@ -78,17 +77,17 @@ reloadRules logger settings appState = do
         Logger.msg ("Loading rules from " ++ configDir)
 
     -- Read and parse the rules
-    ruleDefinitionsVal :: Validation [LoadRulesError] [DomainDefinition] <-
+    ruleDefinitionsVal :: Either [LoadRulesError] [DomainDefinition] <-
         loadRulesFromDirectory
             (#rootDirectory $ settingsRoot settings)
             (#subDirectory $ settingsSubdirectory settings </> "config")
             (#ignoreDotFiles (settingsIgnoreDotFiles settings))
     case ruleDefinitionsVal of
-        Failure fs ->
+        Left fs ->
             Logger.err logger $
                 Logger.msg ("error loading new configuration from runtime: " ++
                             showErrors fs)
-        Success ruleDefinitions -> do
+        Right ruleDefinitions -> do
             Logger.info logger $
                 Logger.msg ("Parsed rules for domains: " ++
                     show (map (unDomainId . domainDefinitionId) ruleDefinitions))

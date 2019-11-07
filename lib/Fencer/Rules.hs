@@ -18,7 +18,6 @@ import Control.Applicative (liftA2)
 import Control.Monad.Extra (partitionM, concatMapM)
 import Data.Either.Combinators (mapLeft)
 import Data.List (foldl')
-import Data.Validation (liftError, Validation(Failure, Success))
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
@@ -53,7 +52,7 @@ loadRulesFromDirectory
     :: "rootDirectory" :! FilePath
     -> "subDirectory" :! FilePath
     -> "ignoreDotFiles" :! Bool
-    -> IO (Validation [LoadRulesError] [DomainDefinition])
+    -> IO (Either [LoadRulesError] [DomainDefinition])
 loadRulesFromDirectory
     (arg #rootDirectory -> rootDirectory)
     (arg #subDirectory -> subDirectory)
@@ -67,13 +66,13 @@ loadRulesFromDirectory
         else files
     foldl'
       combine
-      (pure . Success $ [])
+      (pure . Right $ [])
       filteredFiles
   where
     combine
-      :: IO (Validation [LoadRulesError] [DomainDefinition])
+      :: IO (Either [LoadRulesError] [DomainDefinition])
       -> FilePath
-      -> IO (Validation [LoadRulesError] [DomainDefinition])
+      -> IO (Either [LoadRulesError] [DomainDefinition])
     combine acc file = do
       let
         res = liftBoth <$>
@@ -84,17 +83,18 @@ loadRulesFromDirectory
 
     liftBoth
       :: Either LoadRulesError DomainDefinition
-      -> Validation [LoadRulesError] [DomainDefinition]
-    liftBoth v = pure <$> liftError pure v
+      -> Either [LoadRulesError] [DomainDefinition]
+    liftBoth (Left e)  = Left  [e]
+    liftBoth (Right v) = Right [v]
 
     merge
-      :: Validation [LoadRulesError] [DomainDefinition]
-      -> Validation [LoadRulesError] [DomainDefinition]
-      -> Validation [LoadRulesError] [DomainDefinition]
-    merge (Failure fs1) (Failure fs2) = Failure $ fs1 ++ fs2
-    merge (Failure fs1) (Success _  ) = Failure fs1
-    merge (Success _  ) (Failure fs2) = Failure fs2
-    merge (Success ds1) (Success ds2) = Success $ ds1 ++ ds2
+      :: Either [LoadRulesError] [DomainDefinition]
+      -> Either [LoadRulesError] [DomainDefinition]
+      -> Either [LoadRulesError] [DomainDefinition]
+    merge (Left fs1)  (Left fs2)  = Left $ fs1 ++ fs2
+    merge (Left fs1)  (Right _  ) = Left fs1
+    merge (Right _  ) (Left fs2)  = Left fs2
+    merge (Right ds1) (Right ds2) = Right $ ds1 ++ ds2
 
     isDotFile :: FilePath -> Bool
     isDotFile file =

@@ -11,7 +11,6 @@ import           BasePrelude
 import           Data.List (sortOn)
 import           Data.Text (Text)
 import qualified Data.Text.IO as TIO
-import           Data.Validation (Validation(Failure, Success))
 import qualified Data.Yaml as Yaml
 import           Named ((:!), arg)
 import           NeatInterpolation (text)
@@ -42,7 +41,7 @@ tests = testGroup "Rule tests"
 expectLoadRules
   :: "ignoreDotFiles" :! Bool
   -> "files" :! [(FilePath, Text)]
-  -> "result" :! Validation [LoadRulesError] [DomainDefinition]
+  -> "result" :! Either [LoadRulesError] [DomainDefinition]
   -> Assertion
 expectLoadRules
   (arg #ignoreDotFiles -> ignoreDotFiles)
@@ -58,7 +57,7 @@ expectLoadRules
       (#subDirectory ".")
       (#ignoreDotFiles ignoreDotFiles)
     case definitionsVal of
-      f@(Failure _) ->
+      f@(Left _) ->
         -- Paths to temporary files vary and there is not much point
         -- in writing down exact expected exception messages so the
         -- only assertion made is that the number of exceptions is the
@@ -67,14 +66,14 @@ expectLoadRules
           "unexpected failure"
           (length . toErrorList $ result)
           (length . toErrorList $ f)
-      Success definitions -> assertBool "unexpected definitions"
+      Right definitions -> assertBool "unexpected definitions"
         (((==) `on` show)
         (sortOn domainDefinitionId <$> result)
-        (Success $ sortOn domainDefinitionId definitions))
+        (Right $ sortOn domainDefinitionId definitions))
  where
-  toErrorList :: Validation [LoadRulesError] [DomainDefinition] -> [LoadRulesError]
-  toErrorList (Success _) = []
-  toErrorList (Failure fs) = fs
+  toErrorList :: Either [LoadRulesError] [DomainDefinition] -> [LoadRulesError]
+  toErrorList (Right _) = []
+  toErrorList (Left fs) = fs
 
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_rulesLoadRulesYaml :: TestTree
@@ -86,7 +85,7 @@ test_rulesLoadRulesYaml =
         [ ("config1.yml", domain1Text)
         , ("config2.yaml", domain2Text) ]
       )
-      (#result $ Success [domain1, domain2])
+      (#result $ Right [domain1, domain2])
 
 -- | test that 'loadRulesFromDirectory' does not load rules from a
 -- dot-directory when dot-files should be ignored.
@@ -99,7 +98,7 @@ test_rulesLoadRulesDotDirectory =
         [ (".domain1" </> "config1.yml", domain1Text)
         , ("domain2" </> "config2.yaml", domain2Text) ]
       )
-      (#result $ Success [domain2])
+      (#result $ Right [domain2])
 
 -- | test that 'loadRulesFromDirectory' ignores dot-files.
 test_rulesLoadRules_ignoreDotFiles :: TestTree
@@ -111,7 +110,7 @@ test_rulesLoadRules_ignoreDotFiles =
         [ ("config1.yml", domain1Text)
         , ("dir" </> ".config2.yaml", domain2Text) ]
       )
-      (#result $ Success [domain1])
+      (#result $ Right [domain1])
 
 -- | test that 'loadRulesFromDirectory' does not ignore dot files.
 test_rulesLoadRules_dontIgnoreDotFiles :: TestTree
@@ -123,7 +122,7 @@ test_rulesLoadRules_dontIgnoreDotFiles =
         [ ("config1.yml", domain1Text)
         , ("dir" </> ".config2.yaml", domain2Text) ]
       )
-      (#result $ Success [domain1, domain2])
+      (#result $ Right [domain1, domain2])
 
 -- | Test that 'loadRulesFromDirectory' loads rules from all files, not just
 -- YAML files.
@@ -138,7 +137,7 @@ test_rulesLoadRulesNonYaml =
         [ ("config1.bin", domain1Text)
         , ("config2", domain2Text) ]
       )
-      (#result $ Success [domain1, domain2])
+      (#result $ Right [domain1, domain2])
 
 -- | Test that 'loadRulesFromDirectory' loads rules recursively.
 --
@@ -152,7 +151,7 @@ test_rulesLoadRulesRecursively =
         [ ("domain1" </> "config.yml", domain1Text)
         , ("domain2" </> "config" </> "config.yml", domain2Text) ]
       )
-      (#result $ Success [domain1, domain2])
+      (#result $ Right [domain1, domain2])
 
 -- | Test that 'loadRulesFromDirectory' returns exceptions for an
 -- invalid domain.
@@ -166,7 +165,7 @@ test_rulesLoadRulesException =
         , ("faultyDomain.yaml", faultyDomain)
         ]
       )
-      (#result $ Failure
+      (#result $ Left
          [LoadRulesParseError "faultyDomain.yaml" $ Yaml.AesonException ""])
 
 -- | test that 'loadRulesFromDirectory' accepts a minimal
@@ -179,7 +178,7 @@ test_rulesLoadRulesMinimal =
     expectLoadRules
       (#ignoreDotFiles False)
       (#files [("min.yaml", minimalDomainText)] )
-      (#result $ Success [minimalDomain])
+      (#result $ Right [minimalDomain])
 
 ----------------------------------------------------------------------------
 -- Sample definitions
