@@ -154,7 +154,8 @@ test_rulesLoadRulesRecursively =
       (#result $ Right [domain1, domain2])
 
 -- | Test that 'loadRulesFromDirectory' returns exceptions for an
--- invalid domain.
+-- invalid domain. The 'loadRulesFromDirectory' function fails to load
+-- any rules in presence of at least one invalid domain.
 test_rulesLoadRulesException :: TestTree
 test_rulesLoadRulesException =
   testCase "Rules fail to load for an invalid domain" $
