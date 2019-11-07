@@ -64,9 +64,8 @@ loadRulesFromDirectory
     let filteredFiles = if ignoreDotFiles
         then filter (not . isDotFile) files
         else files
-    (errs, rules) :: ([LoadRulesError], [DomainDefinition]) <-
-      partitionEithers <$> mapM loadFile filteredFiles
-    pure $ if null errs then Right rules else Left errs
+    (errs, rules) <- partitionEithers <$> mapM loadFile filteredFiles
+    pure $ if (null @[] errs) then Right rules else Left errs
   where
     loadFile :: FilePath -> IO (Either LoadRulesError DomainDefinition)
     loadFile file = catch
