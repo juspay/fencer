@@ -16,8 +16,8 @@ import BasePrelude
 
 import Control.Applicative (liftA2)
 import Control.Monad.Extra (partitionM, concatMapM)
+import Data.Either (partitionEithers)
 import Data.Either.Combinators (mapLeft)
-import Data.List (foldl')
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
@@ -64,37 +64,13 @@ loadRulesFromDirectory
     let filteredFiles = if ignoreDotFiles
         then filter (not . isDotFile) files
         else files
-    foldl'
-      combine
-      (pure . Right $ [])
-      filteredFiles
+    (errs, rules) <- partitionEithers <$> mapM loadFile filteredFiles
+    pure $ if null errs then Right rules else Left errs
   where
-    combine
-      :: IO (Either [LoadRulesError] [DomainDefinition])
-      -> FilePath
-      -> IO (Either [LoadRulesError] [DomainDefinition])
-    combine acc file = do
-      let
-        res = liftBoth <$>
-          catch
-            ((mapLeft (LoadRulesParseError file)) <$> Yaml.decodeFileEither @DomainDefinition file)
-            (pure . Left . LoadRulesIOError)
-      liftA2 merge res acc
-
-    liftBoth
-      :: Either LoadRulesError DomainDefinition
-      -> Either [LoadRulesError] [DomainDefinition]
-    liftBoth (Left e)  = Left  [e]
-    liftBoth (Right v) = Right [v]
-
-    merge
-      :: Either [LoadRulesError] [DomainDefinition]
-      -> Either [LoadRulesError] [DomainDefinition]
-      -> Either [LoadRulesError] [DomainDefinition]
-    merge (Left fs1)  (Left fs2)  = Left $ fs1 ++ fs2
-    merge (Left fs1)  (Right _  ) = Left fs1
-    merge (Right _  ) (Left fs2)  = Left fs2
-    merge (Right ds1) (Right ds2) = Right $ ds1 ++ ds2
+    loadFile :: FilePath -> IO (Either LoadRulesError DomainDefinition)
+    loadFile file = catch
+      ((mapLeft (LoadRulesParseError file)) <$> Yaml.decodeFileEither @DomainDefinition file)
+      (pure . Left . LoadRulesIOError)
 
     isDotFile :: FilePath -> Bool
     isDotFile file =
