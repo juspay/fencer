@@ -4,7 +4,9 @@
 
 -- | Working with rate limiting rules.
 module Fencer.Rules
-    ( loadRulesFromDirectory
+    ( LoadRulesError(..)
+    , prettyPrintErrors
+    , loadRulesFromDirectory
     , definitionsToRuleTree
     , applyRules
     )
@@ -12,7 +14,10 @@ where
 
 import BasePrelude
 
+import Control.Applicative (liftA2)
 import Control.Monad.Extra (partitionM, concatMapM)
+import Data.Either (partitionEithers)
+import Data.Either.Combinators (mapLeft)
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
@@ -21,18 +26,33 @@ import qualified Data.Yaml as Yaml
 
 import Fencer.Types
 
+data LoadRulesError
+  = LoadRulesParseError FilePath Yaml.ParseException
+  | LoadRulesIOError IOException
+  deriving stock (Show)
+
+-- | Pretty-print a list of 'LoadRulesError's.
+prettyPrintErrors :: [LoadRulesError] -> String
+prettyPrintErrors = intercalate ", " . fmap showError
+  where
+    showError (LoadRulesParseError file yamlEx) =
+      show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
+    showError (LoadRulesIOError ex) =
+      "IO error: " ++ displayException ex
+
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension. If
 -- any of directories below, including the main sub-directory, starts
 -- with a dot and dot-files are ignored, this function will skip
 -- loading rules from it and all directories below it.
 --
--- Throws an exception for unparseable or unreadable files.
+-- In case of unparsable or unreadable files returns a list of
+-- exceptions.
 loadRulesFromDirectory
     :: "rootDirectory" :! FilePath
     -> "subDirectory" :! FilePath
     -> "ignoreDotFiles" :! Bool
-    -> IO [DomainDefinition]
+    -> IO (Either [LoadRulesError] [DomainDefinition])
 loadRulesFromDirectory
     (arg #rootDirectory -> rootDirectory)
     (arg #subDirectory -> subDirectory)
@@ -41,11 +61,17 @@ loadRulesFromDirectory
     do
     let directory = rootDirectory </> subDirectory
     files <- listAllFiles directory
-    mapM Yaml.decodeFileThrow $
-        if ignoreDotFiles
-            then filter (not . isDotFile) files
-            else files
+    let filteredFiles = if ignoreDotFiles
+        then filter (not . isDotFile) files
+        else files
+    (errs, rules) <- partitionEithers <$> mapM loadFile filteredFiles
+    pure $ if (null @[] errs) then Right rules else Left errs
   where
+    loadFile :: FilePath -> IO (Either LoadRulesError DomainDefinition)
+    loadFile file = catch
+      ((mapLeft (LoadRulesParseError file)) <$> Yaml.decodeFileEither @DomainDefinition file)
+      (pure . Left . LoadRulesIOError)
+
     isDotFile :: FilePath -> Bool
     isDotFile file =
       let

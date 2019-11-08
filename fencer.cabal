@@ -58,6 +58,7 @@ library
     base,
     base-prelude,
     extra,
+    either,
     hashable,
     monad-loops,
     clock,
@@ -135,6 +136,7 @@ test-suite test-fencer
     , tinylog
     , unordered-containers
     , vector
+    , yaml
     -- Internal dependencies
     , fencer
   ghc-options:
