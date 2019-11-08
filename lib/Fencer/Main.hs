@@ -86,7 +86,7 @@ reloadRules logger settings appState = do
         Left fs ->
             Logger.err logger $
                 Logger.msg ("error loading new configuration from runtime: " ++
-                            showErrors fs)
+                            prettyPrintErrors fs)
         Right ruleDefinitions -> do
             Logger.info logger $
                 Logger.msg ("Parsed rules for domains: " ++

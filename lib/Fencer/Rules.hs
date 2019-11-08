@@ -5,7 +5,7 @@
 -- | Working with rate limiting rules.
 module Fencer.Rules
     ( LoadRulesError(..)
-    , showErrors
+    , prettyPrintErrors
     , loadRulesFromDirectory
     , definitionsToRuleTree
     , applyRules
@@ -29,16 +29,16 @@ import Fencer.Types
 data LoadRulesError
   = LoadRulesParseError FilePath Yaml.ParseException
   | LoadRulesIOError IOException
+  deriving stock (Show)
 
-instance Show LoadRulesError where
-  show (LoadRulesParseError file yamlEx) =
-    show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
-  show (LoadRulesIOError ex) = "IO error: " ++ show ex
-
--- | Show a list of 'LoadRulesError's.
-showErrors :: [LoadRulesError] -> String
-showErrors = join . intersperse ", " . fmap show
-
+-- | Pretty-print a list of 'LoadRulesError's.
+prettyPrintErrors :: [LoadRulesError] -> String
+prettyPrintErrors = intercalate ", " . fmap showError
+  where
+    showError (LoadRulesParseError file yamlEx) =
+      show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
+    showError (LoadRulesIOError ex) =
+      "IO error: " ++ displayException ex
 
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension. If
