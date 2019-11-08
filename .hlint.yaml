@@ -38,6 +38,7 @@
 - ignore: { name: 'Use const' }
 - ignore: { name: 'Move brackets to avoid $' }
 - ignore: { name: 'Use ?~' }
+- ignore: { name: 'Eta reduce' }
 
 # Custom hints
 - warn:

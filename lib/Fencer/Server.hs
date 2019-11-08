@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- | The gRPC server definition.
 module Fencer.Server
@@ -98,7 +99,7 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = 
             Logger.msg (Logger.val "Empty domain ID, responding with an error")
         cancelCall "rate limit domain must not be empty"
 
-    when (null descriptors) $ do
+    when (null @[] descriptors) $ do
         Logger.info logger $
             Logger.msg (Logger.val "Empty descriptor list, responding with an error")
         cancelCall "rate limit descriptor list must not be empty"

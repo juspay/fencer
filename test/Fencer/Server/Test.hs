@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE GADTs             #-}
@@ -27,6 +27,8 @@ import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
 import           Fencer.Types
 import           Fencer.Rules
 import qualified Fencer.Proto as Proto
+
+{-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 
 ----------------------------------------------------------------------------
 -- Tests
@@ -83,12 +85,7 @@ test_serverResponseEmptyDomain =
           response
   where
     rules :: [(DomainId, RuleTree)]
-    rules =
-      [ domainToRuleTree DomainDefinition
-          { domainDefinitionId = DomainId "domain"
-          , domainDefinitionDescriptors = []
-          }
-      ]
+    rules = [domainToRuleTree domainDefinitionWithoutRules]
 
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
@@ -118,12 +115,7 @@ test_serverResponseEmptyDescriptorList =
           response
   where
     rules :: [(DomainId, RuleTree)]
-    rules =
-      [ domainToRuleTree DomainDefinition
-          { domainDefinitionId = DomainId "domain"
-          , domainDefinitionDescriptors = []
-          }
-      ]
+    rules = [domainToRuleTree domainDefinitionWithoutRules]
 
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
@@ -135,6 +127,12 @@ test_serverResponseEmptyDescriptorList =
 ----------------------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------------------
+
+domainDefinitionWithoutRules :: DomainDefinition
+domainDefinitionWithoutRules = DomainDefinition
+  { domainDefinitionId = DomainId "domain"
+  , domainDefinitionDescriptors = []
+  }
 
 -- | Assert that a gRPC request is successful and has a specific result and
 -- status code.
