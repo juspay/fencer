@@ -91,7 +91,7 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = 
         Grpc.serverCallCancel
             serverCall
             Grpc.StatusUnknown
-            "rate limit descriptor list must not be empty"
+            "no rate limit configuration loaded"
 
     -- Update all counters in one atomic operation, and collect the results.
     --

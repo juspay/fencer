@@ -19,6 +19,7 @@ import qualified System.Logger as Logger
 import qualified System.IO.Temp as Temp
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 import           Data.ByteString (ByteString)
+import           GHC.Exts (fromList)
 
 import           Fencer.Logic
 import           Fencer.Server
@@ -48,13 +49,17 @@ test_serverResponseNoRules =
           Proto.rateLimitServiceShouldRateLimit client $
             Grpc.ClientNormalRequest request 1 mempty
         expectError
-          (unknownError "rate limit descriptor list must not be empty")
+          (unknownError "no rate limit configuration loaded")
           response
   where
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
       { Proto.rateLimitRequestDomain = "domain"
-      , Proto.rateLimitRequestDescriptors = mempty
+      , Proto.rateLimitRequestDescriptors =
+          fromList $
+          [ Proto.RateLimitDescriptor $
+              fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
+          ]
       , Proto.rateLimitRequestHitsAddend = 0
       }
 
