@@ -45,13 +45,12 @@ tests = testGroup "Server tests"
 -- This behavior matches @lyft/ratelimit@.
 test_serverResponseNoRules :: TestTree
 test_serverResponseNoRules =
-  withResource createServer destroyServer $ \_ ->
+  withResource createServer destroyServer $ \serverIO ->
     testCase "When no rules have been loaded, all requests error out" $ do
-      Grpc.withGRPCClient clientConfig $ \grpcClient -> do
-        client <- Proto.rateLimitServiceClient grpcClient
-        response <-
-          Proto.rateLimitServiceShouldRateLimit client $
-            Grpc.ClientNormalRequest request 1 mempty
+      server <- serverIO
+      withService server $ \service -> do
+        response <- Proto.rateLimitServiceShouldRateLimit service $
+          Grpc.ClientNormalRequest request 1 mempty
         expectError
           (unknownError "no rate limit configuration loaded")
           response
@@ -76,11 +75,9 @@ test_serverResponseEmptyDomain =
     testCase "Requests with an empty domain name result in an error" $ do
       server <- serverIO
       atomically (setRules (serverAppState server) rules)
-      Grpc.withGRPCClient clientConfig $ \grpcClient -> do
-        client <- Proto.rateLimitServiceClient grpcClient
-        response <-
-          Proto.rateLimitServiceShouldRateLimit client $
-            Grpc.ClientNormalRequest request 1 mempty
+      withService server $ \service -> do
+        response <- Proto.rateLimitServiceShouldRateLimit service $
+          Grpc.ClientNormalRequest request 1 mempty
         expectError
           (unknownError "rate limit domain must not be empty")
           response
@@ -113,11 +110,9 @@ test_serverResponseEmptyDescriptorList =
     testCase "Requests with an empty descriptor list result in an error" $ do
       server <- serverIO
       atomically (setRules (serverAppState server) rules)
-      Grpc.withGRPCClient clientConfig $ \grpcClient -> do
-        client <- Proto.rateLimitServiceClient grpcClient
-        response <-
-          Proto.rateLimitServiceShouldRateLimit client $
-            Grpc.ClientNormalRequest request 1 mempty
+      withService server $ \service -> do
+        response <- Proto.rateLimitServiceShouldRateLimit service $
+          Grpc.ClientNormalRequest request 1 mempty
         expectError
           (unknownError "rate limit descriptor list must not be empty")
           response
@@ -187,10 +182,11 @@ data Server = Server
   { serverLogger    :: Logger.Logger
   , serverLogHandle :: Handle
   , serverThreadId  :: ThreadId
+  , serverPort      :: Port
   , serverAppState  :: AppState
   }
 
--- | Start Fencer on the default port.
+-- | Start Fencer on a unique port.
 createServer :: IO Server
 createServer = do
   -- TODO: not the best approach. Ideally we should use e.g.
@@ -205,11 +201,14 @@ createServer = do
   hClose serverLogHandle
   serverLogger   <- getLogLevel >>= newLogger (Logger.Path loggerPath)
   serverAppState <- initAppState
-  serverThreadId <- forkIO $ runServer serverLogger serverAppState
+  serverPort     <- getUniquePort
+  serverThreadId <- forkIO $ runServerWithPort serverPort serverLogger serverAppState
 
-  -- NOTE(md): For reasons unkown, the delay in the thread makes a
+  -- NOTE(md): For reasons unkown, without a delay the delay in the thread makes a
   -- server test failure for 'test_serverResponseNoRules' go
-  -- away. The delay was introduced by assuming it might help
+  -- away. See <https://github.com/juspay/fencer/issues/53>.
+  --
+  -- The delay was introduced by assuming it might help
   -- based on the issue comment in gRPC's source code repository:
   -- https://github.com/grpc/grpc/issues/14088#issuecomment-365852100
   --
@@ -238,17 +237,39 @@ withServer
 withServer =
   withResource createServer destroyServer
 
+-- | Get a unique port number that is not used by other tests. Needed since
+-- all tests run in parallel.
+getUniquePort :: IO Port
+getUniquePort = atomicModifyIORef' next (\port -> (succ port, port))
+  where
+    next :: IORef Port
+    next = unsafePerformIO (newIORef defaultGRPCPort)
+    {-# NOINLINE next #-}
+
+{-# NOINLINE getUniquePort #-}
+
 ----------------------------------------------------------------------------
 -- gRPC client
 ----------------------------------------------------------------------------
 
 -- | gRPC config that can be used to connect to Fencer started with
 -- 'createServer'.
-clientConfig :: Grpc.ClientConfig
-clientConfig = Grpc.ClientConfig
+clientConfig :: Port -> Grpc.ClientConfig
+clientConfig port = Grpc.ClientConfig
   { Grpc.clientServerHost = "localhost"
-  , Grpc.clientServerPort = fromIntegral . unPort $ defaultGRPCPort
+  , Grpc.clientServerPort = fromIntegral (unPort port)
   , Grpc.clientArgs = []
   , Grpc.clientSSLConfig = Nothing
   , Grpc.clientAuthority = Nothing
   }
+
+-- | Create a "service" that can be used to make requests to Fencer started
+-- with 'createServer'.
+withService
+  :: Server
+  -> (Proto.RateLimitService Grpc.ClientRequest Grpc.ClientResult -> IO a)
+  -> IO a
+withService server act =
+  Grpc.withGRPCClient (clientConfig (serverPort server)) $ \grpcClient -> do
+    service <- Proto.rateLimitServiceClient grpcClient
+    act service
