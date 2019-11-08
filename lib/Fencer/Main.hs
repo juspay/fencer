@@ -98,10 +98,6 @@ reloadRules logger settings appState = do
             atomically $
                 -- See the documentation of 'setRules' for details on what
                 -- happens with counters during rule reloading.
-                setRules appState
-                    [ ( domainDefinitionId rule
-                      , definitionsToRuleTree $ domainDefinitionDescriptors rule )
-                    | rule <- ruleDefinitions
-                    ]
+                setRules appState (map domainToRuleTree ruleDefinitions)
             Logger.info logger $
                 Logger.msg (Logger.val "Applied new rules")
