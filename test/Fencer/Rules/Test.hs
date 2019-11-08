@@ -11,13 +11,14 @@ import           BasePrelude
 import           Data.List (sortOn)
 import           Data.Text (Text)
 import qualified Data.Text.IO as TIO
+import qualified Data.Yaml as Yaml
 import           Named ((:!), arg)
 import           NeatInterpolation (text)
 import qualified System.IO.Temp as Temp
 import           System.FilePath (splitFileName, (</>))
 import           System.Directory (createDirectoryIfMissing)
 import           Test.Tasty (TestTree, testGroup)
-import           Test.Tasty.HUnit (assertEqual, Assertion, testCase)
+import           Test.Tasty.HUnit (assertBool, assertEqual, Assertion, testCase)
 
 import           Fencer.Rules
 import           Fencer.Types
@@ -31,6 +32,7 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesDotDirectory
   , test_rulesLoadRules_ignoreDotFiles
   , test_rulesLoadRules_dontIgnoreDotFiles
+  , test_rulesLoadRulesException
   , test_rulesLoadRulesMinimal
   ]
 
@@ -39,7 +41,7 @@ tests = testGroup "Rule tests"
 expectLoadRules
   :: "ignoreDotFiles" :! Bool
   -> "files" :! [(FilePath, Text)]
-  -> "result" :! [DomainDefinition]
+  -> "result" :! Either [LoadRulesError] [DomainDefinition]
   -> Assertion
 expectLoadRules
   (arg #ignoreDotFiles -> ignoreDotFiles)
@@ -50,13 +52,28 @@ expectLoadRules
       let (dir, file) = splitFileName path
       createDirectoryIfMissing True (tempDir </> dir)
       TIO.writeFile (tempDir </> dir </> file) txt
-    definitions <- loadRulesFromDirectory
+    definitionsVal <- loadRulesFromDirectory
       (#rootDirectory tempDir)
       (#subDirectory ".")
       (#ignoreDotFiles ignoreDotFiles)
-    assertEqual "unexpected definitions"
-      (sortOn domainDefinitionId result)
-      (sortOn domainDefinitionId definitions)
+    case definitionsVal of
+      f@(Left _) ->
+        -- Paths to temporary files vary and there is not much point
+        -- in writing down exact expected exception messages so the
+        -- only assertion made is that the number of exceptions is the
+        -- same.
+        assertEqual
+          "unexpected failure"
+          (length . toErrorList $ result)
+          (length . toErrorList $ f)
+      Right definitions -> assertBool "unexpected definitions"
+        (((==) `on` show)
+        (sortOn domainDefinitionId <$> result)
+        (Right $ sortOn domainDefinitionId definitions))
+ where
+  toErrorList :: Either [LoadRulesError] [DomainDefinition] -> [LoadRulesError]
+  toErrorList (Right _) = []
+  toErrorList (Left fs) = fs
 
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_rulesLoadRulesYaml :: TestTree
@@ -68,7 +85,7 @@ test_rulesLoadRulesYaml =
         [ ("config1.yml", domain1Text)
         , ("config2.yaml", domain2Text) ]
       )
-      (#result [domain1, domain2])
+      (#result $ Right [domain1, domain2])
 
 -- | test that 'loadRulesFromDirectory' does not load rules from a
 -- dot-directory when dot-files should be ignored.
@@ -81,7 +98,7 @@ test_rulesLoadRulesDotDirectory =
         [ (".domain1" </> "config1.yml", domain1Text)
         , ("domain2" </> "config2.yaml", domain2Text) ]
       )
-      (#result [domain2])
+      (#result $ Right [domain2])
 
 -- | test that 'loadRulesFromDirectory' ignores dot-files.
 test_rulesLoadRules_ignoreDotFiles :: TestTree
@@ -93,7 +110,7 @@ test_rulesLoadRules_ignoreDotFiles =
         [ ("config1.yml", domain1Text)
         , ("dir" </> ".config2.yaml", domain2Text) ]
       )
-      (#result [domain1])
+      (#result $ Right [domain1])
 
 -- | test that 'loadRulesFromDirectory' does not ignore dot files.
 test_rulesLoadRules_dontIgnoreDotFiles :: TestTree
@@ -105,7 +122,7 @@ test_rulesLoadRules_dontIgnoreDotFiles =
         [ ("config1.yml", domain1Text)
         , ("dir" </> ".config2.yaml", domain2Text) ]
       )
-      (#result [domain1, domain2])
+      (#result $ Right [domain1, domain2])
 
 -- | Test that 'loadRulesFromDirectory' loads rules from all files, not just
 -- YAML files.
@@ -120,7 +137,7 @@ test_rulesLoadRulesNonYaml =
         [ ("config1.bin", domain1Text)
         , ("config2", domain2Text) ]
       )
-      (#result [domain1, domain2])
+      (#result $ Right [domain1, domain2])
 
 -- | Test that 'loadRulesFromDirectory' loads rules recursively.
 --
@@ -134,7 +151,23 @@ test_rulesLoadRulesRecursively =
         [ ("domain1" </> "config.yml", domain1Text)
         , ("domain2" </> "config" </> "config.yml", domain2Text) ]
       )
-      (#result [domain1, domain2])
+      (#result $ Right [domain1, domain2])
+
+-- | Test that 'loadRulesFromDirectory' returns exceptions for an
+-- invalid domain. The 'loadRulesFromDirectory' function fails to load
+-- any rules in presence of at least one invalid domain.
+test_rulesLoadRulesException :: TestTree
+test_rulesLoadRulesException =
+  testCase "Rules fail to load for an invalid domain" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files
+        [ ("domain1.yaml", domain1Text)
+        , ("faultyDomain.yaml", faultyDomain)
+        ]
+      )
+      (#result $ Left
+         [LoadRulesParseError "faultyDomain.yaml" $ Yaml.AesonException ""])
 
 -- | test that 'loadRulesFromDirectory' accepts a minimal
 -- configuration containing only the domain id.
@@ -146,7 +179,7 @@ test_rulesLoadRulesMinimal =
     expectLoadRules
       (#ignoreDotFiles False)
       (#files [("min.yaml", minimalDomainText)] )
-      (#result [minimalDomain])
+      (#result $ Right [minimalDomain])
 
 ----------------------------------------------------------------------------
 -- Sample definitions
@@ -193,6 +226,20 @@ domain2Text = [text|
   domain: domain2
   descriptors:
     - key: some key 2
+  |]
+
+faultyDomain :: Text
+faultyDomain = [text|
+  domain: another
+  descriptors:
+    - key: key2
+      rate_limit:
+        unit: minute
+        requests_per_unit: 20
+    - keyz: key3
+      rate_limit:
+        unit: hour
+        requests_per_unit: 10
   |]
 
 minimalDomain :: DomainDefinition
