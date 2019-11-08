@@ -212,10 +212,6 @@ createServer = do
   --
   -- The length of the delay was fine tuned based on feedback from
   -- test execution.
-  --
-  -- This delay interacts with the order of the rules and server
-  -- tests, which would have executed concurrently by default if
-  -- 'after' wasn't used in the Main test module.
   threadDelay 5000 -- 5 ms
 
   pure Server{..}
