@@ -14,7 +14,7 @@ where
 import           BasePrelude
 
 import           Test.Tasty (TestTree, testGroup, withResource)
-import           Test.Tasty.HUnit (assertEqual, assertFailure, testCase, Assertion)
+import           Test.Tasty.HUnit (HasCallStack, assertEqual, assertFailure, testCase, Assertion)
 import qualified System.Logger as Logger
 import qualified System.IO.Temp as Temp
 import qualified Network.GRPC.HighLevel.Generated as Grpc
@@ -24,7 +24,8 @@ import           GHC.Exts (fromList)
 import           Fencer.Logic
 import           Fencer.Server
 import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
-import           Fencer.Types (unPort)
+import           Fencer.Types
+import           Fencer.Rules
 import qualified Fencer.Proto as Proto
 
 ----------------------------------------------------------------------------
@@ -32,8 +33,11 @@ import qualified Fencer.Proto as Proto
 ----------------------------------------------------------------------------
 
 tests :: TestTree
-tests = testGroup "Server tests" [ test_serverResponseNoRules ]
-
+tests = testGroup "Server tests"
+  [ test_serverResponseNoRules
+  , test_serverResponseEmptyDomain
+  , test_serverResponseEmptyDescriptorList
+  ]
 
 -- | Test that when Fencer is started without any rules provided to it (i.e.
 -- 'reloadRules' has never been ran), requests to Fencer will error out.
@@ -63,6 +67,76 @@ test_serverResponseNoRules =
       , Proto.rateLimitRequestHitsAddend = 0
       }
 
+-- | Test that requests with an empty domain name result in an error.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseEmptyDomain :: TestTree
+test_serverResponseEmptyDomain =
+  withResource createServer destroyServer $ \serverIO ->
+    testCase "Requests with an empty domain name result in an error" $ do
+      server <- serverIO
+      atomically (setRules (serverAppState server) rules)
+      Grpc.withGRPCClient clientConfig $ \grpcClient -> do
+        client <- Proto.rateLimitServiceClient grpcClient
+        response <-
+          Proto.rateLimitServiceShouldRateLimit client $
+            Grpc.ClientNormalRequest request 1 mempty
+        expectError
+          (unknownError "rate limit domain must not be empty")
+          response
+  where
+    rules :: [(DomainId, RuleTree)]
+    rules =
+      [ domainToRuleTree DomainDefinition
+          { domainDefinitionId = DomainId "domain"
+          , domainDefinitionDescriptors = []
+          }
+      ]
+
+    request :: Proto.RateLimitRequest
+    request = Proto.RateLimitRequest
+      { Proto.rateLimitRequestDomain = ""
+      , Proto.rateLimitRequestDescriptors =
+          fromList $
+          [ Proto.RateLimitDescriptor $
+              fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
+          ]
+      , Proto.rateLimitRequestHitsAddend = 0
+      }
+
+-- | Test that requests with an empty descriptor list result in an error.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseEmptyDescriptorList :: TestTree
+test_serverResponseEmptyDescriptorList =
+  withResource createServer destroyServer $ \serverIO ->
+    testCase "Requests with an empty descriptor list result in an error" $ do
+      server <- serverIO
+      atomically (setRules (serverAppState server) rules)
+      Grpc.withGRPCClient clientConfig $ \grpcClient -> do
+        client <- Proto.rateLimitServiceClient grpcClient
+        response <-
+          Proto.rateLimitServiceShouldRateLimit client $
+            Grpc.ClientNormalRequest request 1 mempty
+        expectError
+          (unknownError "rate limit descriptor list must not be empty")
+          response
+  where
+    rules :: [(DomainId, RuleTree)]
+    rules =
+      [ domainToRuleTree DomainDefinition
+          { domainDefinitionId = DomainId "domain"
+          , domainDefinitionDescriptors = []
+          }
+      ]
+
+    request :: Proto.RateLimitRequest
+    request = Proto.RateLimitRequest
+      { Proto.rateLimitRequestDomain = "domain"
+      , Proto.rateLimitRequestDescriptors = mempty
+      , Proto.rateLimitRequestHitsAddend = 0
+      }
+
 ----------------------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------------------
@@ -70,7 +144,7 @@ test_serverResponseNoRules =
 -- | Assert that a gRPC request is successful and has a specific result and
 -- status code.
 expectSuccess
-  :: (Eq result, Show result)
+  :: (HasCallStack, Eq result, Show result)
   => (result, Grpc.StatusCode)
   -> Grpc.ClientResult 'Grpc.Normal result
   -> Assertion
@@ -84,7 +158,7 @@ expectSuccess expected actual = case actual of
 
 -- | Assert that a gRPC request is unsuccessful.
 expectError
-  :: Show result
+  :: (HasCallStack, Show result)
   => Grpc.ClientError
   -> Grpc.ClientResult 'Grpc.Normal result
   -> Assertion
