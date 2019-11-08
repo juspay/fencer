@@ -12,6 +12,7 @@ stages:
 
 jobs:
   include:
+
     # Build the Fencer Docker image
     #
     # The compile part of the GitLab CI
@@ -28,10 +29,15 @@ jobs:
           )
         # Push built paths to Cachix
         - cachix push fencer < paths
+
     # The compile_integration part of the GitLab CI
     # Build the Go integration test
+    - stage: build
+      script:
         - imagepath=$(nix-build test_integration_go/docker.nix)
         - cp $imagepath test_integration_go.tar.gz
+
+    # Run integration tests
     - stage: test
       env:
         - DOCKER_DRIVER=overlay2
@@ -66,7 +72,8 @@ jobs:
             -e GRPC_HOST=$CNAME
             --network test
             test_integration_go
-      ### Checking checked-in generated code is up to date
+
+    ### Checking checked-in generated code is up to date
     - stage: gen-code
       script:
         - nix-env -iA cachix -iA git -f https://cachix.org/api/v1/install
@@ -74,7 +81,8 @@ jobs:
         - nix-shell --run ./scripts/protoGen.sh
         - DIFF=$(git diff lib/Fencer/Proto.hs | wc -c)
         - if [ "$DIFF" != "0" ]; then exit 1; fi
-      ### Release
+
+    ### Release
     - stage: release
       env:
         - NAME="release_docker"
