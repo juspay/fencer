@@ -136,12 +136,12 @@ domainDefinitionWithoutRules = DomainDefinition
 
 -- | Assert that a gRPC request is successful and has a specific result and
 -- status code.
-expectSuccess
+_expectSuccess
   :: (HasCallStack, Eq result, Show result)
   => (result, Grpc.StatusCode)
   -> Grpc.ClientResult 'Grpc.Normal result
   -> Assertion
-expectSuccess expected actual = case actual of
+_expectSuccess expected actual = case actual of
   Grpc.ClientErrorResponse actualError ->
     assertFailure $
       "Expected a normal response, got an error response: " ++
