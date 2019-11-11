@@ -232,15 +232,17 @@ withServer =
   withResource createServer destroyServer
 
 -- | Get a unique port number that is not used by other tests. Needed since
--- all tests run in parallel.
+-- all tests run in parallel and we can't run Fencer on the same port in
+-- parallel.
 getUniquePort :: IO Port
-getUniquePort = atomicModifyIORef' next (\port -> (succ port, port))
-  where
-    next :: IORef Port
-    next = unsafePerformIO (newIORef defaultGRPCPort)
-    {-# NOINLINE next #-}
+getUniquePort = atomicModifyIORef' nextUniquePortVar (\port -> (succ port, port))
 
-{-# NOINLINE getUniquePort #-}
+-- | Top-level global variable used by 'getUniquePort'. For the explanation
+-- of @NOINLINE@, see
+-- <http://neilmitchell.blogspot.com/2014/10/hlint-now-spots-bad-unsafeperformio.html>.
+nextUniquePortVar :: IORef Port
+nextUniquePortVar = unsafePerformIO (newIORef defaultGRPCPort)
+{-# NOINLINE nextUniquePortVar #-}
 
 ----------------------------------------------------------------------------
 -- gRPC client
