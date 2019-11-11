@@ -34,6 +34,7 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRules_dontIgnoreDotFiles
   , test_rulesLoadRulesException
   , test_rulesLoadRulesMinimal
+  , test_rulesYAMLSeparator
   ]
 
 -- | Create given directory structure and check that 'loadRulesFromDirectory'
@@ -181,6 +182,18 @@ test_rulesLoadRulesMinimal =
       (#files [("min.yaml", minimalDomainText)] )
       (#result $ Right [minimalDomain])
 
+-- | test that 'loadRulesFromDirectory' accepts a configuration that
+-- starts in "---", a YAML document separator. Fencer matches
+-- Ratelimit in such a case: it works only if there is one YAML
+-- document in the file, i.e., one domain.
+test_rulesYAMLSeparator :: TestTree
+test_rulesYAMLSeparator =
+  testCase "One domain after a YAML separator" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files [("sep.yaml", separatorDomainText)] )
+      (#result $ Right [separatorDomain])
+
 ----------------------------------------------------------------------------
 -- Sample definitions
 ----------------------------------------------------------------------------
@@ -250,3 +263,45 @@ minimalDomain = DomainDefinition
 
 minimalDomainText :: Text
 minimalDomainText = [text| domain: min |]
+
+separatorDomainText :: Text
+separatorDomainText = [text|
+  ---
+  domain: another
+  descriptors:
+    - key: key2
+      rate_limit:
+        unit: minute
+        requests_per_unit: 20
+    - key: key3
+      rate_limit:
+        unit: hour
+        requests_per_unit: 10
+  |]
+
+separatorDomain :: DomainDefinition
+separatorDomain = DomainDefinition
+  { domainDefinitionId = DomainId "another"
+  , domainDefinitionDescriptors = [desc1, desc2]
+  }
+  where
+    desc1 :: DescriptorDefinition
+    desc1 = DescriptorDefinition
+      { descriptorDefinitionKey = RuleKey "key2"
+      , descriptorDefinitionValue = Nothing
+      , descriptorDefinitionRateLimit = Just $ RateLimit
+        { rateLimitUnit = Minute
+        , rateLimitRequestsPerUnit = 20
+        }
+      , descriptorDefinitionDescriptors = Nothing
+      }
+    desc2 :: DescriptorDefinition
+    desc2 = DescriptorDefinition
+      { descriptorDefinitionKey = RuleKey "key3"
+      , descriptorDefinitionValue = Nothing
+      , descriptorDefinitionRateLimit = Just $ RateLimit
+        { rateLimitUnit = Hour
+        , rateLimitRequestsPerUnit = 10
+        }
+      , descriptorDefinitionDescriptors = Nothing
+      }
