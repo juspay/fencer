@@ -105,4 +105,4 @@ jobs:
         # Tag the same image with "master" and push
         - docker tag juspay/fencer docker.pkg.github.com/juspay/fencer/fencer:master
         - docker push docker.pkg.github.com/juspay/fencer/fencer:master
-      if: branch = master
+      if: branch = master AND type = push
