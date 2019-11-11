@@ -55,7 +55,6 @@ jobs:
       env:
         - DOCKER_DRIVER=overlay2
         - DOCKER_TLS_CERTDIR="/certs"
-        - CNAME="fencer-"$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 25 ; echo '')
       before_script:
         - docker info
       workspaces:
@@ -65,20 +64,12 @@ jobs:
       script:
         # Create a Docker network for the containers
         - docker network create test
-        #
         # Run Fencer
-        #
-        # A pipeline would report that a container named "fencer" already
-        # exists (possibly from a job for a different pull request) so
-        # choosing a random container name deals with this
-        # issue. Furthermore, using a named constant helps with informing
-        # where this name is used (compared to "fencer" which has an
-        # overloaded meaning in the CI).
         - docker load -i fencer.tar.gz
         - docker run
             -v $(pwd)/test_integration_go/config:/srv/runtime_data/current
             -e RUNTIME_SUBDIRECTORY=ratelimit
-            --name $CNAME
+            --name fencer-server
             --network test
             --detach
             juspay/fencer
@@ -86,7 +77,7 @@ jobs:
         # Run the test
         - docker load -i test_integration_go.tar.gz
         - docker run
-            -e GRPC_HOST=$CNAME
+            -e GRPC_HOST=fencer-server
             --network test
             test_integration_go
 
