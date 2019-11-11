@@ -1,0 +1,108 @@
+language: nix
+os: linux
+dist: bionic
+
+stages:
+  - build
+  - test
+  - gen-code
+  - release
+
+jobs:
+  include:
+
+    # Build the Fencer Docker image
+    #
+    # The compile part of the GitLab CI
+    - stage: build
+      script:
+        # Build the Docker image and create a list of paths to push to Cachix.
+        # The secret signing key should not be available to the build process.
+        - ( unset CACHIX_SIGNING_KEY;
+            nix-env -iA cachix -f https://cachix.org/api/v1/install;
+            cachix use fencer;
+            imagepath=$(nix-build docker.nix);
+            cp $imagepath fencer.tar.gz;
+            nix-store -qR --include-outputs $(nix-instantiate docker.nix) > paths
+          )
+        # Push built paths to Cachix
+        - cachix push fencer < paths
+      workspaces:
+        create:
+          name: build-docker
+          paths:
+            - fencer.tar.gz
+      env:
+        # CACHIX_SIGNING_KEY
+        - secure: "vNNLfNScRuluP7zmlkCv/9uD+haHZ+iNv5FmWbXA757roaUgXBwRHZptM7wkUCUnhWVKiY9TRBJlCg5NAfNtUB1ElDZifLeVnUzaAsF4y7HP/hDYGmg+NnCB4EhBtc8vmATYK323VKzHCGiApKO0EvO7Oc8CRhrk/RFjVA6JoXYn8rM9FXcvT2AAXGzZmbevH5uUSlY61qmCF0YJdQdtjrwzDk1P/NQCKppxOHlJs1j38BF7ax94gKq2sCMXQA3d4V47WxKZgSvG+fBdXeFAwDs+avnTQ9hTFOb08yeCkIfUlx/GzSH6AVZR2tOwg59MVf9rTDIAExe3slNdDnicwWR1iV1ffmeYzztxA/359/YSYbL06ux0Mq8WsC2wg6+QlIo/K7Lc2q9J8Eye3zwfMGPkSNFUQuSkq+dCdN2r3xT3t6qfhdXo90f7GGvSmBwGc63Cao4rPBc7I98q9SLC4OjSXG4ktgqV6zzGG29/Y+sdpq0WN2pcHB2676WF+jyXrmEgm7Fq2SDU2wdxjA3ZviSbw8gUFvF1/tG/O42juYGMjztBg+eLBf+ZcehsFLctu8tRtMn6PouPfd5OwYmG4IsVBLyNa8lK9I/Hl5RGX5X2RWfCbZz98yzvoAU3T+GgDzQ4apODVnquIX0ebQDhM8s+3Av/+pWnqe5fq3iYtbU="
+
+    # The compile_integration part of the GitLab CI
+    # Build the Go integration test
+    - stage: build
+      script:
+        - imagepath=$(nix-build test_integration_go/docker.nix)
+        - cp $imagepath test_integration_go.tar.gz
+      workspaces:
+        create:
+          name: build-test
+          paths:
+            - test_integration_go.tar.gz
+
+    # Run integration tests
+    - stage: test
+      services:
+        - docker
+      workspaces:
+        use:
+          - build-docker
+          - build-test
+      script:
+        # Create a Docker network for the containers
+        - docker network create test
+        # Run Fencer
+        - docker load -i fencer.tar.gz
+        - docker run
+            -v $(pwd)/test_integration_go/config:/srv/runtime_data/current
+            -e RUNTIME_SUBDIRECTORY=ratelimit
+            --name fencer-server
+            --network test
+            --detach
+            juspay/fencer
+        - sleep 5
+        # Run the test
+        - docker load -i test_integration_go.tar.gz
+        - docker run
+            -e GRPC_HOST=fencer-server
+            --network test
+            test_integration_go
+
+    ### Checking checked-in generated code is up to date
+    - stage: gen-code
+      script:
+        - nix-env -iA cachix -iA git -f https://cachix.org/api/v1/install
+        - cachix use fencer
+        - nix-shell --run ./scripts/protoGen.sh
+        - DIFF=$(git diff lib/Fencer/Proto.hs | wc -c)
+        - if [ "$DIFF" != "0" ]; then exit 1; fi
+
+    ### Release
+    - stage: release
+      services:
+        - docker
+      env:
+        # GITHUB_ACCESS_TOKEN
+        - secure: "iH5SDg88SsrTRMgX+a9qMZVvfyzhZhipsnuF927oG5BQh0unXUIzqgN11mHLlea/tyCkyz5jfZfz5kpnK+GKRZBd0RmozqiyB7XptTp+O9Oq+rXhwN4Xml+Q9Vw2ndJ+70TmnaJp1BKq8y9Bw9eI3YWPuOQl0VZgElZSgWdRltpgntPrO3piTd4EHky+RCcp/9l877Il0L+hdrC+pUn8n/qrTvODaPXc86AmjsgWoYburej9+xTLLa5tG8MPTF9QqvxHWmz1alDABxw2ROgySXgPcp+iKMWrkTGY+kCNxregg2m6F8sqnmQJqxJ7rjU8NNBfGLf/vtfU1ocAnWW82ej+ewFOlynvDLnIaBh0CyXcqe8B7XBmwufPk3Ycu7wUERuJHa+tgjiwDzHNogCWuq6r6a5WGnmuDdeu9EY0IU1QnVIGdKr+aZ5TnkMOi9FJbjc/qh/8ZJpaVZhmC/cGau4nZ1q9KC1RznH6WXjG43CEVf1QxTiYIZuuH+J1qhESiykVwUOkdjHm3GjKYxkW2yK4az0DV4LgQmwsBAhCunBZHcTUwy6lhl5bW39mNiaYshg7vFdYc7mmqiK/VH5WLmUN3UOA9QmsSV6t7y5L/3RRbFNDBJF0NXxbNDRTQm6PlsWXkCKRtIptqR2B8hPMMHnS5pTOv7zKH1j0JDKRcEo="
+      workspaces:
+        use:
+          - build-docker
+      script:
+        - echo "$GITHUB_ACCESS_TOKEN" | docker login docker.pkg.github.com --username juspay --password-stdin
+        - docker load -i fencer.tar.gz
+        # Tag the image with commit hash and push
+        - HASH=$(git log -1 --pretty=%h)
+        - docker tag juspay/fencer "docker.pkg.github.com/juspay/fencer/fencer:$HASH"
+        - docker push "docker.pkg.github.com/juspay/fencer/fencer:$HASH"
+        # Tag the same image with "master" and push
+        - docker tag juspay/fencer docker.pkg.github.com/juspay/fencer/fencer:master
+        - docker push docker.pkg.github.com/juspay/fencer/fencer:master
+      if: branch = master AND type = push
