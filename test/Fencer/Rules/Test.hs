@@ -185,7 +185,9 @@ test_rulesLoadRulesMinimal =
 -- | test that 'loadRulesFromDirectory' accepts a configuration that
 -- starts in "---", a YAML document separator. Fencer matches
 -- Ratelimit in such a case: it works only if there is one YAML
--- document in the file, i.e., one domain.
+-- document in the file, i.e., one domain. In general, neither
+-- Ratelimit nor Fencer support YAML files with multiple
+-- documents.
 test_rulesYAMLSeparator :: TestTree
 test_rulesYAMLSeparator =
   testCase "One domain after a YAML separator" $
