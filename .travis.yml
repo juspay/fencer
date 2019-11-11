@@ -1,8 +1,6 @@
 language: nix
 os: linux
 dist: bionic
-services:
-  - docker
 
 stages:
   - build
@@ -52,11 +50,8 @@ jobs:
 
     # Run integration tests
     - stage: test
-      env:
-        - DOCKER_DRIVER=overlay2
-        - DOCKER_TLS_CERTDIR="/certs"
-      before_script:
-        - docker info
+      services:
+        - docker
       workspaces:
         use:
           - build-docker
@@ -92,10 +87,9 @@ jobs:
 
     ### Release
     - stage: release
+      services:
+        - docker
       env:
-        - NAME="release_docker"
-        - DOCKER_DRIVER=overlay2
-        - DOCKER_TLS_CERTDIR="/certs"
         # GITHUB_ACCESS_TOKEN
         - secure: "iH5SDg88SsrTRMgX+a9qMZVvfyzhZhipsnuF927oG5BQh0unXUIzqgN11mHLlea/tyCkyz5jfZfz5kpnK+GKRZBd0RmozqiyB7XptTp+O9Oq+rXhwN4Xml+Q9Vw2ndJ+70TmnaJp1BKq8y9Bw9eI3YWPuOQl0VZgElZSgWdRltpgntPrO3piTd4EHky+RCcp/9l877Il0L+hdrC+pUn8n/qrTvODaPXc86AmjsgWoYburej9+xTLLa5tG8MPTF9QqvxHWmz1alDABxw2ROgySXgPcp+iKMWrkTGY+kCNxregg2m6F8sqnmQJqxJ7rjU8NNBfGLf/vtfU1ocAnWW82ej+ewFOlynvDLnIaBh0CyXcqe8B7XBmwufPk3Ycu7wUERuJHa+tgjiwDzHNogCWuq6r6a5WGnmuDdeu9EY0IU1QnVIGdKr+aZ5TnkMOi9FJbjc/qh/8ZJpaVZhmC/cGau4nZ1q9KC1RznH6WXjG43CEVf1QxTiYIZuuH+J1qhESiykVwUOkdjHm3GjKYxkW2yK4az0DV4LgQmwsBAhCunBZHcTUwy6lhl5bW39mNiaYshg7vFdYc7mmqiK/VH5WLmUN3UOA9QmsSV6t7y5L/3RRbFNDBJF0NXxbNDRTQm6PlsWXkCKRtIptqR2B8hPMMHnS5pTOv7zKH1j0JDKRcEo="
       workspaces:
