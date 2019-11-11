@@ -8,6 +8,7 @@ module Fencer.Rules
     , prettyPrintErrors
     , loadRulesFromDirectory
     , definitionsToRuleTree
+    , domainToRuleTree
     , applyRules
     )
 where
@@ -114,6 +115,14 @@ definitionsToRuleTree = HM.fromList . map (\d -> (makeKey d, makeBranch d))
               definitionsToRuleTree $
                   fromMaybe [] (descriptorDefinitionDescriptors desc)
         }
+
+-- | Convert a domain to a 'RuleTree' together with the domain ID. This is a
+-- trivial function but we need it often.
+domainToRuleTree :: DomainDefinition -> (DomainId, RuleTree)
+domainToRuleTree domain =
+  ( domainDefinitionId domain
+  , definitionsToRuleTree (domainDefinitionDescriptors domain)
+  )
 
 -- | In a tree of rules, find the 'RateLimit' that should be applied to a
 -- specific descriptor.
