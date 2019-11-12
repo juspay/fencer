@@ -100,6 +100,6 @@ jobs:
         - docker tag juspayin/fencer "juspayin/fencer:$HASH"
         - docker push "juspayin/fencer:$HASH"
         # Tag the same image with "master" and push
-        - docker tag juspayin/fencer "juspayin/fencer:master"
-        - docker push "juspayin/fencer:master"
-      if: branch = master AND type = push
+        # - docker tag juspayin/fencer "juspayin/fencer:master"
+        # - docker push "juspayin/fencer:master"
+      if: type = push
