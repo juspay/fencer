@@ -12,8 +12,6 @@ jobs:
   include:
 
     # Build the Fencer Docker image
-    #
-    # The compile part of the GitLab CI
     - stage: build
       script:
         # Build the Docker image and create a list of paths to push to Cachix.
@@ -36,7 +34,6 @@ jobs:
         # CACHIX_SIGNING_KEY
         - secure: "vNNLfNScRuluP7zmlkCv/9uD+haHZ+iNv5FmWbXA757roaUgXBwRHZptM7wkUCUnhWVKiY9TRBJlCg5NAfNtUB1ElDZifLeVnUzaAsF4y7HP/hDYGmg+NnCB4EhBtc8vmATYK323VKzHCGiApKO0EvO7Oc8CRhrk/RFjVA6JoXYn8rM9FXcvT2AAXGzZmbevH5uUSlY61qmCF0YJdQdtjrwzDk1P/NQCKppxOHlJs1j38BF7ax94gKq2sCMXQA3d4V47WxKZgSvG+fBdXeFAwDs+avnTQ9hTFOb08yeCkIfUlx/GzSH6AVZR2tOwg59MVf9rTDIAExe3slNdDnicwWR1iV1ffmeYzztxA/359/YSYbL06ux0Mq8WsC2wg6+QlIo/K7Lc2q9J8Eye3zwfMGPkSNFUQuSkq+dCdN2r3xT3t6qfhdXo90f7GGvSmBwGc63Cao4rPBc7I98q9SLC4OjSXG4ktgqV6zzGG29/Y+sdpq0WN2pcHB2676WF+jyXrmEgm7Fq2SDU2wdxjA3ZviSbw8gUFvF1/tG/O42juYGMjztBg+eLBf+ZcehsFLctu8tRtMn6PouPfd5OwYmG4IsVBLyNa8lK9I/Hl5RGX5X2RWfCbZz98yzvoAU3T+GgDzQ4apODVnquIX0ebQDhM8s+3Av/+pWnqe5fq3iYtbU="
 
-    # The compile_integration part of the GitLab CI
     # Build the Go integration test
     - stage: build
       script:
@@ -56,6 +53,12 @@ jobs:
         use:
           - build-docker
           - build-test
+      env:
+        # Name of the Docker container running Fencer
+        - FENCER_SERVER=fencer-server
+        # Names of Docker images, should correspond to names in .nix files
+        - FENCER_IMAGE=juspayin/fencer
+        - FENCER_TEST_IMAGE=test_integration_go
       script:
         # Create a Docker network for the containers
         - docker network create test
@@ -64,17 +67,17 @@ jobs:
         - docker run
             -v $(pwd)/test_integration_go/config:/srv/runtime_data/current
             -e RUNTIME_SUBDIRECTORY=ratelimit
-            --name fencer-server
+            --name $FENCER_SERVER
             --network test
             --detach
-            juspay/fencer
+            $FENCER_IMAGE
         - sleep 5
         # Run the test
         - docker load -i test_integration_go.tar.gz
         - docker run
-            -e GRPC_HOST=fencer-server
+            -e GRPC_HOST=$FENCER_SERVER
             --network test
-            test_integration_go
+            $FENCER_TEST_IMAGE
 
     ### Checking checked-in generated code is up to date
     - stage: gen-code
@@ -90,19 +93,23 @@ jobs:
       services:
         - docker
       env:
-        # GITHUB_ACCESS_TOKEN
-        - secure: "iH5SDg88SsrTRMgX+a9qMZVvfyzhZhipsnuF927oG5BQh0unXUIzqgN11mHLlea/tyCkyz5jfZfz5kpnK+GKRZBd0RmozqiyB7XptTp+O9Oq+rXhwN4Xml+Q9Vw2ndJ+70TmnaJp1BKq8y9Bw9eI3YWPuOQl0VZgElZSgWdRltpgntPrO3piTd4EHky+RCcp/9l877Il0L+hdrC+pUn8n/qrTvODaPXc86AmjsgWoYburej9+xTLLa5tG8MPTF9QqvxHWmz1alDABxw2ROgySXgPcp+iKMWrkTGY+kCNxregg2m6F8sqnmQJqxJ7rjU8NNBfGLf/vtfU1ocAnWW82ej+ewFOlynvDLnIaBh0CyXcqe8B7XBmwufPk3Ycu7wUERuJHa+tgjiwDzHNogCWuq6r6a5WGnmuDdeu9EY0IU1QnVIGdKr+aZ5TnkMOi9FJbjc/qh/8ZJpaVZhmC/cGau4nZ1q9KC1RznH6WXjG43CEVf1QxTiYIZuuH+J1qhESiykVwUOkdjHm3GjKYxkW2yK4az0DV4LgQmwsBAhCunBZHcTUwy6lhl5bW39mNiaYshg7vFdYc7mmqiK/VH5WLmUN3UOA9QmsSV6t7y5L/3RRbFNDBJF0NXxbNDRTQm6PlsWXkCKRtIptqR2B8hPMMHnS5pTOv7zKH1j0JDKRcEo="
+        # DockerHub repo to push to
+        - FENCER_REPO=juspayin/fencer
+        # Name of Docker image, should correspond to the name in docker.nix
+        - FENCER_IMAGE=juspayin/fencer
+        # DOCKERHUB_ACCESS_TOKEN
+        - secure: "KZD2fp9Jlw0e7QJzivpUIesFByf9I2z5VVIzW2KYJFVaYM/zQFHwJTQ5zLViVn69KZ/S8ofiwnEOh8FGMirrtD26fqnYLYYEYd1N5XnNqVSc56Vj90+p9+1ygN+mJX/WvmkLIuozMXNw2PLh37ZWxhaZJBsidI9NTXRY6qqRDZFV16JpQIzrm8gAto5ndidrm11rfh2e3Sgq6eYNUvTSITQ/HI8MM1x9sd+DU/YSrW+9Ww2CWWmgFphOCz+VVC9vbXLRmFga4tOSReYmS1WLQos7pm4GlNAmBPyBh7TL3arLzr4wjc/tqaSNYqV2m8vtmBMfWYlzgK6ccWfXDK92eFsZ5UEKUuw9vt/2qPkZkBOrCAJ5lYRIT+ZbRr64vuikL1RgIKzN7VsEeq7TmwLDkxV1sBQtywSitAVo47KVJBwhlbp2NjPaDt/uxazpQHgv2y7UyhJweHvpfPnwMcBW053PFAXhsdgcMoT7R3hAMerx0u80ll1k9qeRfwVV06gOYd4qoCFNEG3ddKWvXbh4/KGxo1xw+vQ3J3oOwIAdNrHy4FVA3SzjI5hN5MCQ32+7ma8o4vWFfh6KBltw1pLZsI80ZmqdOo2cpRzvUJSbpjCi2xLfkyxEw2SuZOlGpUIIib0yNm+gDinojg3wjsF69EFf+3dLOtduH3kJ1FMKUvY="
       workspaces:
         use:
           - build-docker
       script:
-        - echo "$GITHUB_ACCESS_TOKEN" | docker login docker.pkg.github.com --username juspay --password-stdin
-        - docker load -i fencer.tar.gz
+        - echo "$DOCKERHUB_ACCESS_TOKEN" | docker login --username juspayin --password-stdin
+        - docker import fencer.tar.gz $FENCER_IMAGE
         # Tag the image with commit hash and push
         - HASH=$(git log -1 --pretty=%h)
-        - docker tag juspay/fencer "docker.pkg.github.com/juspay/fencer/fencer:$HASH"
-        - docker push "docker.pkg.github.com/juspay/fencer/fencer:$HASH"
+        - docker tag $FENCER_IMAGE $FENCER_REPO:$HASH
+        - docker push $FENCER_REPO:$HASH
         # Tag the same image with "master" and push
-        - docker tag juspay/fencer docker.pkg.github.com/juspay/fencer/fencer:master
-        - docker push docker.pkg.github.com/juspay/fencer/fencer:master
+        - docker tag $FENCER_IMAGE $FENCER_REPO:master
+        - docker push $FENCER_REPO:master
       if: branch = master AND type = push
