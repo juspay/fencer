@@ -98,7 +98,7 @@ expectLoadRulesWithPermissions
   (arg #ignoreDotFiles -> ignoreDotFiles)
   (arg #files -> files)
   (arg #result -> result) =
-  Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
+  Temp.withSystemTempDirectory "fencer-config" $ \tempDir ->
     writeAndLoadRules
       (#ignoreDotFiles ignoreDotFiles)
       (#root tempDir)
