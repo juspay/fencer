@@ -46,7 +46,7 @@ tests = testGroup "Server tests"
   [ test_serverResponseNoRules
   , test_serverResponseEmptyDomain
   , test_serverResponseEmptyDescriptorList
-  , test_serverOKResponseReadPermissions
+  , test_serverResponseReadPermissions
   ]
 
 -- | Test that when Fencer is started without any rules provided to it (i.e.
@@ -132,13 +132,13 @@ test_serverResponseEmptyDescriptorList =
       , Proto.rateLimitRequestHitsAddend = 0
       }
 
--- | Test that a request with a non-empty descriptor list result in an
+-- | Test that a request with a non-empty descriptor list results in an
 -- OK response in presence of a configuration file without read
 -- permissions.
 --
 -- This behavior matches @lyft/ratelimit@.
-test_serverOKResponseReadPermissions :: TestTree
-test_serverOKResponseReadPermissions =
+test_serverResponseReadPermissions :: TestTree
+test_serverResponseReadPermissions =
   withResource createServer destroyServer $ \serverIO ->
     testCase "OK response with one YAML file without read permissions" $
       Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
