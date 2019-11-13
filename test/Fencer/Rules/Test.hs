@@ -4,7 +4,13 @@
 {-# LANGUAGE OverloadedLabels  #-}
 
 -- | Tests for "Fencer.Rules".
-module Fencer.Rules.Test (tests) where
+module Fencer.Rules.Test
+  ( tests
+  , writeAndLoadRules
+  -- example values
+  , domain1Text
+  , domain2Text
+  ) where
 
 import           BasePrelude
 
@@ -59,6 +65,27 @@ writeFile
   perms <- Dir.getPermissions fullPath
   Dir.setPermissions fullPath (modifyPerms perms)
 
+writeAndLoadRules
+  :: "ignoreDotFiles" :! Bool
+  -> "root" :! FilePath
+  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+  -> IO (Either [LoadRulesError] [DomainDefinition])
+writeAndLoadRules
+  (arg #ignoreDotFiles -> ignoreDotFiles)
+  (arg #root -> root)
+  (arg #files -> files) = do
+
+  forM_ files $ \(path, txt, permUpdate) ->
+    Fencer.Rules.Test.writeFile
+    (#root root)
+    (#path path)
+    (#content txt)
+    (#modifyPerms permUpdate)
+  loadRulesFromDirectory
+    (#rootDirectory root)
+    (#subDirectory ".")
+    (#ignoreDotFiles ignoreDotFiles)
+
 -- | Create given directory structure and check that
 -- 'loadRulesFromDirectory' produces expected result such that file
 -- permissions are configurable.
@@ -72,17 +99,11 @@ expectLoadRulesWithPermissions
   (arg #files -> files)
   (arg #result -> result) =
   Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
-    forM_ files $ \(path, txt, permUpdate) ->
-      Fencer.Rules.Test.writeFile
-        (#root tempDir)
-        (#path path)
-        (#content txt)
-        (#modifyPerms permUpdate)
-    definitionsVal <- loadRulesFromDirectory
-      (#rootDirectory tempDir)
-      (#subDirectory ".")
+    writeAndLoadRules
       (#ignoreDotFiles ignoreDotFiles)
-    case definitionsVal of
+      (#root tempDir)
+      (#files files)
+      >>= \case
       f@(Left _) ->
         -- Paths to temporary files vary and there is not much point
         -- in writing down exact expected exception messages so the
