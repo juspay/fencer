@@ -41,6 +41,7 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesException
   , test_rulesLoadRulesMinimal
   , test_rulesLoadRulesReadPermissions
+  , test_rulesLoadRulesDuplicateDomain
   ]
 
 -- | Write contents to a path in the given root and modify file
@@ -259,6 +260,21 @@ test_rulesLoadRulesReadPermissions =
         , ("domain2" </> "config" </> "config.yml", domain2Text, id) ]
       )
       (#result $ Right [domain2])
+-- | test that 'loadRulesFromDirectory' rejects a configuration with a
+-- duplicate domain.
+--
+-- This matches the behavior of @lyft/ratelimit@.
+test_rulesLoadRulesDuplicateDomain :: TestTree
+test_rulesLoadRulesDuplicateDomain =
+  testCase "Error on a configuration with a duplicate domain" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files
+        [ ("one.yaml", domain1Text)
+        , ("two.yaml", domain1Text)
+        ]
+      )
+      (#result $ Left [LoadRulesDuplicateDomain $ DomainId "domain1"])
 
 ----------------------------------------------------------------------------
 -- Sample definitions
