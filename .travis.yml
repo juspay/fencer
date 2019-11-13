@@ -110,6 +110,6 @@ jobs:
         - docker tag $FENCER_IMAGE $FENCER_REPO:$HASH
         - docker push $FENCER_REPO:$HASH
         # Tag the same image with "master" and push
-        # - docker tag $FENCER_IMAGE $FENCER_REPO:master
-        # - docker push $FENCER_REPO:master
-      if: type = push
+        - docker tag $FENCER_IMAGE $FENCER_REPO:master
+        - docker push $FENCER_REPO:master
+      if: branch = master AND type = push
