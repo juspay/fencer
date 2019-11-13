@@ -18,7 +18,7 @@ import BasePrelude
 import Control.Applicative (liftA2)
 import Control.Monad.Extra (partitionM, concatMapM)
 import Data.Either (partitionEithers)
-import Data.Either.Combinators (mapLeft)
+import Data.Maybe (catMaybes)
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
@@ -65,13 +65,27 @@ loadRulesFromDirectory
     let filteredFiles = if ignoreDotFiles
         then filter (not . isDotFile) files
         else files
-    (errs, rules) <- partitionEithers <$> mapM loadFile filteredFiles
-    pure $ if (null @[] errs) then Right rules else Left errs
+    (errs, mRules) <- partitionEithers <$> mapM loadFile filteredFiles
+    pure $ if (null @[] errs) then Right (catMaybes mRules) else Left errs
   where
-    loadFile :: FilePath -> IO (Either LoadRulesError DomainDefinition)
+    loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
     loadFile file = catch
-      ((mapLeft (LoadRulesParseError file)) <$> Yaml.decodeFileEither @DomainDefinition file)
+      (parseErrorHandle file <$> Yaml.decodeFileEither @DomainDefinition file)
       (pure . Left . LoadRulesIOError)
+
+    -- | Handle a special case when the input file cannot be read due
+    -- to file permissions by returning Nothing on the Right.
+    parseErrorHandle
+      :: FilePath
+      -> Either Yaml.ParseException DomainDefinition
+         ----------------------------------------------
+      -> Either LoadRulesError (Maybe DomainDefinition)
+    parseErrorHandle _    (Right def)  = Right $ Just def
+    parseErrorHandle file (Left parEx) = case parEx of
+      Yaml.InvalidYaml (Just (Yaml.YamlException _)) ->
+        Right Nothing
+      err ->
+        Left $ LoadRulesParseError file err
 
     isDotFile :: FilePath -> Bool
     isDotFile file =

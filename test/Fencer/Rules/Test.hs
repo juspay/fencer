@@ -16,7 +16,7 @@ import           Named ((:!), arg)
 import           NeatInterpolation (text)
 import qualified System.IO.Temp as Temp
 import           System.FilePath (splitFileName, (</>))
-import           System.Directory (createDirectoryIfMissing)
+import qualified System.Directory as Dir
 import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.HUnit (assertBool, assertEqual, Assertion, testCase)
 
@@ -34,24 +34,50 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRules_dontIgnoreDotFiles
   , test_rulesLoadRulesException
   , test_rulesLoadRulesMinimal
+  , test_rulesLoadRulesReadPermissions
   ]
 
--- | Create given directory structure and check that 'loadRulesFromDirectory'
--- produces expected result.
-expectLoadRules
+-- | Write contents to a path in the given root and modify file
+-- permissions.
+writeFile
+  :: "root" :! FilePath
+  -> "path" :! FilePath
+  -> "content" :! Text
+  -> "modifyPerms" :! (Dir.Permissions -> Dir.Permissions)
+  -> IO ()
+writeFile
+  (arg #root -> root)
+  (arg #path -> path)
+  (arg #content -> content)
+  (arg #modifyPerms -> modifyPerms) = do
+
+  let
+    (dir, _) = splitFileName path
+    fullPath = root </> path
+  Dir.createDirectoryIfMissing True (root </> dir)
+  TIO.writeFile fullPath content
+  perms <- Dir.getPermissions fullPath
+  Dir.setPermissions fullPath (modifyPerms perms)
+
+-- | Create given directory structure and check that
+-- 'loadRulesFromDirectory' produces expected result such that file
+-- permissions are configurable.
+expectLoadRulesWithPermissions
   :: "ignoreDotFiles" :! Bool
-  -> "files" :! [(FilePath, Text)]
+  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
   -> "result" :! Either [LoadRulesError] [DomainDefinition]
   -> Assertion
-expectLoadRules
+expectLoadRulesWithPermissions
   (arg #ignoreDotFiles -> ignoreDotFiles)
   (arg #files -> files)
   (arg #result -> result) =
   Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
-    forM_ files $ \(path, txt) -> do
-      let (dir, file) = splitFileName path
-      createDirectoryIfMissing True (tempDir </> dir)
-      TIO.writeFile (tempDir </> dir </> file) txt
+    forM_ files $ \(path, txt, permUpdate) ->
+      Fencer.Rules.Test.writeFile
+        (#root tempDir)
+        (#path path)
+        (#content txt)
+        (#modifyPerms permUpdate)
     definitionsVal <- loadRulesFromDirectory
       (#rootDirectory tempDir)
       (#subDirectory ".")
@@ -74,6 +100,23 @@ expectLoadRules
   toErrorList :: Either [LoadRulesError] [DomainDefinition] -> [LoadRulesError]
   toErrorList (Right _) = []
   toErrorList (Left fs) = fs
+
+-- | Create given directory structure and check that 'loadRulesFromDirectory'
+-- produces expected result.
+expectLoadRules
+  :: "ignoreDotFiles" :! Bool
+  -> "files" :! [(FilePath, Text)]
+  -> "result" :! Either [LoadRulesError] [DomainDefinition]
+  -> Assertion
+expectLoadRules
+  (arg #ignoreDotFiles -> ignoreDotFiles)
+  (arg #files -> files)
+  (arg #result -> result) =
+
+  expectLoadRulesWithPermissions
+    (#ignoreDotFiles ignoreDotFiles)
+    (#files (map (\(path, txt) -> (path, txt, id)) files))
+    (#result result)
 
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
 test_rulesLoadRulesYaml :: TestTree
@@ -180,6 +223,21 @@ test_rulesLoadRulesMinimal =
       (#ignoreDotFiles False)
       (#files [("min.yaml", minimalDomainText)] )
       (#result $ Right [minimalDomain])
+
+-- | test that 'loadRulesFromDirectory' loads a configuration file in
+-- presence of another configuration file without read permissions.
+--
+-- This matches the behavior of @lyft/ratelimit@.
+test_rulesLoadRulesReadPermissions :: TestTree
+test_rulesLoadRulesReadPermissions =
+  testCase "Configuration file read permissions" $
+    expectLoadRulesWithPermissions
+      (#ignoreDotFiles False)
+      (#files
+        [ ("domain1" </> "config.yml", domain1Text, const Dir.emptyPermissions)
+        , ("domain2" </> "config" </> "config.yml", domain2Text, id) ]
+      )
+      (#result $ Right [domain2])
 
 ----------------------------------------------------------------------------
 -- Sample definitions
