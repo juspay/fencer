@@ -131,7 +131,7 @@ loadRulesFromDirectory
           groupedRules :: [NonEmpty DomainDefinition] = NE.groupBy
             ((==) `on` (unDomainId . domainDefinitionId))
             (NE.fromList rules)
-        if (length rules /= length groupedRules)
+        if (length @[] rules /= length @[] groupedRules)
           then
             let dupDomain = NE.head . head $ filter (\l -> NE.length l > 1) groupedRules
             in Left . pure . LoadRulesDuplicateDomain . domainDefinitionId $ dupDomain
