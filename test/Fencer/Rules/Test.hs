@@ -115,7 +115,8 @@ expectLoadRulesWithPermissions
           "unexpected failure"
           (length . toErrorList $ result)
           (length . toErrorList $ f)
-      Right definitions -> assertBool "unexpected definitions"
+      Right definitions -> assertBool
+        ("unexpected definitions: " ++ show definitions)
         (((==) `on` show)
         (sortOn domainDefinitionId <$> result)
         (Right $ sortOn domainDefinitionId definitions))
@@ -287,7 +288,7 @@ test_rulesLoadRulesDuplicateRule =
   testCase "Error on a configuration with a duplicate rule" $
     expectLoadRules
       (#ignoreDotFiles False)
-      (#files [("one.yaml", duplicateRuleDomain)])
+      (#files [("another.yaml", duplicateRuleDomain)])
       (#result $
          Left [LoadRulesDuplicateRule (DomainId "another") (RuleKey "key1")]
       )
@@ -370,6 +371,10 @@ duplicateRuleDomain = [text|
       rate_limit:
         unit: minute
         requests_per_unit: 20
+    - key: key2
+      rate_limit:
+        unit: minute
+        requests_per_unit: 30
     - key: key1
       rate_limit:
         unit: hour
