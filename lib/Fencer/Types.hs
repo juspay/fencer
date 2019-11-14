@@ -16,6 +16,7 @@ module Fencer.Types
     , RuleValue(..)
     , unRuleValue
     , RateLimit(..)
+    , HasDescriptors(..)
 
     -- * Time units
     , TimeUnit(..)
@@ -132,6 +133,15 @@ instance FromJSON RateLimit where
 -- Rate limit rule configs
 ----------------------------------------------------------------------------
 
+-- | A class describing how to access descriptor definitions within a
+-- type, if there are any present at all.
+--
+-- This class is needed for accessing descriptor definitions in a
+-- uniform way both when dealing with domain definitions and when
+-- dealing with descriptor definitions.
+class HasDescriptors a where
+  descriptorsOf :: a -> [DescriptorDefinition]
+
 -- | Config for a single domain.
 --
 -- Corresponds to one YAML file.
@@ -149,6 +159,14 @@ data DescriptorDefinition = DescriptorDefinition
     , descriptorDefinitionDescriptors :: !(Maybe [DescriptorDefinition])
     }
     deriving stock (Eq, Show)
+
+instance HasDescriptors DomainDefinition where
+  descriptorsOf = domainDefinitionDescriptors
+
+instance HasDescriptors DescriptorDefinition where
+  descriptorsOf d = case descriptorDefinitionDescriptors d of
+    Nothing -> []
+    Just ds -> ds
 
 instance FromJSON DomainDefinition where
     parseJSON = withObject "DomainDefinition" $ \o -> do
