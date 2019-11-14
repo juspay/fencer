@@ -130,7 +130,7 @@ loadRulesFromDirectory
           rules = catMaybes mRules
           groupedRules :: [NonEmpty DomainDefinition] = NE.groupBy
             ((==) `on` (unDomainId . domainDefinitionId))
-            (NE.fromList rules)
+            (NE.fromList $ sortOn domainDefinitionId rules)
         if (length @[] rules /= length @[] groupedRules)
           then
             let dupDomain = NE.head . head $ filter (\l -> NE.length l > 1) groupedRules
