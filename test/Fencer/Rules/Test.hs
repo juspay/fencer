@@ -42,6 +42,7 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesMinimal
   , test_rulesLoadRulesReadPermissions
   , test_rulesLoadRulesDuplicateDomain
+  , test_rulesLoadRulesDuplicateRule
   ]
 
 -- | Write contents to a path in the given root and modify file
@@ -260,6 +261,7 @@ test_rulesLoadRulesReadPermissions =
         , ("domain2" </> "config" </> "config.yml", domain2Text, id) ]
       )
       (#result $ Right [domain2])
+
 -- | test that 'loadRulesFromDirectory' rejects a configuration with a
 -- duplicate domain.
 --
@@ -275,6 +277,20 @@ test_rulesLoadRulesDuplicateDomain =
         ]
       )
       (#result $ Left [LoadRulesDuplicateDomain $ DomainId "domain1"])
+
+-- | test that 'loadRulesFromDirectory' rejects a configuration with a
+-- duplicate rule.
+--
+-- This matches the behavior of @lyft/ratelimit@.
+test_rulesLoadRulesDuplicateRule :: TestTree
+test_rulesLoadRulesDuplicateRule =
+  testCase "Error on a configuration with a duplicate rule" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files [("one.yaml", duplicateRuleDomain)])
+      (#result $
+         Left [LoadRulesDuplicateRule (DomainId "another") (RuleKey "key1")]
+      )
 
 ----------------------------------------------------------------------------
 -- Sample definitions
@@ -345,3 +361,17 @@ minimalDomain = DomainDefinition
 
 minimalDomainText :: Text
 minimalDomainText = [text| domain: min |]
+
+duplicateRuleDomain :: Text
+duplicateRuleDomain = [text|
+  domain: another
+  descriptors:
+    - key: key1
+      rate_limit:
+        unit: minute
+        requests_per_unit: 20
+    - key: key1
+      rate_limit:
+        unit: hour
+        requests_per_unit: 10
+  |]
