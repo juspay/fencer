@@ -20,6 +20,7 @@ import Control.Monad.Extra (partitionM, concatMapM)
 import Data.Either (partitionEithers)
 import Data.Maybe (catMaybes)
 import qualified Data.HashMap.Strict as HM
+import qualified Data.List.NonEmpty as NE
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
 import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
@@ -30,6 +31,7 @@ import Fencer.Types
 data LoadRulesError
   = LoadRulesParseError FilePath Yaml.ParseException
   | LoadRulesIOError IOException
+  | LoadRulesDuplicateDomain DomainId
   deriving stock (Show)
 
 -- | Pretty-print a list of 'LoadRulesError's.
@@ -40,6 +42,8 @@ prettyPrintErrors = intercalate ", " . fmap showError
       show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
     showError (LoadRulesIOError ex) =
       "IO error: " ++ displayException ex
+    showError (LoadRulesDuplicateDomain d) =
+      "duplicate domain " ++ (show . unDomainId $ d) ++ " in config file"
 
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension. If
@@ -65,8 +69,7 @@ loadRulesFromDirectory
     let filteredFiles = if ignoreDotFiles
         then filter (not . isDotFile) files
         else files
-    (errs, mRules) <- partitionEithers <$> mapM loadFile filteredFiles
-    pure $ if (null @[] errs) then Right (catMaybes mRules) else Left errs
+    finalChecks <$> mapM loadFile filteredFiles
   where
     loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
     loadFile file = catch
@@ -113,6 +116,26 @@ loadRulesFromDirectory
         (files, other) <- partitionM doesFileExist contents
         dirs <- filterM isDirectory other
         (files ++) <$> concatMapM listAllFiles dirs
+
+    -- | Perform final checks to make sure the behavior matches that
+    -- of @lyft/ratelimit@.
+    finalChecks
+      :: [Either LoadRulesError (Maybe DomainDefinition)]
+      -> Either [LoadRulesError] [DomainDefinition]
+    finalChecks res = case partitionEithers res of
+      (errs@(_:_), _    ) -> Left errs
+      ([]        , mRules) -> do
+        -- check if there are any duplicate domains
+        let
+          rules = catMaybes mRules
+          groupedRules :: [NonEmpty DomainDefinition] = NE.groupBy
+            ((==) `on` (unDomainId . domainDefinitionId))
+            (NE.fromList rules)
+        if (length @[] rules /= length @[] groupedRules)
+          then
+            let dupDomain = NE.head . head $ filter (\l -> NE.length l > 1) groupedRules
+            in Left . pure . LoadRulesDuplicateDomain . domainDefinitionId $ dupDomain
+          else Right rules
 
 -- | Convert a list of descriptors to a 'RuleTree'.
 definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree
