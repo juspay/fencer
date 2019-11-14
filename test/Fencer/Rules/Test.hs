@@ -10,6 +10,7 @@ module Fencer.Rules.Test
   -- example values
   , domain1Text
   , domain2Text
+  , duplicateRuleDomain
   ) where
 
 import           BasePrelude

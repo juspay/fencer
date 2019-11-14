@@ -18,6 +18,7 @@ import           Data.ByteString (ByteString)
 import           Data.Text (Text)
 import qualified Data.Vector as Vector
 import           GHC.Exts (fromList)
+import           Named ((:!), arg)
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 import           Proto3.Suite.Types (Enumerated(..))
 import qualified System.Directory as Dir
@@ -48,6 +49,7 @@ tests = testGroup "Server tests"
   , test_serverResponseEmptyDescriptorList
   , test_serverResponseReadPermissions
   , test_serverResponseDuplicateDomain
+  , test_serverResponseDuplicateRule
   ]
 
 -- | Test that when Fencer is started without any rules provided to it (i.e.
@@ -191,15 +193,20 @@ test_serverResponseReadPermissions =
       , rateLimitResponseHeaders = Vector.empty
       }
 
--- | Test that a request with a non-empty descriptor list results in a
--- response with an unknown status code in presence of a configuration
--- with a duplicate domain.
+-- | A parameterized test that checks if a request with a non-empty
+-- descriptor list results in a response with an unknown status code
+-- in presence of a configuration with a duplicate domain/rule.
 --
 -- This behavior matches @lyft/ratelimit@.
-test_serverResponseDuplicateDomain :: TestTree
-test_serverResponseDuplicateDomain =
+test_serverResponseDuplicateDomainOrRule
+  :: "label" :! String
+  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+  -> TestTree
+test_serverResponseDuplicateDomainOrRule
+  (arg #label -> label)
+  (arg #files -> files) =
   withResource createServer destroyServer $ \serverIO ->
-    testCase "In presence of duplicate domains all requests error" $
+    testCase ("In presence of duplicate " ++ label ++ " all requests error") $
       Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
         server <- serverIO
         RTest.writeAndLoadRules
@@ -217,11 +224,6 @@ test_serverResponseDuplicateDomain =
           Right _ -> assertFailure $
             "Expected a failure, and got domain definitions instead"
   where
-    files :: [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
-    files =
-      [ ("domain1" </> "config.yml", RTest.domain1Text, id)
-      , ("domain2" </> "config.yml", RTest.domain1Text, id) ]
-
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
       { Proto.rateLimitRequestDomain = "domain1"
@@ -232,6 +234,31 @@ test_serverResponseDuplicateDomain =
           ]
       , Proto.rateLimitRequestHitsAddend = 0
       }
+
+-- | Test that a request with a non-empty descriptor list results in a
+-- response with an unknown status code in presence of a configuration
+-- with a duplicate domain.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseDuplicateDomain :: TestTree
+test_serverResponseDuplicateDomain =
+  test_serverResponseDuplicateDomainOrRule
+    (#label "domains")
+    (#files
+      [ ("domain1" </> "config.yml", RTest.domain1Text, id)
+      , ("domain2" </> "config.yml", RTest.domain1Text, id) ]
+    )
+
+-- | Test that a request with a non-empty descriptor list results in a
+-- response with an unknown status code in presence of a configuration
+-- with a duplicate rule.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseDuplicateRule :: TestTree
+test_serverResponseDuplicateRule =
+  test_serverResponseDuplicateDomainOrRule
+    (#label "rules")
+    (#files [("another.yaml", RTest.duplicateRuleDomain, id)])
 
 ----------------------------------------------------------------------------
 -- Helpers
