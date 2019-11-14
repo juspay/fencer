@@ -9,17 +9,14 @@ in touch at <opensource@juspay.in>.
 
 ## Usage
 
-We publish Docker images of Fencer in GitHub package registry:
-<https://github.com/juspay/fencer/packages/31371>. You can either use images
-tagged with commit hashes, or with `master` for the latest build. At the
-moment you have to be logged into the registry before pulling the image –
-see [Configuring Docker for use with GitHub Package Registry][github-docker]
-for details.
+We publish Docker images of Fencer on DockerHub at [juspayin/fencer][]. You
+can either use images tagged with commit hashes, or with `master` for the
+latest build.
 
-[github-docker]: https://help.github.com/en/github/managing-packages-with-github-package-registry/configuring-docker-for-use-with-github-package-registry
+[juspayin/fencer]: https://hub.docker.com/r/juspayin/fencer
 
 ```
-docker pull docker.pkg.github.com/juspay/fencer/fencer:master
+docker pull juspayin/fencer:master
 ```
 
 You will need the following directory structure:
@@ -41,7 +38,7 @@ docker run -d \
   -p 8081:8081 \
   -v $(pwd):/srv/runtime_data \
   -e RUNTIME_SUBDIRECTORY=ratelimit \
-  docker.pkg.github.com/juspay/fencer/fencer:master
+  juspayin/fencer
 ```
 
 To modify configuration, create a new directory (e.g. `./config2`) and
@@ -58,7 +55,7 @@ docker run -d \
   -v $(pwd):/srv/runtime_data \
   -e RUNTIME_SUBDIRECTORY=ratelimit \
   -e LOG_LEVEL=Info \
-  docker.pkg.github.com/juspay/fencer/fencer:master
+  juspayin/fencer
 ```
 
 ## Building
