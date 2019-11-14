@@ -28,6 +28,7 @@ import qualified Data.Yaml as Yaml
 
 import Fencer.Types
 
+
 data LoadRulesError
   = LoadRulesParseError FilePath Yaml.ParseException
   | LoadRulesIOError IOException
@@ -135,32 +136,34 @@ finalChecks res = case partitionEithers res of
       let
         domains = catMaybes mDomains
         groupedDomains :: [NonEmpty DomainDefinition] = NE.groupBy
-          ((==) `on` (unDomainId . domainDefinitionId))
-          (NE.fromList domains)
+          ((==) `on` domainDefinitionId)
+          (NE.fromList $ sortOn domainDefinitionId domains)
       if (length @[] domains /= length @[] groupedDomains)
       then
         let dupDomain = NE.head . head $ filter (\l -> NE.length l > 1) groupedDomains
         in Left . pure . LoadRulesDuplicateDomain . domainDefinitionId $ dupDomain
       else Right domains
     -- check if there are any duplicate rules
-    forM domains dupRuleCheck
+    forM_ (zip (domainDefinitionId <$> domains) domains) dupRuleCheck
+
+    pure domains
  where
-  dupRuleCheck :: DomainDefinition -> Either [LoadRulesError] DomainDefinition
-  dupRuleCheck dom | null (domainDefinitionDescriptors dom) = Right dom
-  dupRuleCheck dom | otherwise = do
+  dupRuleCheck :: HasDescriptors a => (DomainId, a) -> Either [LoadRulesError] ()
+  dupRuleCheck (_, d) | null @[] (descriptorsOf d) = Right ()
+  dupRuleCheck (domId, d) = do
     let
-      descs = domainDefinitionDescriptors dom
+      descs = descriptorsOf d
       groupedDescs :: [NonEmpty DescriptorDefinition] = NE.groupBy
         ((==) `on` descriptorDefinitionKey)
-        (NE.fromList descs)
+        (NE.fromList $ sortOn (unRuleKey . descriptorDefinitionKey) descs)
     if (length @[] descs /= length @[] groupedDescs)
     then
       let dupRule = NE.head . head $ filter (\l -> NE.length l > 1) groupedDescs
       in Left . pure $
         LoadRulesDuplicateRule
-          (domainDefinitionId dom)
+          domId
           (descriptorDefinitionKey dupRule)
-    else Right dom
+    else foldl' (>>) (Right ()) (curry dupRuleCheck domId <$> descriptorsOf d)
 
 -- | Convert a list of descriptors to a 'RuleTree'.
 definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree
