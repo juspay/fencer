@@ -84,7 +84,7 @@ test_serverResponseNoRules =
 test_serverResponseNoConfigurationDirectory :: TestTree
 test_serverResponseNoConfigurationDirectory =
   withResource createServer destroyServer $ \serverIO ->
-    testCase "In absence of the configuration dir, all responses are OK" $ do
+    testCase "In absence of the configuration dir, all responses are OK" $
       Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
         server <- serverIO
         RTest.writeAndLoadRules
