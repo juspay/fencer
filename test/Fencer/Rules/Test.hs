@@ -76,8 +76,7 @@ writeAndLoadRules
   (arg #root -> root)
   (arg #files -> files) = do
 
-  forM_ files $ \(path, txt, permUpdate) ->
-    Fencer.Rules.Test.writeFile
+  forM_ files $ \(path, txt, permUpdate) -> Fencer.Rules.Test.writeFile
     (#root root)
     (#path path)
     (#content txt)
