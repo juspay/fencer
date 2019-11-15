@@ -43,20 +43,22 @@ import qualified Fencer.Proto as Proto
 
 tests :: TestTree
 tests = testGroup "Server tests"
-  [ test_serverResponseNoRules
+  [ test_serverResponseRulesNotLoaded
+  , test_serverResponseNoRules
   , test_serverResponseEmptyDomain
   , test_serverResponseEmptyDescriptorList
   , test_serverResponseReadPermissions
   ]
 
--- | Test that when Fencer is started without any rules provided to it (i.e.
--- 'reloadRules' has never been ran), requests to Fencer will error out.
+-- | Test that when Fencer is started without rule loading (i.e.
+-- 'reloadRules' has never been ran), requests to Fencer will error
+-- out.
 --
 -- This behavior matches @lyft/ratelimit@.
-test_serverResponseNoRules :: TestTree
-test_serverResponseNoRules =
+test_serverResponseRulesNotLoaded :: TestTree
+test_serverResponseRulesNotLoaded =
   withResource createServer destroyServer $ \serverIO ->
-    testCase "When no rules have been loaded, all requests error out" $ do
+    testCase "When no rule loading was done, all requests error out" $ do
       server <- serverIO
       withService server $ \service -> do
         response <- Proto.rateLimitServiceShouldRateLimit service $
@@ -74,6 +76,49 @@ test_serverResponseNoRules =
               fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
           ]
       , Proto.rateLimitRequestHitsAddend = 0
+      }
+
+-- | Test that when Fencer is started and there are no rules after
+-- loading (i.e., 'reloadRules' has been ran, but there is no
+-- configuration), requests to Fencer will be responded to with OK.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseNoRules :: TestTree
+test_serverResponseNoRules =
+  withResource createServer destroyServer $ \serverIO ->
+    testCase "When no rules have been loaded, all responses are OK" $ do
+      server <- serverIO
+      atomically (setRules (serverAppState server) []) -- an empty rule list
+      withService server $ \service -> do
+        response <- Proto.rateLimitServiceShouldRateLimit service $
+          Grpc.ClientNormalRequest request 1 mempty
+        expectSuccess
+          (expectedResponse, Grpc.StatusOk)
+          response
+  where
+    request :: Proto.RateLimitRequest
+    request = Proto.RateLimitRequest
+      { Proto.rateLimitRequestDomain = "domain"
+      , Proto.rateLimitRequestDescriptors =
+          fromList $
+          [ Proto.RateLimitDescriptor $
+              fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
+          ]
+      , Proto.rateLimitRequestHitsAddend = 0
+      }
+
+    expectedResponse :: Proto.RateLimitResponse
+    expectedResponse = Proto.RateLimitResponse
+      { rateLimitResponseOverallCode =
+          Enumerated $ Right Proto.RateLimitResponse_CodeOK
+      , rateLimitResponseStatuses = Vector.singleton
+          Proto.RateLimitResponse_DescriptorStatus
+          { rateLimitResponse_DescriptorStatusCode =
+              Enumerated $ Right Proto.RateLimitResponse_CodeOK
+          , rateLimitResponse_DescriptorStatusCurrentLimit = Nothing
+          , rateLimitResponse_DescriptorStatusLimitRemaining = 0
+          }
+      , rateLimitResponseHeaders = Vector.empty
       }
 
 -- | Test that requests with an empty domain name result in an error.
@@ -269,7 +314,7 @@ createServer = do
   serverThreadId <- forkIO $ runServerWithPort serverPort serverLogger serverAppState
 
   -- NOTE(md): For reasons unkown, without a delay the delay in the thread makes a
-  -- server test failure for 'test_serverResponseNoRules' go
+  -- server test failure for 'test_serverResponseRulesNotLoaded' go
   -- away. See <https://github.com/juspay/fencer/issues/53>.
   --
   -- The delay was introduced by assuming it might help
