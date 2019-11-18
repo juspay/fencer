@@ -113,11 +113,13 @@ cachix use fencer
 There are environment variables that can be optionally set, which can
 have an effect on Fencer execution.
 
-For logging there is one environment variable:
+For logging there are two environment variables:
 
 - `LOG_LEVEL` - The logging level. It can be one of the following:
   trace, debug, info, warn, error and fatal. The default value is
   debug.
+- `USE_STATSD` - A flag indicating whether to log statistics for rate
+  limits. The default value is `False`.
 
 Fencer-specific environment variables are:
 
@@ -334,9 +336,10 @@ traversing the whole subdirectory.
 
 ## Statistics
 
-Fencer generates usage statistics for configured rate limit rules. In
-the log that Fencer generates, each statistic has a path denoting the
-rule's domain, key, and the statistic:
+Fencer generates usage statistics for configured rate limit rules. To
+log the statistics set the `USE_STATSD` environment variable to
+True. In the log that Fencer generates, each statistic has a path
+denoting the rule's domain, the key-value pair, and the statistic:
 
 ```
 fencer.service.rate_limit.DOMAIN.KEY_VALUE.STAT
@@ -346,7 +349,9 @@ where:
 
 * `DOMAIN` is the domain as given in a YAML configuration file,
 * `KEY_VALUE` is a path itself denoting a key-value pair and the key's
-  optional descriptors,
+  optional descriptors. A key might not have a value, in which case
+  the value part is left out from the path; the same applies to
+  descriptors,
 * `STAT` is one of the three statistics:
   1. `near_limit` is the number of rule hits under the threshold rate
      and over the near limit threshold ratio. The current near limit
@@ -356,7 +361,7 @@ where:
   3. `total_hits` is the total number of rule hits.
 
 For example, the following statistics could be logged by Fencer for a
-run on an `messaging` example configuration given above:
+run on the `messaging` example configuration given above:
 
 ```
 fencer.service.rate_limit.messaging.to_number.near_limit: 10
