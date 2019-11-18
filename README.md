@@ -332,6 +332,41 @@ is located in the runtime directory given with the
 configuration from a runtime subdirectory recursively, thereby
 traversing the whole subdirectory.
 
+## Statistics
+
+Fencer generates usage statistics for configured rate limit rules. In
+the log that Fencer generates, each statistic has a path denoting the
+rule's domain, key, and the statistic:
+
+```
+fencer.service.rate_limit.DOMAIN.KEY_VALUE.STAT
+```
+
+where:
+
+* `DOMAIN` is the domain as given in a YAML configuration file,
+* `KEY_VALUE` is a path itself denoting a key-value pair and the key's
+  optional descriptors,
+* `STAT` is one of the three statistics:
+  1. `near_limit` is the number of rule hits under the threshold rate
+     and over the near limit threshold ratio. The current near limit
+     threshold ratio is 80%,
+  2. `over_limit` is the number of rule hits that went beyond the
+     threshold rate, and
+  3. `total_hits` is the total number of rule hits.
+
+For example, the following statistics could be logged by Fencer for a
+run on an `messaging` example configuration given above:
+
+```
+fencer.service.rate_limit.messaging.to_number.near_limit: 10
+fencer.service.rate_limit.messaging.to_number.over_limit: 0
+fencer.service.rate_limit.messaging.to_number.total_hits: 90
+fencer.service.rate_limit.messaging.message_type_marketing.to_number.near_limit: 0
+fencer.service.rate_limit.messaging.message_type_marketing.to_number.over_limit: 1
+fencer.service.rate_limit.messaging.message_type_marketing.to_number.total_hits: 6
+```
+
 ## Differences to Lyft's rate limit service
 
 Fencer differs in several ways compared to [Lyft's rate limit
@@ -370,6 +405,9 @@ service](https://github.com/lyft/ratelimit/):
   ```
 
   Fencer does not suffer from this misfeature.
+
+* When statistics are reported, Fencer, unlike `lyft/ratelimit`,
+  always reports the `near_limit` statistic, regardless of its value.
 
 ## Contributing
 
