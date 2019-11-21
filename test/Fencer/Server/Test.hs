@@ -200,20 +200,25 @@ test_serverResponseReadPermissions =
 -- This behavior matches @lyft/ratelimit@.
 test_serverResponseDuplicateDomainOrRule
   :: "label" :! String
-  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+  -> "definitionsOrFiles" :! Either [DomainDefinition] [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
   -> TestTree
 test_serverResponseDuplicateDomainOrRule
   (arg #label -> label)
-  (arg #files -> files) =
+  (arg #definitionsOrFiles -> definitionsOrFiles) =
   withResource createServer destroyServer $ \serverIO ->
     testCase ("In presence of duplicate " ++ label ++ " all requests error") $
       Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
         server <- serverIO
-        RTest.writeAndLoadRules
-          (#ignoreDotFiles False)
-          (#root tempDir)
-          (#files files)
-          >>= \case
+        df :: Either [LoadRulesError] [DomainDefinition] <-
+          case definitionsOrFiles of
+            Left domains ->
+              pure (validatePotentialDomains $ Right . Just <$> domains)
+            Right files  ->
+              RTest.writeAndLoadRules
+                (#ignoreDotFiles False)
+                (#root tempDir)
+                (#files files)
+        case df of
           Left _ ->
             withService server $ \service -> do
               response <- Proto.rateLimitServiceShouldRateLimit service $
@@ -244,10 +249,7 @@ test_serverResponseDuplicateDomain :: TestTree
 test_serverResponseDuplicateDomain =
   test_serverResponseDuplicateDomainOrRule
     (#label "domains")
-    (#files
-      [ ("domain1" </> "config.yml", RTest.domain1Text, id)
-      , ("domain2" </> "config.yml", RTest.domain1Text, id) ]
-    )
+    (#definitionsOrFiles (Left $ replicate 2 RTest.domain1))
 
 -- | Test that a request with a non-empty descriptor list results in a
 -- response with an unknown status code in presence of a configuration
@@ -258,7 +260,9 @@ test_serverResponseDuplicateRule :: TestTree
 test_serverResponseDuplicateRule =
   test_serverResponseDuplicateDomainOrRule
     (#label "rules")
-    (#files [("another.yaml", RTest.duplicateRuleDomain, id)])
+    (#definitionsOrFiles
+       (Right [("another.yaml", RTest.duplicateRuleDomain, id)])
+    )
 
 ----------------------------------------------------------------------------
 -- Helpers

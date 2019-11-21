@@ -7,6 +7,7 @@ module Fencer.Rules
     ( LoadRulesError(..)
     , prettyPrintErrors
     , loadRulesFromDirectory
+    , validatePotentialDomains
     , definitionsToRuleTree
     , domainToRuleTree
     , applyRules
@@ -74,7 +75,7 @@ loadRulesFromDirectory
     let filteredFiles = if ignoreDotFiles
         then filter (not . isDotFile) files
         else files
-    finalChecks <$> mapM loadFile filteredFiles
+    validatePotentialDomains <$> mapM loadFile filteredFiles
   where
     loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
     loadFile file = catch
@@ -122,13 +123,12 @@ loadRulesFromDirectory
         dirs <- filterM isDirectory other
         (files ++) <$> concatMapM listAllFiles dirs
 
--- | For a list of rule loading results, perform final checks to make
--- sure the behavior matches that of @lyft/ratelimit@. This function
--- is called from the 'loadRulesFromDirectory' function.
-finalChecks
+-- | Perform validation checks to make sure the behavior matches that
+-- of @lyft/ratelimit@.
+validatePotentialDomains
   :: [Either LoadRulesError (Maybe DomainDefinition)]
   -> Either [LoadRulesError] [DomainDefinition]
-finalChecks res = case partitionEithers res of
+validatePotentialDomains res = case partitionEithers res of
   (errs@(_:_), _    ) -> Left errs
   ([]        , mDomains) -> do
     -- check if there are any duplicate domains
