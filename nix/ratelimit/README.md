@@ -1,5 +1,12 @@
 # ratelimit
 
+This document provides instructions on how to run the [Ratelimit
+service](https://github.com/lyft/ratelimit) and how to submit requests
+to it. Just like Fencer, Ratelimit is a [gRPC](https://grpc.io/)
+service.
+
+## Building ratelimit
+
 To build lyft/ratelimit:
 
 ```
@@ -49,7 +56,7 @@ docker run -d\
 NOTE: We pass `STATSD_INTERFACE=tcp` because the docker image runs statsd with UDP
 by default, however ratelimit tries to connect to statd via TCP.
 
-## Run ratelimit
+## Run ratelimit (example config)
 
 Now run ratelimit:
 
@@ -66,6 +73,70 @@ To verify that ratelimit is successfully sending stats to the statd daemomn,
 1. Click on `stats.`
 1. Expect to see the `stats.ratelimit.` key. 
 1. Click that key to see the visualizations for the metrics being sent by ratelimit.
+
+## Run ratelimit (custom config)
+
+To run Ratelimit, configuration files that give rate limit rules are
+needed. Ratelimit expects YAML configuration files. Files are searched
+and loaded recursively from a base directory. The base directory is
+given by the `RUNTIME_ROOT` environment variable, its subdirectory
+given by the `RUNTIME_SUBDIRECTORY` environment variable and by its
+subdirectory `config/`. For example, if the runtime root directory is
+`./example/` and the runtime subdirectory is `ratelimit/`, Ratelimit
+expects configuration files in the `./example/ratelimit/config/`
+directory. The same applies to Fencer.
+
+With the example values as above and the file and directory structure
+as this:
+
+```
+.
+├── current -> config1    # symlink to ./config1
+└── config1
+    └── ratelimit
+        └── config
+            ├── some_rule.yaml
+            └── another_rule.yaml
+```
+
+one would start the Ratelimit server as follows:
+
+```
+LOG_LEVEL=debug REDIS_SOCKET_TYPE=tcp REDIS_URL=localhost:6379 RUNTIME_ROOT=current RUNTIME_SUBDIRECTORY=ratelimit ./result/bin/ratelimit
+```
+
+To test Ratelimit with a different configuration, create a directory
+structure similar to the one above, change the symbolic link `current`
+to point to the new runtime root directory and start the Ratelimit
+server again, adjusting the environment variables accordingly.
+
+## Running a gRPC client
+
+To interact with a gRPC server such as Ratelimit and Fencer, a gRPC
+client is needed. For example, the
+[grpcurl](https://github.com/fullstorydev/grpcurl) tool can be
+used. 
+
+1. Change the current directory to one where gRPC protocol files can
+   be found, e.g., in a Fencer repository directory:
+
+    ```bash
+    cd fencer
+    ```
+
+1. To submit a request to a running gRPC server (be it Ratelimit or
+   Fencer) and consequently reduce the available amount of requests to
+   be made, run:
+
+    ```
+    nix-shell -p grpcurl 
+    ...
+    > grpcurl -proto proto/rls.proto -plaintext -d '{"domain":"basic", "descriptors":[{"entries":[{"key":"key1"}]}]}' localhost:8081 envoy.service.ratelimit.v2.RateLimitService.ShouldRateLimit
+    ```
+
+   If everything went fine, you should get an OK response informing
+   you of the limit remaining.
+
 
 ### Nix FAQ
 
