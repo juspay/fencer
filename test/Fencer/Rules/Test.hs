@@ -8,6 +8,7 @@ module Fencer.Rules.Test
   ( tests
   , writeAndLoadRules
   -- example values
+  , domain1
   , domain1Text
   , domain2Text
   ) where
@@ -259,6 +260,7 @@ test_rulesLoadRulesReadPermissions =
         , ("domain2" </> "config" </> "config.yml", domain2Text, id) ]
       )
       (#result $ Right [domain2])
+
 -- | test that 'loadRulesFromDirectory' rejects a configuration with a
 -- duplicate domain.
 --

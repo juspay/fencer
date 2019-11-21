@@ -199,28 +199,21 @@ test_serverResponseReadPermissions =
 test_serverResponseDuplicateDomain :: TestTree
 test_serverResponseDuplicateDomain =
   withResource createServer destroyServer $ \serverIO ->
-    testCase "In presence of duplicate domains all requests error" $
-      Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
-        server <- serverIO
-        RTest.writeAndLoadRules
-          (#ignoreDotFiles False)
-          (#root tempDir)
-          (#files files)
-          >>= \case
-          Left _ ->
-            withService server $ \service -> do
-              response <- Proto.rateLimitServiceShouldRateLimit service $
-                Grpc.ClientNormalRequest request 1 mempty
-              expectError
-                (unknownError "no rate limit configuration loaded")
-                response
-          Right _ -> assertFailure $
-            "Expected a failure, and got domain definitions instead"
+    testCase "In presence of duplicate domains all requests error" $ do
+      server <- serverIO
+      pure (validatePotentialDomains $ Right . Just <$> domains) >>= \case
+        Left _ ->
+          withService server $ \service -> do
+            response <- Proto.rateLimitServiceShouldRateLimit service $
+              Grpc.ClientNormalRequest request 1 mempty
+            expectError
+              (unknownError "no rate limit configuration loaded")
+              response
+        Right _ -> assertFailure $
+          "Expected a failure, and got domain definitions instead"
   where
-    files :: [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
-    files =
-      [ ("domain1" </> "config.yml", RTest.domain1Text, id)
-      , ("domain2" </> "config.yml", RTest.domain1Text, id) ]
+    domains :: [DomainDefinition]
+    domains = take 2 $ repeat RTest.domain1
 
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
