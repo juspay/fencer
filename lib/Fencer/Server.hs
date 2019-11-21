@@ -87,22 +87,23 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = 
         Logger.field "hits" hits
 
     -- Check some conditions and throw errors if necessary.
-    let cancelCall err = Grpc.serverCallCancel serverCall Grpc.StatusUnknown err
+    let cancelWithError :: String -> IO ()
+        cancelWithError = Grpc.serverCallCancel serverCall Grpc.StatusUnknown
 
     unlessM (atomically (getAppStateRulesLoaded appState)) $ do
         Logger.info logger $
             Logger.msg (Logger.val "Rules not loaded, responding with an error")
-        cancelCall "no rate limit configuration loaded"
+        cancelWithError "no rate limit configuration loaded"
 
     when (domain == DomainId "") $ do
         Logger.info logger $
             Logger.msg (Logger.val "Empty domain ID, responding with an error")
-        cancelCall "rate limit domain must not be empty"
+        cancelWithError "rate limit domain must not be empty"
 
     when (null @[] descriptors) $ do
         Logger.info logger $
             Logger.msg (Logger.val "Empty descriptor list, responding with an error")
-        cancelCall "rate limit descriptor list must not be empty"
+        cancelWithError "rate limit descriptor list must not be empty"
 
     -- Update all counters in one atomic operation, and collect the results.
     --

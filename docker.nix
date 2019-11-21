@@ -4,7 +4,7 @@ let
   fencer = drv.fencer;
 in
 pkgs.dockerTools.buildImage {
-  name = "juspay/fencer";
+  name = "juspayin/fencer";
   tag = "latest";
   created = "now";
   contents = fencer;
