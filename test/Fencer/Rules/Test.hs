@@ -21,7 +21,7 @@ import qualified Data.Yaml as Yaml
 import           Named ((:!), arg)
 import           NeatInterpolation (text)
 import qualified System.IO.Temp as Temp
-import           System.FilePath (splitFileName, (</>))
+import           System.FilePath (takeDirectory, (</>))
 import qualified System.Directory as Dir
 import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.HUnit (assertBool, assertEqual, Assertion, testCase)
@@ -59,7 +59,7 @@ writeFile
   (arg #modifyPerms -> modifyPerms) = do
 
   let
-    (dir, _) = splitFileName path
+    dir = takeDirectory path
     fullPath = root </> path
   Dir.createDirectoryIfMissing True (root </> dir)
   TIO.writeFile fullPath content
