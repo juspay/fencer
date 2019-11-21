@@ -138,9 +138,9 @@ used.
    you of the limit remaining.
 
 
-### Nix FAQ
+## Nix FAQ
 
-## How to upgrade ratelimit
+### How to upgrade ratelimit
 
 1. Determine the Git revision of upstream repo you'd like to update to
 
@@ -173,15 +173,3 @@ nix-shell -p dep dep2nix --run 'dep init && dep2nix'
    with the new sha256.
    
 6. Run `nix-build` again to confirm the new build.
-
-docker run -d\
- --name graphite\
- --restart=always\
- --env STATSD_INTERFACE=tcp\
- -p 80:80\
- -p 81:81\
- -p 2003-2004:2003-2004\
- -p 2023-2024:2023-2024\
- -p 8125:8125/tcp\
- -p 8126:8126\
- hopsoft/graphite-statsd
