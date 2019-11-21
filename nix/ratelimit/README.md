@@ -10,6 +10,8 @@ This will create the three ratelimit binaries under the `./result/bin` directory
 to a `ratelimit-server-example` script that will launch the ratelimit service
 using the "examples/ratelimit" configuration in the ratelimit source repo.
 
+### Testing the build
+
 To run the service with the aforementioned example config:
 
 ```
@@ -19,7 +21,13 @@ USE_STATSD=false ./result/bin/ratelimit-server-example
 Alternatively you can also use `nix-shell` to drop into the shell. This includes
 other runtime dependencies like `grpcurl`.
 
-## Running ratelimit with statsd
+## Run redis-server
+
+``` sh
+docker run -d -p 6379:6379 --name redis redis
+```
+
+## Run statsd
 
 Using [this Docker
 image](https://github.com/hopsoft/docker-graphite-statsd#docker-image-for-graphite--statsd):
@@ -38,8 +46,10 @@ docker run -d\
  hopsoft/graphite-statsd
 ```
 
-NOTE: We pass STATSD_INTERFACE=tcp because the docker image runs statsd with UDP
+NOTE: We pass `STATSD_INTERFACE=tcp` because the docker image runs statsd with UDP
 by default, however ratelimit tries to connect to statd via TCP.
+
+## Run ratelimit
 
 Now run ratelimit:
 
@@ -47,13 +57,19 @@ Now run ratelimit:
 ./result/bin/ratelimit-server-example
 ```
 
+It should run without any noticeable errors and connect successfully to both
+redis and statsd services launched above.
 
-To verify that stats are going in, go to the dashboard
-http://localhost:81/dashboard and click on `stats.`; you should expect to see
-the `stats.ratelimit.` key. Click that key to see the visualizations for the
-metrics being sent by the above ratelimit server.
+To verify that ratelimit is successfully sending stats to the statd daemomn, 
 
-## How to update ratelimit
+1. Go to the dashboard http://localhost:81/dashboard 
+1. Click on `stats.`
+1. Expect to see the `stats.ratelimit.` key. 
+1. Click that key to see the visualizations for the metrics being sent by ratelimit.
+
+### Nix FAQ
+
+## How to upgrade ratelimit
 
 1. Determine the Git revision of upstream repo you'd like to update to
 
