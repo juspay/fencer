@@ -318,6 +318,108 @@ expectLoadRules
     (#result result)
 
 ----------------------------------------------------------------------------
+-- Helpers
+----------------------------------------------------------------------------
+
+-- | Get a list of values on the Left or an empty list if it is a
+-- Right value.
+toErrorList :: Either [a] [b] -> [a]
+toErrorList (Right _) = []
+toErrorList (Left xs) = xs
+
+-- | Write contents to a path in the given root and modify file
+-- permissions.
+writeFile
+  :: "root" :! FilePath
+  -> "path" :! FilePath
+  -> "content" :! Text
+  -> "modifyPerms" :! (Dir.Permissions -> Dir.Permissions)
+  -> IO ()
+writeFile
+  (arg #root -> root)
+  (arg #path -> path)
+  (arg #content -> content)
+  (arg #modifyPerms -> modifyPerms) = do
+
+  let
+    dir = takeDirectory path
+    fullPath = root </> path
+  Dir.createDirectoryIfMissing True (root </> dir)
+  TIO.writeFile fullPath content
+  perms <- Dir.getPermissions fullPath
+  Dir.setPermissions fullPath (modifyPerms perms)
+
+-- | Write the content of files at the given root and load the files.
+writeAndLoadRules
+  :: "ignoreDotFiles" :! Bool
+  -> "root" :! FilePath
+  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+  -> IO (Either [LoadRulesError] [DomainDefinition])
+writeAndLoadRules
+  (arg #ignoreDotFiles -> ignoreDotFiles)
+  (arg #root -> root)
+  (arg #files -> files) = do
+
+  forM_ files $ \(path, txt, permUpdate) -> Fencer.Rules.Test.writeFile
+    (#root root)
+    (#path path)
+    (#content txt)
+    (#modifyPerms permUpdate)
+  loadRulesFromDirectory
+    (#rootDirectory root)
+    (#subDirectory ".")
+    (#ignoreDotFiles ignoreDotFiles)
+
+-- | Create given directory structure and check that
+-- 'loadRulesFromDirectory' produces expected result such that file
+-- permissions are configurable.
+expectLoadRulesWithPermissions
+  :: "ignoreDotFiles" :! Bool
+  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+  -> "result" :! Either [LoadRulesError] [DomainDefinition]
+  -> Assertion
+expectLoadRulesWithPermissions
+  (arg #ignoreDotFiles -> ignoreDotFiles)
+  (arg #files -> files)
+  (arg #result -> result) =
+  Temp.withSystemTempDirectory "fencer-config" $ \tempDir ->
+    writeAndLoadRules
+      (#ignoreDotFiles ignoreDotFiles)
+      (#root tempDir)
+      (#files files)
+      >>= \case
+      f@(Left _) ->
+        -- Paths to temporary files vary and there is not much point
+        -- in writing down exact expected exception messages so the
+        -- only assertion made is that the number of exceptions is the
+        -- same.
+        assertEqual
+          "unexpected failure"
+          (length . toErrorList $ result)
+          (length . toErrorList $ f)
+      Right definitions -> assertBool "unexpected definitions"
+        (((==) `on` show)
+        (sortOn domainDefinitionId <$> result)
+        (Right $ sortOn domainDefinitionId definitions))
+
+-- | Create given directory structure and check that 'loadRulesFromDirectory'
+-- produces expected result.
+expectLoadRules
+  :: "ignoreDotFiles" :! Bool
+  -> "files" :! [(FilePath, Text)]
+  -> "result" :! Either [LoadRulesError] [DomainDefinition]
+  -> Assertion
+expectLoadRules
+  (arg #ignoreDotFiles -> ignoreDotFiles)
+  (arg #files -> files)
+  (arg #result -> result) =
+
+  expectLoadRulesWithPermissions
+    (#ignoreDotFiles ignoreDotFiles)
+    (#files (map (\(path, txt) -> (path, txt, id)) files))
+    (#result result)
+
+----------------------------------------------------------------------------
 -- Sample definitions
 ----------------------------------------------------------------------------
 
