@@ -200,19 +200,27 @@ test_rulesYAMLSeparator =
 -- Sample definitions
 ----------------------------------------------------------------------------
 
+descriptor1 :: DescriptorDefinition
+descriptor1 = DescriptorDefinition
+  { descriptorDefinitionKey = RuleKey "some key"
+  , descriptorDefinitionValue = Just $ RuleValue "some value"
+  , descriptorDefinitionRateLimit = Nothing
+  , descriptorDefinitionDescriptors = Nothing
+  }
+
+descriptor2 :: DescriptorDefinition
+descriptor2 = DescriptorDefinition
+  { descriptorDefinitionKey = RuleKey "some key 2"
+  , descriptorDefinitionValue = Nothing
+  , descriptorDefinitionRateLimit = Nothing
+  , descriptorDefinitionDescriptors = Nothing
+  }
+
 domain1 :: DomainDefinition
 domain1 = DomainDefinition
   { domainDefinitionId = DomainId "domain1"
   , domainDefinitionDescriptors = [descriptor1]
   }
-  where
-    descriptor1 :: DescriptorDefinition
-    descriptor1 = DescriptorDefinition
-      { descriptorDefinitionKey = RuleKey "some key"
-      , descriptorDefinitionValue = Just $ RuleValue "some value"
-      , descriptorDefinitionRateLimit = Nothing
-      , descriptorDefinitionDescriptors = Nothing
-      }
 
 domain1Text :: Text
 domain1Text = [text|
@@ -227,14 +235,6 @@ domain2 = DomainDefinition
   { domainDefinitionId = DomainId "domain2"
   , domainDefinitionDescriptors = [descriptor2]
   }
-  where
-    descriptor2 :: DescriptorDefinition
-    descriptor2 = DescriptorDefinition
-      { descriptorDefinitionKey = RuleKey "some key 2"
-      , descriptorDefinitionValue = Nothing
-      , descriptorDefinitionRateLimit = Nothing
-      , descriptorDefinitionDescriptors = Nothing
-      }
 
 domain2Text :: Text
 domain2Text = [text|
@@ -271,39 +271,13 @@ separatorDomainText = [text|
   ---
   domain: another
   descriptors:
-    - key: key2
-      rate_limit:
-        unit: minute
-        requests_per_unit: 20
-    - key: key3
-      rate_limit:
-        unit: hour
-        requests_per_unit: 10
+    - key: some key
+      value: some value
+    - key: some key 2
   |]
 
 separatorDomain :: DomainDefinition
 separatorDomain = DomainDefinition
   { domainDefinitionId = DomainId "another"
-  , domainDefinitionDescriptors = [desc1, desc2]
+  , domainDefinitionDescriptors = [descriptor1, descriptor2]
   }
-  where
-    desc1 :: DescriptorDefinition
-    desc1 = DescriptorDefinition
-      { descriptorDefinitionKey = RuleKey "key2"
-      , descriptorDefinitionValue = Nothing
-      , descriptorDefinitionRateLimit = Just $ RateLimit
-        { rateLimitUnit = Minute
-        , rateLimitRequestsPerUnit = 20
-        }
-      , descriptorDefinitionDescriptors = Nothing
-      }
-    desc2 :: DescriptorDefinition
-    desc2 = DescriptorDefinition
-      { descriptorDefinitionKey = RuleKey "key3"
-      , descriptorDefinitionValue = Nothing
-      , descriptorDefinitionRateLimit = Just $ RateLimit
-        { rateLimitUnit = Hour
-        , rateLimitRequestsPerUnit = 10
-        }
-      , descriptorDefinitionDescriptors = Nothing
-      }
