@@ -213,7 +213,7 @@ test_serverResponseDuplicateDomain =
           "Expected a failure, and got domain definitions instead"
   where
     domains :: [DomainDefinition]
-    domains = take 2 $ repeat RTest.domain1
+    domains = replicate 2 RTest.domain1
 
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
