@@ -27,7 +27,6 @@ let
 
   ratelimit-server-example = pkgs.writeShellScriptBin "ratelimit-server-example" "
 set -e
-export USE_STATSD=false
 export LOG_LEVEL=debug
 export REDIS_SOCKET_TYPE=tcp
 export REDIS_URL=localhost:6379
