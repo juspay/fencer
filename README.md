@@ -377,9 +377,3 @@ service](https://github.com/lyft/ratelimit/):
 ## Contributing
 
 Please see our [Contribution Guidelines](CONTRIBUTING.md).
-
-
-## Limitations
-
-* Fencer does not listen on IPv6 `::`. This should be fixed once
-  <https://github.com/juspay/fencer/pull/6> is merged.
