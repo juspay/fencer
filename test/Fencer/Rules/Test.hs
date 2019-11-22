@@ -161,7 +161,7 @@ test_rulesLoadRulesMinimal =
 test_rulesLoadRulesReadPermissions :: TestTree
 test_rulesLoadRulesReadPermissions =
   testCase "Configuration file read permissions" $
-    expectLoadRulesWithPermissions
+    expectLoadRules
       (#ignoreDotFiles False)
       (#files [file1, file2])
       (#result $ Right [domain2])
@@ -241,12 +241,12 @@ writeAndLoadRules
 -- | Create given directory structure and check that
 -- 'loadRulesFromDirectory' produces expected result such that file
 -- permissions are configurable.
-expectLoadRulesWithPermissions
+expectLoadRules
   :: "ignoreDotFiles" :! Bool
   -> "files" :! [RuleFile]
   -> "result" :! Either [LoadRulesError] [DomainDefinition]
   -> Assertion
-expectLoadRulesWithPermissions
+expectLoadRules
   (arg #ignoreDotFiles -> ignoreDotFiles)
   (arg #files -> files)
   (arg #result -> result) =
@@ -269,23 +269,6 @@ expectLoadRulesWithPermissions
         (((==) `on` show)
         (sortOn domainDefinitionId <$> result)
         (Right $ sortOn domainDefinitionId definitions))
-
--- | Create given directory structure and check that 'loadRulesFromDirectory'
--- produces expected result.
-expectLoadRules
-  :: "ignoreDotFiles" :! Bool
-  -> "files" :! [RuleFile]
-  -> "result" :! Either [LoadRulesError] [DomainDefinition]
-  -> Assertion
-expectLoadRules
-  (arg #ignoreDotFiles -> ignoreDotFiles)
-  (arg #files -> files)
-  (arg #result -> result) =
-
-  expectLoadRulesWithPermissions
-    (#ignoreDotFiles ignoreDotFiles)
-    (#files files)
-    (#result result)
 
 ----------------------------------------------------------------------------
 -- Sample definitions
