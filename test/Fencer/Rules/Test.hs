@@ -189,13 +189,13 @@ toErrorList (Left xs) = xs
 -- its contents and file permissions.
 data RuleFile = MkRuleFile
   {  -- | The path to the file
-    path :: FilePath
+    ruleFilePath :: FilePath
     -- | The contents of the file in plain text
-  , contents :: Text
+  , ruleFileContents :: Text
     -- | A function specifying how the file permissions should be
     -- changed, i.e., what they should be once the file is written to
     -- disk.
-  , modifyPermissions :: Dir.Permissions -> Dir.Permissions
+  , ruleFileModifyPermissions :: Dir.Permissions -> Dir.Permissions
   }
 
 simpleRuleFile :: FilePath -> Text -> RuleFile
@@ -212,12 +212,12 @@ writeFile
   (arg #file -> file) = do
 
   let
-    dir = takeDirectory (path file)
-    fullPath = root </> (path file)
+    dir = takeDirectory (ruleFilePath file)
+    fullPath = root </> (ruleFilePath file)
   Dir.createDirectoryIfMissing True (root </> dir)
-  TIO.writeFile fullPath (contents file)
+  TIO.writeFile fullPath (ruleFileContents file)
   perms <- Dir.getPermissions fullPath
-  Dir.setPermissions fullPath (modifyPermissions file perms)
+  Dir.setPermissions fullPath (ruleFileModifyPermissions file perms)
 
 -- | Write the content of files at the given root and load the files.
 writeAndLoadRules
