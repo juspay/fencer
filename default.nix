@@ -14,7 +14,7 @@ let
       "--extra-lib-dirs=${pkgs.libffi.overrideAttrs (old: { dontDisableStatic = true; })}/lib"
     ] ++
     old.configureFlags;
-  };
+  });
 
   grpc-haskell-source = (import nixpkgs { }).fetchFromGitHub {
     owner = "awakesecurity";
