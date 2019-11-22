@@ -10,6 +10,8 @@ module Fencer.Rules.Test
   -- example values
   , domain1Text
   , domain2Text
+  , RuleFile(..)
+  , simpleRuleFile
   ) where
 
 import           BasePrelude
@@ -50,8 +52,8 @@ test_rulesLoadRulesYaml =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ ("config1.yml", domain1Text)
-        , ("config2.yaml", domain2Text) ]
+        [ simpleRuleFile "config1.yml" domain1Text
+        , simpleRuleFile "config2.yaml" domain2Text ]
       )
       (#result $ Right [domain1, domain2])
 
@@ -63,8 +65,8 @@ test_rulesLoadRulesDotDirectory =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ (".domain1" </> "config1.yml", domain1Text)
-        , ("domain2" </> "config2.yaml", domain2Text) ]
+        [ simpleRuleFile (".domain1" </> "config1.yml") domain1Text
+        , simpleRuleFile ("domain2" </> "config2.yaml") domain2Text ]
       )
       (#result $ Right [domain2])
 
@@ -75,8 +77,8 @@ test_rulesLoadRules_ignoreDotFiles =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ ("config1.yml", domain1Text)
-        , ("dir" </> ".config2.yaml", domain2Text) ]
+        [ simpleRuleFile "config1.yml" domain1Text
+        , simpleRuleFile ("dir" </> ".config2.yaml") domain2Text ]
       )
       (#result $ Right [domain1])
 
@@ -87,8 +89,8 @@ test_rulesLoadRules_dontIgnoreDotFiles =
     expectLoadRules
       (#ignoreDotFiles False)
       (#files
-        [ ("config1.yml", domain1Text)
-        , ("dir" </> ".config2.yaml", domain2Text) ]
+        [ simpleRuleFile "config1.yml" domain1Text
+        , simpleRuleFile ("dir" </> ".config2.yaml") domain2Text ]
       )
       (#result $ Right [domain1, domain2])
 
@@ -102,8 +104,8 @@ test_rulesLoadRulesNonYaml =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ ("config1.bin", domain1Text)
-        , ("config2", domain2Text) ]
+        [ simpleRuleFile "config1.bin" domain1Text
+        , simpleRuleFile "config2" domain2Text ]
       )
       (#result $ Right [domain1, domain2])
 
@@ -116,8 +118,11 @@ test_rulesLoadRulesRecursively =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ ("domain1" </> "config.yml", domain1Text)
-        , ("domain2" </> "config" </> "config.yml", domain2Text) ]
+        [ simpleRuleFile ("domain1" </> "config.yml") domain1Text
+        , simpleRuleFile
+            ("domain2" </> "config" </> "config.yml")
+            domain2Text
+        ]
       )
       (#result $ Right [domain1, domain2])
 
@@ -130,8 +135,8 @@ test_rulesLoadRulesException =
     expectLoadRules
       (#ignoreDotFiles False)
       (#files
-        [ ("domain1.yaml", domain1Text)
-        , ("faultyDomain.yaml", faultyDomain)
+        [ simpleRuleFile "domain1.yaml" domain1Text
+        , simpleRuleFile "faultyDomain.yaml" faultyDomain
         ]
       )
       (#result $ Left
@@ -146,7 +151,7 @@ test_rulesLoadRulesMinimal =
   testCase "Minimal rules contain domain id only" $
     expectLoadRules
       (#ignoreDotFiles False)
-      (#files [("min.yaml", minimalDomainText)] )
+      (#files [simpleRuleFile "min.yaml" minimalDomainText])
       (#result $ Right [minimalDomain])
 
 -- | test that 'loadRulesFromDirectory' loads a configuration file in
@@ -158,11 +163,17 @@ test_rulesLoadRulesReadPermissions =
   testCase "Configuration file read permissions" $
     expectLoadRulesWithPermissions
       (#ignoreDotFiles False)
-      (#files
-        [ ("domain1" </> "config.yml", domain1Text, const Dir.emptyPermissions)
-        , ("domain2" </> "config" </> "config.yml", domain2Text, id) ]
-      )
+      (#files [file1, file2])
       (#result $ Right [domain2])
+ where
+  file1, file2 :: RuleFile
+  file1 = MkRuleFile
+    ("domain1" </> "config.yml")
+    domain1Text
+    (const Dir.emptyPermissions)
+  file2 = simpleRuleFile
+    ("domain2" </> "config" </> "config.yml")
+    domain2Text
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -174,44 +185,54 @@ toErrorList :: Either [a] [b] -> [a]
 toErrorList (Right _) = []
 toErrorList (Left xs) = xs
 
+-- | A record useful in testing, which groups together a file path,
+-- its contents and file permissions.
+data RuleFile = MkRuleFile
+  {  -- | The path to the file
+    path :: FilePath
+    -- | The contents of the file in plain text
+  , contents :: Text
+    -- | A function specifying how the file permissions should be
+    -- changed, i.e., what they should be once the file is written to
+    -- disk.
+  , modifyPermissions :: Dir.Permissions -> Dir.Permissions
+  }
+
+simpleRuleFile :: FilePath -> Text -> RuleFile
+simpleRuleFile p c = MkRuleFile p c id
+
 -- | Write contents to a path in the given root and modify file
 -- permissions.
 writeFile
   :: "root" :! FilePath
-  -> "path" :! FilePath
-  -> "content" :! Text
-  -> "modifyPerms" :! (Dir.Permissions -> Dir.Permissions)
+  -> "file" :! RuleFile
   -> IO ()
 writeFile
   (arg #root -> root)
-  (arg #path -> path)
-  (arg #content -> content)
-  (arg #modifyPerms -> modifyPerms) = do
+  (arg #file -> file) = do
 
   let
-    dir = takeDirectory path
-    fullPath = root </> path
+    dir = takeDirectory (path file)
+    fullPath = root </> (path file)
   Dir.createDirectoryIfMissing True (root </> dir)
-  TIO.writeFile fullPath content
+  TIO.writeFile fullPath (contents file)
   perms <- Dir.getPermissions fullPath
-  Dir.setPermissions fullPath (modifyPerms perms)
+  Dir.setPermissions fullPath (modifyPermissions file perms)
 
 -- | Write the content of files at the given root and load the files.
 writeAndLoadRules
   :: "ignoreDotFiles" :! Bool
   -> "root" :! FilePath
-  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+  -> "files" :! [RuleFile]
   -> IO (Either [LoadRulesError] [DomainDefinition])
 writeAndLoadRules
   (arg #ignoreDotFiles -> ignoreDotFiles)
   (arg #root -> root)
   (arg #files -> files) = do
 
-  forM_ files $ \(path, txt, permUpdate) -> Fencer.Rules.Test.writeFile
+  forM_ files $ \file -> Fencer.Rules.Test.writeFile
     (#root root)
-    (#path path)
-    (#content txt)
-    (#modifyPerms permUpdate)
+    (#file file)
   loadRulesFromDirectory
     (#rootDirectory root)
     (#subDirectory ".")
@@ -222,7 +243,7 @@ writeAndLoadRules
 -- permissions are configurable.
 expectLoadRulesWithPermissions
   :: "ignoreDotFiles" :! Bool
-  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+  -> "files" :! [RuleFile]
   -> "result" :! Either [LoadRulesError] [DomainDefinition]
   -> Assertion
 expectLoadRulesWithPermissions
@@ -253,7 +274,7 @@ expectLoadRulesWithPermissions
 -- produces expected result.
 expectLoadRules
   :: "ignoreDotFiles" :! Bool
-  -> "files" :! [(FilePath, Text)]
+  -> "files" :! [RuleFile]
   -> "result" :! Either [LoadRulesError] [DomainDefinition]
   -> Assertion
 expectLoadRules
@@ -263,7 +284,7 @@ expectLoadRules
 
   expectLoadRulesWithPermissions
     (#ignoreDotFiles ignoreDotFiles)
-    (#files (map (\(path, txt) -> (path, txt, id)) files))
+    (#files files)
     (#result result)
 
 ----------------------------------------------------------------------------

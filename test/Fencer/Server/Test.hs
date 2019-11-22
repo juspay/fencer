@@ -15,7 +15,6 @@ where
 import           BasePrelude
 
 import           Data.ByteString (ByteString)
-import           Data.Text (Text)
 import qualified Data.Vector as Vector
 import           GHC.Exts (fromList)
 import qualified Network.GRPC.HighLevel.Generated as Grpc
@@ -159,11 +158,16 @@ test_serverResponseReadPermissions =
                 (expectedResponse, Grpc.StatusOk)
                 response
   where
-    files :: [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+    files :: [RTest.RuleFile]
     files =
-      [ ( "domain1" </> "config.yml", RTest.domain1Text
-        , const Dir.emptyPermissions)
-      , ("domain2" </> "config" </> "config.yml", RTest.domain2Text, id) ]
+      [ RTest.MkRuleFile
+          ("domain1" </> "config.yml")
+          RTest.domain1Text
+          (const Dir.emptyPermissions)
+      , RTest.simpleRuleFile
+          ("domain2" </> "config" </> "config.yml")
+          RTest.domain2Text
+      ]
 
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
