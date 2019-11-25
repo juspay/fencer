@@ -8,6 +8,7 @@ module Fencer.Rules
     , prettyPrintErrors
     , showError
     , loadRulesFromDirectory
+    , validatePotentialDomains
     , definitionsToRuleTree
     , domainToRuleTree
     , applyRules
@@ -19,8 +20,10 @@ import BasePrelude
 import Control.Applicative (liftA2)
 import Control.Monad.Extra (partitionM, concatMapM, ifM)
 import Data.Either (partitionEithers)
-import Data.Maybe (catMaybes)
 import qualified Data.HashMap.Strict as HM
+import Data.List.NonEmpty (NonEmpty)
+import Data.Maybe (catMaybes)
+import qualified Data.List.NonEmpty as NE
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, getPermissions, pathIsSymbolicLink, readable)
 import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
@@ -31,6 +34,7 @@ import Fencer.Types
 data LoadRulesError
   = LoadRulesParseError FilePath Yaml.ParseException
   | LoadRulesIOError IOException
+  | LoadRulesDuplicateDomain DomainId
   deriving stock (Show)
 
 -- | Pretty-print a 'LoadRulesError'.
@@ -38,6 +42,8 @@ showError :: LoadRulesError -> String
 showError (LoadRulesParseError file yamlEx) =
   show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
 showError (LoadRulesIOError ex) = "IO error: " ++ displayException ex
+showError (LoadRulesDuplicateDomain d) =
+  "duplicate domain " ++ (show . unDomainId $ d) ++ " in config file"
 
 -- | Pretty-print a list of 'LoadRulesError's.
 prettyPrintErrors :: [LoadRulesError] -> String
@@ -55,7 +61,7 @@ loadRulesFromDirectory
     :: "rootDirectory" :! FilePath
     -> "subDirectory" :! FilePath
     -> "ignoreDotFiles" :! Bool
-    -> IO (Either [LoadRulesError] [DomainDefinition])
+    -> IO (Either (NonEmpty LoadRulesError) [DomainDefinition])
 loadRulesFromDirectory
     (arg #rootDirectory -> rootDirectory)
     (arg #subDirectory -> subDirectory)
@@ -67,8 +73,7 @@ loadRulesFromDirectory
     let filteredFiles = if ignoreDotFiles
         then filter (not . isDotFile) files
         else files
-    (errs, mRules) <- partitionEithers <$> mapM loadFile filteredFiles
-    pure $ if (null @[] errs) then Right (catMaybes mRules) else Left errs
+    validatePotentialDomains <$> mapM loadFile filteredFiles
   where
     loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
     loadFile file =
@@ -114,6 +119,26 @@ loadRulesFromDirectory
         (files, other) <- partitionM doesFileExist contents
         dirs <- filterM isDirectory other
         (files ++) <$> concatMapM listAllFiles dirs
+
+-- | Perform validation checks to make sure the behavior matches that
+-- of @lyft/ratelimit@.
+validatePotentialDomains
+  :: [Either LoadRulesError (Maybe DomainDefinition)]
+  -> Either (NonEmpty LoadRulesError) [DomainDefinition]
+validatePotentialDomains res = case partitionEithers res of
+  (errs@(_:_), _    ) -> Left $ NE.fromList errs
+  ([]        , mRules) -> do
+    -- check if there are any duplicate domains
+    let
+      rules = catMaybes mRules
+      groupedRules :: [NonEmpty DomainDefinition] = NE.groupBy
+        ((==) `on` (unDomainId . domainDefinitionId))
+        (NE.fromList $ sortOn domainDefinitionId rules)
+    if (length @[] rules /= length @[] groupedRules)
+      then
+        let dupDomain = NE.head . head $ filter (\l -> NE.length l > 1) groupedRules
+         in Left . pure . LoadRulesDuplicateDomain . domainDefinitionId $ dupDomain
+      else Right rules
 
 -- | Convert a list of descriptors to a 'RuleTree'.
 definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree

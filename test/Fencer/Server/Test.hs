@@ -31,7 +31,7 @@ import           Fencer.Server
 import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
 import           Fencer.Types
 import           Fencer.Rules
-import           Fencer.Rules.Test.Examples (domainDescriptorKeyValueText, domainDescriptorKeyText)
+import           Fencer.Rules.Test.Examples (domainDescriptorKeyValueText, domainDescriptorKeyText, domainDescriptorKeyValue)
 import           Fencer.Rules.Test.Helpers (writeAndLoadRules)
 import           Fencer.Rules.Test.Types (RuleFile(..), simpleRuleFile)
 import qualified Fencer.Proto as Proto
@@ -48,6 +48,7 @@ tests = testGroup "Server tests"
   , test_serverResponseEmptyDomain
   , test_serverResponseEmptyDescriptorList
   , test_serverResponseReadPermissions
+  , test_serverResponseDuplicateDomain
   ]
 
 -- | Test that when Fencer is started without any rules provided to it (i.e.
@@ -194,6 +195,41 @@ test_serverResponseReadPermissions =
           , rateLimitResponse_DescriptorStatusLimitRemaining = 0
           }
       , rateLimitResponseHeaders = Vector.empty
+      }
+
+-- | Test that a request with a non-empty descriptor list results in a
+-- response with an unknown status code in presence of a configuration
+-- with a duplicate domain.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseDuplicateDomain :: TestTree
+test_serverResponseDuplicateDomain =
+  withResource createServer destroyServer $ \serverIO ->
+    testCase "In presence of duplicate domains all requests error" $ do
+      server <- serverIO
+      pure (validatePotentialDomains $ Right . Just <$> domains) >>= \case
+        Left _ ->
+          withService server $ \service -> do
+            response <- Proto.rateLimitServiceShouldRateLimit service $
+              Grpc.ClientNormalRequest request 1 mempty
+            expectError
+              (unknownError "no rate limit configuration loaded")
+              response
+        Right _ -> assertFailure $
+          "Expected a failure, and got domain definitions instead"
+  where
+    domains :: [DomainDefinition]
+    domains = replicate 2 domainDescriptorKeyValue
+
+    request :: Proto.RateLimitRequest
+    request = Proto.RateLimitRequest
+      { Proto.rateLimitRequestDomain = "domain1"
+      , Proto.rateLimitRequestDescriptors =
+          fromList $
+          [ Proto.RateLimitDescriptor $
+              fromList [Proto.RateLimitDescriptor_Entry "some key" ""]
+          ]
+      , Proto.rateLimitRequestHitsAddend = 0
       }
 
 ----------------------------------------------------------------------------
