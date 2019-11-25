@@ -6,6 +6,7 @@
 module Fencer.Rules
     ( LoadRulesError(..)
     , prettyPrintErrors
+    , showError
     , loadRulesFromDirectory
     , definitionsToRuleTree
     , domainToRuleTree
@@ -16,12 +17,12 @@ where
 import BasePrelude
 
 import Control.Applicative (liftA2)
-import Control.Monad.Extra (partitionM, concatMapM)
+import Control.Monad.Extra (partitionM, concatMapM, ifM)
 import Data.Either (partitionEithers)
-import Data.Either.Combinators (mapLeft)
+import Data.Maybe (catMaybes)
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
-import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
+import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, getPermissions, pathIsSymbolicLink, readable)
 import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
 import qualified Data.Yaml as Yaml
 
@@ -32,14 +33,15 @@ data LoadRulesError
   | LoadRulesIOError IOException
   deriving stock (Show)
 
+-- | Pretty-print a 'LoadRulesError'.
+showError :: LoadRulesError -> String
+showError (LoadRulesParseError file yamlEx) =
+  show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
+showError (LoadRulesIOError ex) = "IO error: " ++ displayException ex
+
 -- | Pretty-print a list of 'LoadRulesError's.
 prettyPrintErrors :: [LoadRulesError] -> String
 prettyPrintErrors = intercalate ", " . fmap showError
-  where
-    showError (LoadRulesParseError file yamlEx) =
-      show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
-    showError (LoadRulesIOError ex) =
-      "IO error: " ++ displayException ex
 
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension. If
@@ -65,13 +67,26 @@ loadRulesFromDirectory
     let filteredFiles = if ignoreDotFiles
         then filter (not . isDotFile) files
         else files
-    (errs, rules) <- partitionEithers <$> mapM loadFile filteredFiles
-    pure $ if (null @[] errs) then Right rules else Left errs
+    (errs, mRules) <- partitionEithers <$> mapM loadFile filteredFiles
+    pure $ if (null @[] errs) then Right (catMaybes mRules) else Left errs
   where
-    loadFile :: FilePath -> IO (Either LoadRulesError DomainDefinition)
-    loadFile file = catch
-      ((mapLeft (LoadRulesParseError file)) <$> Yaml.decodeFileEither @DomainDefinition file)
-      (pure . Left . LoadRulesIOError)
+    loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
+    loadFile file =
+      ifM (readable <$> getPermissions file)
+        (catch
+          (convertParseType file <$> Yaml.decodeFileEither @DomainDefinition file)
+          (pure . Left . LoadRulesIOError)
+        )
+        (pure $ Right Nothing)
+
+    -- | Convert to the needed sum type.
+    convertParseType
+      :: FilePath
+      -> Either Yaml.ParseException DomainDefinition
+         ----------------------------------------------
+      -> Either LoadRulesError (Maybe DomainDefinition)
+    convertParseType _    (Right def) = Right $ Just def
+    convertParseType file (Left err)  = Left $ LoadRulesParseError file err
 
     isDotFile :: FilePath -> Bool
     isDotFile file =

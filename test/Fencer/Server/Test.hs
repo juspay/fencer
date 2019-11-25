@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE GADTs             #-}
@@ -13,19 +14,26 @@ where
 
 import           BasePrelude
 
-import           Test.Tasty (TestTree, testGroup, withResource)
-import           Test.Tasty.HUnit (HasCallStack, assertEqual, assertFailure, testCase, Assertion)
+import           Data.ByteString (ByteString)
+import qualified Data.Vector as Vector
+import           GHC.Exts (fromList)
+import qualified Network.GRPC.HighLevel.Generated as Grpc
+import           Proto3.Suite.Types (Enumerated(..))
+import qualified System.Directory as Dir
+import           System.FilePath ((</>))
 import qualified System.Logger as Logger
 import qualified System.IO.Temp as Temp
-import qualified Network.GRPC.HighLevel.Generated as Grpc
-import           Data.ByteString (ByteString)
-import           GHC.Exts (fromList)
+import           Test.Tasty (TestTree, testGroup, withResource)
+import           Test.Tasty.HUnit (HasCallStack, assertEqual, assertFailure, testCase, Assertion)
 
 import           Fencer.Logic
 import           Fencer.Server
 import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
 import           Fencer.Types
 import           Fencer.Rules
+import           Fencer.Rules.Test.Examples (domainDescriptorKeyValueText, domainDescriptorKeyText)
+import           Fencer.Rules.Test.Helpers (writeAndLoadRules)
+import           Fencer.Rules.Test.Types (RuleFile(..), simpleRuleFile)
 import qualified Fencer.Proto as Proto
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
@@ -39,6 +47,7 @@ tests = testGroup "Server tests"
   [ test_serverResponseNoRules
   , test_serverResponseEmptyDomain
   , test_serverResponseEmptyDescriptorList
+  , test_serverResponseReadPermissions
   ]
 
 -- | Test that when Fencer is started without any rules provided to it (i.e.
@@ -124,6 +133,69 @@ test_serverResponseEmptyDescriptorList =
       , Proto.rateLimitRequestHitsAddend = 0
       }
 
+-- | Test that a request with a non-empty descriptor list results in an
+-- OK response in presence of a configuration file without read
+-- permissions.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseReadPermissions :: TestTree
+test_serverResponseReadPermissions =
+  withResource createServer destroyServer $ \serverIO ->
+    testCase "OK response with one YAML file without read permissions" $
+      Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
+        server <- serverIO
+        writeAndLoadRules
+          (#ignoreDotFiles False)
+          (#root tempDir)
+          (#files files)
+          >>= \case
+          Left _ -> assertFailure "Failed to load a valid domain!"
+          Right rules -> do
+            atomically $
+              setRules (serverAppState server) (domainToRuleTree <$> rules)
+            withService server $ \service -> do
+              response <- Proto.rateLimitServiceShouldRateLimit service $
+                Grpc.ClientNormalRequest request 1 mempty
+              expectSuccess
+                (expectedResponse, Grpc.StatusOk)
+                response
+  where
+    files :: [RuleFile]
+    files =
+      [ MkRuleFile
+          ("domain1" </> "config.yml")
+          domainDescriptorKeyValueText
+          (const Dir.emptyPermissions)
+      , simpleRuleFile
+          ("domain2" </> "config" </> "config.yml")
+          domainDescriptorKeyText
+      ]
+
+    request :: Proto.RateLimitRequest
+    request = Proto.RateLimitRequest
+      { Proto.rateLimitRequestDomain = "domain"
+      , Proto.rateLimitRequestDescriptors =
+          fromList $
+          [ Proto.RateLimitDescriptor $
+              fromList [Proto.RateLimitDescriptor_Entry "key" ""]
+          ]
+      , Proto.rateLimitRequestHitsAddend = 0
+      }
+
+    expectedResponse :: Proto.RateLimitResponse
+    expectedResponse = Proto.RateLimitResponse
+      { rateLimitResponseOverallCode =
+          Enumerated $ Right Proto.RateLimitResponse_CodeOK
+      , rateLimitResponseStatuses = Vector.singleton
+          Proto.RateLimitResponse_DescriptorStatus
+          { rateLimitResponse_DescriptorStatusCode =
+              Enumerated $ Right Proto.RateLimitResponse_CodeOK
+          , rateLimitResponse_DescriptorStatusCurrentLimit = Nothing
+          , rateLimitResponse_DescriptorStatusLimitRemaining = 0
+          }
+      , rateLimitResponseHeaders = Vector.empty
+      }
+
 ----------------------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------------------
@@ -136,12 +208,12 @@ domainDefinitionWithoutRules = DomainDefinition
 
 -- | Assert that a gRPC request is successful and has a specific result and
 -- status code.
-_expectSuccess
+expectSuccess
   :: (HasCallStack, Eq result, Show result)
   => (result, Grpc.StatusCode)
   -> Grpc.ClientResult 'Grpc.Normal result
   -> Assertion
-_expectSuccess expected actual = case actual of
+expectSuccess expected actual = case actual of
   Grpc.ClientErrorResponse actualError ->
     assertFailure $
       "Expected a normal response, got an error response: " ++
