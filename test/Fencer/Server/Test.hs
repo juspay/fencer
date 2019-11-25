@@ -31,7 +31,7 @@ import           Fencer.Server
 import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
 import           Fencer.Types
 import           Fencer.Rules
-import qualified Fencer.Rules.Test as RTest
+import           Fencer.Rules.Test.Examples (domainDescriptorKeyValueText, domainDescriptorKeyText)
 import           Fencer.Rules.Test.Helpers (writeAndLoadRules)
 import           Fencer.Rules.Test.Types (RuleFile(..), simpleRuleFile)
 import qualified Fencer.Proto as Proto
@@ -164,11 +164,11 @@ test_serverResponseReadPermissions =
     files =
       [ MkRuleFile
           ("domain1" </> "config.yml")
-          RTest.domain1Text
+          domainDescriptorKeyValueText
           (const Dir.emptyPermissions)
       , simpleRuleFile
           ("domain2" </> "config" </> "config.yml")
-          RTest.domain2Text
+          domainDescriptorKeyText
       ]
 
     request :: Proto.RateLimitRequest

@@ -69,8 +69,8 @@ loadRulesFromDirectory
     pure $ if (null @[] errs) then Right (catMaybes mRules) else Left errs
   where
     loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
-    loadFile file = do
-      ifM (getPermissions file >>= pure . readable)
+    loadFile file =
+      ifM (readable <$> getPermissions file)
         (catch
           (convertParseType file <$> Yaml.decodeFileEither @DomainDefinition file)
           (pure . Left . LoadRulesIOError)

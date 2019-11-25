@@ -1,30 +1,24 @@
 {-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLabels  #-}
 
 -- | Tests for "Fencer.Rules".
 module Fencer.Rules.Test
   ( tests
-  -- example values
-  , domain1Text
-  , domain2Text
   ) where
 
 import           BasePrelude
 
-import           Data.Text (Text)
 import qualified Data.Yaml as Yaml
-import           NeatInterpolation (text)
 import qualified System.Directory as Dir
 import           System.FilePath ((</>))
 import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.HUnit (testCase)
 
 import           Fencer.Rules
+import           Fencer.Rules.Test.Examples
 import           Fencer.Rules.Test.Helpers (expectLoadRules)
 import           Fencer.Rules.Test.Types
-import           Fencer.Types
 
 
 tests :: TestTree
@@ -48,10 +42,10 @@ test_rulesLoadRulesYaml =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ simpleRuleFile "config1.yml" domain1Text
-        , simpleRuleFile "config2.yaml" domain2Text ]
+        [ simpleRuleFile "config1.yml" domainDescriptorKeyValueText
+        , simpleRuleFile "config2.yaml" domainDescriptorKeyText ]
       )
-      (#result $ Right [domain1, domain2])
+      (#result $ Right [domainDescriptorKeyValue, domainDescriptorKey])
 
 -- | test that 'loadRulesFromDirectory' does not load rules from a
 -- dot-directory when dot-files should be ignored.
@@ -61,10 +55,15 @@ test_rulesLoadRulesDotDirectory =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ simpleRuleFile (".domain1" </> "config1.yml") domain1Text
-        , simpleRuleFile ("domain2" </> "config2.yaml") domain2Text ]
+        [ simpleRuleFile
+            (".domain1" </> "config1.yml")
+            domainDescriptorKeyValueText
+        , simpleRuleFile
+            ("domain2" </> "config2.yaml")
+            domainDescriptorKeyText
+        ]
       )
-      (#result $ Right [domain2])
+      (#result $ Right [domainDescriptorKey])
 
 -- | test that 'loadRulesFromDirectory' ignores dot-files.
 test_rulesLoadRules_ignoreDotFiles :: TestTree
@@ -73,10 +72,10 @@ test_rulesLoadRules_ignoreDotFiles =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ simpleRuleFile "config1.yml" domain1Text
-        , simpleRuleFile ("dir" </> ".config2.yaml") domain2Text ]
+        [ simpleRuleFile "config1.yml" domainDescriptorKeyValueText
+        , simpleRuleFile ("dir" </> ".config2.yaml") domainDescriptorKeyText ]
       )
-      (#result $ Right [domain1])
+      (#result $ Right [domainDescriptorKeyValue])
 
 -- | test that 'loadRulesFromDirectory' does not ignore dot files.
 test_rulesLoadRules_dontIgnoreDotFiles :: TestTree
@@ -85,10 +84,10 @@ test_rulesLoadRules_dontIgnoreDotFiles =
     expectLoadRules
       (#ignoreDotFiles False)
       (#files
-        [ simpleRuleFile "config1.yml" domain1Text
-        , simpleRuleFile ("dir" </> ".config2.yaml") domain2Text ]
+        [ simpleRuleFile "config1.yml" domainDescriptorKeyValueText
+        , simpleRuleFile ("dir" </> ".config2.yaml") domainDescriptorKeyText ]
       )
-      (#result $ Right [domain1, domain2])
+      (#result $ Right [domainDescriptorKeyValue, domainDescriptorKey])
 
 -- | Test that 'loadRulesFromDirectory' loads rules from all files, not just
 -- YAML files.
@@ -100,10 +99,10 @@ test_rulesLoadRulesNonYaml =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ simpleRuleFile "config1.bin" domain1Text
-        , simpleRuleFile "config2" domain2Text ]
+        [ simpleRuleFile "config1.bin" domainDescriptorKeyValueText
+        , simpleRuleFile "config2" domainDescriptorKeyText ]
       )
-      (#result $ Right [domain1, domain2])
+      (#result $ Right [domainDescriptorKeyValue, domainDescriptorKey])
 
 -- | Test that 'loadRulesFromDirectory' loads rules recursively.
 --
@@ -114,13 +113,15 @@ test_rulesLoadRulesRecursively =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ simpleRuleFile ("domain1" </> "config.yml") domain1Text
+        [ simpleRuleFile
+            ("domain1" </> "config.yml")
+            domainDescriptorKeyValueText
         , simpleRuleFile
             ("domain2" </> "config" </> "config.yml")
-            domain2Text
+            domainDescriptorKeyText
         ]
       )
-      (#result $ Right [domain1, domain2])
+      (#result $ Right [domainDescriptorKeyValue, domainDescriptorKey])
 
 -- | Test that 'loadRulesFromDirectory' returns exceptions for an
 -- invalid domain. The 'loadRulesFromDirectory' function fails to load
@@ -131,7 +132,7 @@ test_rulesLoadRulesException =
     expectLoadRules
       (#ignoreDotFiles False)
       (#files
-        [ simpleRuleFile "domain1.yaml" domain1Text
+        [ simpleRuleFile "domain1.yaml" domainDescriptorKeyValueText
         , simpleRuleFile "faultyDomain.yaml" faultyDomain
         ]
       )
@@ -174,99 +175,13 @@ test_rulesLoadRulesReadPermissions =
     expectLoadRules
       (#ignoreDotFiles False)
       (#files [file1, file2])
-      (#result $ Right [domain2])
+      (#result $ Right [domainDescriptorKey])
  where
   file1, file2 :: RuleFile
   file1 = MkRuleFile
     ("domain1" </> "config.yml")
-    domain1Text
+    domainDescriptorKeyValueText
     (const Dir.emptyPermissions)
   file2 = simpleRuleFile
     ("domain2" </> "config" </> "config.yml")
-    domain2Text
-
-----------------------------------------------------------------------------
--- Sample definitions
-----------------------------------------------------------------------------
-
-descriptor1 :: DescriptorDefinition
-descriptor1 = DescriptorDefinition
-  { descriptorDefinitionKey = RuleKey "some key"
-  , descriptorDefinitionValue = Just $ RuleValue "some value"
-  , descriptorDefinitionRateLimit = Nothing
-  , descriptorDefinitionDescriptors = Nothing
-  }
-
-descriptor2 :: DescriptorDefinition
-descriptor2 = DescriptorDefinition
-  { descriptorDefinitionKey = RuleKey "some key 2"
-  , descriptorDefinitionValue = Nothing
-  , descriptorDefinitionRateLimit = Nothing
-  , descriptorDefinitionDescriptors = Nothing
-  }
-
-domain1 :: DomainDefinition
-domain1 = DomainDefinition
-  { domainDefinitionId = DomainId "domain1"
-  , domainDefinitionDescriptors = [descriptor1]
-  }
-
-domain1Text :: Text
-domain1Text = [text|
-  domain: domain1
-  descriptors:
-    - key: some key
-      value: some value
-  |]
-
-domain2 :: DomainDefinition
-domain2 = DomainDefinition
-  { domainDefinitionId = DomainId "domain2"
-  , domainDefinitionDescriptors = [descriptor2]
-  }
-
-domain2Text :: Text
-domain2Text = [text|
-  domain: domain2
-  descriptors:
-    - key: some key 2
-  |]
-
-faultyDomain :: Text
-faultyDomain = [text|
-  domain: another
-  descriptors:
-    - key: key2
-      rate_limit:
-        unit: minute
-        requests_per_unit: 20
-    - keyz: key3
-      rate_limit:
-        unit: hour
-        requests_per_unit: 10
-  |]
-
-minimalDomain :: DomainDefinition
-minimalDomain = DomainDefinition
-  { domainDefinitionId = DomainId "min"
-  , domainDefinitionDescriptors = []
-  }
-
-minimalDomainText :: Text
-minimalDomainText = [text| domain: min |]
-
-separatorDomainText :: Text
-separatorDomainText = [text|
-  ---
-  domain: another
-  descriptors:
-    - key: some key
-      value: some value
-    - key: some key 2
-  |]
-
-separatorDomain :: DomainDefinition
-separatorDomain = DomainDefinition
-  { domainDefinitionId = DomainId "another"
-  , domainDefinitionDescriptors = [descriptor1, descriptor2]
-  }
+    domainDescriptorKeyText
