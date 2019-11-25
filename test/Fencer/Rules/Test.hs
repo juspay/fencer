@@ -21,6 +21,7 @@ import           Fencer.Rules.Test.Helpers (expectLoadRules)
 import           Fencer.Rules.Test.Types
 import           Fencer.Types (DomainId(..))
 
+
 tests :: TestTree
 tests = testGroup "Rule tests"
   [ test_rulesLoadRulesYaml
