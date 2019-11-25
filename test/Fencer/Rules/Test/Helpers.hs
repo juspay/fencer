@@ -78,11 +78,11 @@ expectLoadRules
       (#root tempDir)
       (#files files)
       >>= \case
-      Left errs -> do
+      Left errs ->
         case result of
           Right _ ->
             assertFailure "Expected failures, got domain definitions!"
-          Left expectedErrs -> do
+          Left expectedErrs ->
             assertBool ("Exceptions differ! Expected: " ++
                         (prettyPrintErrors expectedErrs) ++ "\nGot: " ++
                         (prettyPrintErrors errs))
