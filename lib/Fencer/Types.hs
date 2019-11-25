@@ -164,9 +164,7 @@ instance HasDescriptors DomainDefinition where
   descriptorsOf = domainDefinitionDescriptors
 
 instance HasDescriptors DescriptorDefinition where
-  descriptorsOf d = case descriptorDefinitionDescriptors d of
-    Nothing -> []
-    Just ds -> ds
+  descriptorsOf d = fromMaybe [] $ descriptorDefinitionDescriptors d
 
 instance FromJSON DomainDefinition where
     parseJSON = withObject "DomainDefinition" $ \o -> do

@@ -146,7 +146,7 @@ validatePotentialDomains res = case partitionEithers res of
         in Left . pure . LoadRulesDuplicateDomain . domainDefinitionId $ dupDomain
       else Right domains
     -- check if there are any duplicate rules
-    forM_ (zip (domainDefinitionId <$> domains) domains) dupRuleCheck
+    traverse_ (dupRuleCheck . (\dom -> (domainDefinitionId dom, dom))) domains
 
     pure domains
  where
@@ -168,7 +168,7 @@ validatePotentialDomains res = case partitionEithers res of
         LoadRulesDuplicateRule
           domId
           (descriptorDefinitionKey dupRule)
-    else foldl' (>>) (Right ()) (curry dupRuleCheck domId <$> descriptorsOf d)
+    else traverse_ (curry dupRuleCheck domId) $ descriptorsOf d
 
 -- | Convert a list of descriptors to a 'RuleTree'.
 definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree
