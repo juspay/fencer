@@ -6,6 +6,7 @@
 module Fencer.Rules
     ( LoadRulesError(..)
     , prettyPrintErrors
+    , showError
     , loadRulesFromDirectory
     , validatePotentialDomains
     , definitionsToRuleTree
@@ -17,13 +18,13 @@ where
 import BasePrelude
 
 import Control.Applicative (liftA2)
-import Control.Monad.Extra (partitionM, concatMapM)
+import Control.Monad.Extra (partitionM, concatMapM, ifM)
 import Data.Either (partitionEithers)
 import Data.Maybe (catMaybes)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List.NonEmpty as NE
 import Named ((:!), arg)
-import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
+import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, getPermissions, pathIsSymbolicLink, readable)
 import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
 import qualified Data.Yaml as Yaml
 
@@ -35,16 +36,17 @@ data LoadRulesError
   | LoadRulesDuplicateDomain DomainId
   deriving stock (Show)
 
+-- | Pretty-print a 'LoadRulesError'.
+showError :: LoadRulesError -> String
+showError (LoadRulesParseError file yamlEx) =
+  show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
+showError (LoadRulesIOError ex) = "IO error: " ++ displayException ex
+showError (LoadRulesDuplicateDomain d) =
+  "duplicate domain " ++ (show . unDomainId $ d) ++ " in config file"
+
 -- | Pretty-print a list of 'LoadRulesError's.
 prettyPrintErrors :: [LoadRulesError] -> String
 prettyPrintErrors = intercalate ", " . fmap showError
-  where
-    showError (LoadRulesParseError file yamlEx) =
-      show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
-    showError (LoadRulesIOError ex) =
-      "IO error: " ++ displayException ex
-    showError (LoadRulesDuplicateDomain d) =
-      "duplicate domain " ++ (show . unDomainId $ d) ++ " in config file"
 
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension. If
@@ -73,23 +75,22 @@ loadRulesFromDirectory
     validatePotentialDomains <$> mapM loadFile filteredFiles
   where
     loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
-    loadFile file = catch
-      (parseErrorHandle file <$> Yaml.decodeFileEither @DomainDefinition file)
-      (pure . Left . LoadRulesIOError)
+    loadFile file =
+      ifM (readable <$> getPermissions file)
+        (catch
+          (convertParseType file <$> Yaml.decodeFileEither @DomainDefinition file)
+          (pure . Left . LoadRulesIOError)
+        )
+        (pure $ Right Nothing)
 
-    -- | Handle a special case when the input file cannot be read due
-    -- to file permissions by returning Nothing on the Right.
-    parseErrorHandle
+    -- | Convert to the needed sum type.
+    convertParseType
       :: FilePath
       -> Either Yaml.ParseException DomainDefinition
          ----------------------------------------------
       -> Either LoadRulesError (Maybe DomainDefinition)
-    parseErrorHandle _    (Right def)  = Right $ Just def
-    parseErrorHandle file (Left parEx) = case parEx of
-      Yaml.InvalidYaml (Just (Yaml.YamlException _)) ->
-        Right Nothing
-      err ->
-        Left $ LoadRulesParseError file err
+    convertParseType _    (Right def) = Right $ Just def
+    convertParseType file (Left err)  = Left $ LoadRulesParseError file err
 
     isDotFile :: FilePath -> Bool
     isDotFile file =
