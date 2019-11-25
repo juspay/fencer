@@ -34,6 +34,7 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRules_dontIgnoreDotFiles
   , test_rulesLoadRulesException
   , test_rulesLoadRulesMinimal
+  , test_rulesYAMLSeparator
   ]
 
 -- | Create given directory structure and check that 'loadRulesFromDirectory'
@@ -181,23 +182,45 @@ test_rulesLoadRulesMinimal =
       (#files [("min.yaml", minimalDomainText)] )
       (#result $ Right [minimalDomain])
 
+-- | test that 'loadRulesFromDirectory' accepts a configuration that
+-- starts in "---", a YAML document separator. Fencer matches
+-- Ratelimit in such a case: it works only if there is one YAML
+-- document in the file, i.e., one domain. In general, neither
+-- Ratelimit nor Fencer support YAML files with multiple
+-- documents.
+test_rulesYAMLSeparator :: TestTree
+test_rulesYAMLSeparator =
+  testCase "One domain after a YAML separator" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files [("sep.yaml", separatorDomainText)] )
+      (#result $ Right [separatorDomain])
+
 ----------------------------------------------------------------------------
 -- Sample definitions
 ----------------------------------------------------------------------------
+
+descriptor1 :: DescriptorDefinition
+descriptor1 = DescriptorDefinition
+  { descriptorDefinitionKey = RuleKey "some key"
+  , descriptorDefinitionValue = Just $ RuleValue "some value"
+  , descriptorDefinitionRateLimit = Nothing
+  , descriptorDefinitionDescriptors = Nothing
+  }
+
+descriptor2 :: DescriptorDefinition
+descriptor2 = DescriptorDefinition
+  { descriptorDefinitionKey = RuleKey "some key 2"
+  , descriptorDefinitionValue = Nothing
+  , descriptorDefinitionRateLimit = Nothing
+  , descriptorDefinitionDescriptors = Nothing
+  }
 
 domain1 :: DomainDefinition
 domain1 = DomainDefinition
   { domainDefinitionId = DomainId "domain1"
   , domainDefinitionDescriptors = [descriptor1]
   }
-  where
-    descriptor1 :: DescriptorDefinition
-    descriptor1 = DescriptorDefinition
-      { descriptorDefinitionKey = RuleKey "some key"
-      , descriptorDefinitionValue = Just $ RuleValue "some value"
-      , descriptorDefinitionRateLimit = Nothing
-      , descriptorDefinitionDescriptors = Nothing
-      }
 
 domain1Text :: Text
 domain1Text = [text|
@@ -212,14 +235,6 @@ domain2 = DomainDefinition
   { domainDefinitionId = DomainId "domain2"
   , domainDefinitionDescriptors = [descriptor2]
   }
-  where
-    descriptor2 :: DescriptorDefinition
-    descriptor2 = DescriptorDefinition
-      { descriptorDefinitionKey = RuleKey "some key 2"
-      , descriptorDefinitionValue = Nothing
-      , descriptorDefinitionRateLimit = Nothing
-      , descriptorDefinitionDescriptors = Nothing
-      }
 
 domain2Text :: Text
 domain2Text = [text|
@@ -250,3 +265,19 @@ minimalDomain = DomainDefinition
 
 minimalDomainText :: Text
 minimalDomainText = [text| domain: min |]
+
+separatorDomainText :: Text
+separatorDomainText = [text|
+  ---
+  domain: another
+  descriptors:
+    - key: some key
+      value: some value
+    - key: some key 2
+  |]
+
+separatorDomain :: DomainDefinition
+separatorDomain = DomainDefinition
+  { domainDefinitionId = DomainId "another"
+  , domainDefinitionDescriptors = [descriptor1, descriptor2]
+  }
