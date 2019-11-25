@@ -15,7 +15,6 @@ where
 import           BasePrelude
 
 import           Data.ByteString (ByteString)
-import           Data.Text (Text)
 import qualified Data.Vector as Vector
 import           GHC.Exts (fromList)
 import qualified Network.GRPC.HighLevel.Generated as Grpc
@@ -32,7 +31,9 @@ import           Fencer.Server
 import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
 import           Fencer.Types
 import           Fencer.Rules
-import qualified Fencer.Rules.Test as RTest
+import           Fencer.Rules.Test.Examples (domainDescriptorKeyValueText, domainDescriptorKeyText)
+import           Fencer.Rules.Test.Helpers (writeAndLoadRules)
+import           Fencer.Rules.Test.Types (RuleFile(..), simpleRuleFile)
 import qualified Fencer.Proto as Proto
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
@@ -143,7 +144,7 @@ test_serverResponseReadPermissions =
     testCase "OK response with one YAML file without read permissions" $
       Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
         server <- serverIO
-        RTest.writeAndLoadRules
+        writeAndLoadRules
           (#ignoreDotFiles False)
           (#root tempDir)
           (#files files)
@@ -159,11 +160,16 @@ test_serverResponseReadPermissions =
                 (expectedResponse, Grpc.StatusOk)
                 response
   where
-    files :: [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+    files :: [RuleFile]
     files =
-      [ ( "domain1" </> "config.yml", RTest.domain1Text
-        , const Dir.emptyPermissions)
-      , ("domain2" </> "config" </> "config.yml", RTest.domain2Text, id) ]
+      [ MkRuleFile
+          ("domain1" </> "config.yml")
+          domainDescriptorKeyValueText
+          (const Dir.emptyPermissions)
+      , simpleRuleFile
+          ("domain2" </> "config" </> "config.yml")
+          domainDescriptorKeyText
+      ]
 
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest

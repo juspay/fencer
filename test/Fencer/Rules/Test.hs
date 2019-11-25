@@ -1,33 +1,26 @@
 {-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLabels  #-}
 
 -- | Tests for "Fencer.Rules".
 module Fencer.Rules.Test
   ( tests
-  , writeAndLoadRules
-  -- example values
-  , domain1Text
-  , domain2Text
   ) where
 
 import           BasePrelude
 
-import           Data.List (sortOn)
-import           Data.Text (Text)
-import qualified Data.Text.IO as TIO
 import qualified Data.Yaml as Yaml
-import           Named ((:!), arg)
-import           NeatInterpolation (text)
-import qualified System.IO.Temp as Temp
-import           System.FilePath (takeDirectory, (</>))
 import qualified System.Directory as Dir
+import           System.FilePath ((</>))
+import qualified System.IO.Temp as Temp
 import           Test.Tasty (TestTree, testGroup)
-import           Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, Assertion, testCase)
+import           Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 
 import           Fencer.Rules
-import           Fencer.Types
+import           Fencer.Rules.Test.Examples
+import           Fencer.Rules.Test.Helpers (expectLoadRules, writeAndLoadRules, toErrorList)
+import           Fencer.Rules.Test.Types
+import           Fencer.Types (DomainDefinition, domainDefinitionId)
 
 
 tests :: TestTree
@@ -41,6 +34,7 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesException
   , test_rulesLoadRulesMinimal
   , test_rulesLoadRulesReadPermissions
+  , test_rulesYAMLSeparator
   , test_rulesReloadRules
   ]
 
@@ -51,10 +45,10 @@ test_rulesLoadRulesYaml =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ ("config1.yml", domain1Text)
-        , ("config2.yaml", domain2Text) ]
+        [ simpleRuleFile "config1.yml" domainDescriptorKeyValueText
+        , simpleRuleFile "config2.yaml" domainDescriptorKeyText ]
       )
-      (#result $ Right [domain1, domain2])
+      (#result $ Right [domainDescriptorKeyValue, domainDescriptorKey])
 
 -- | test that 'loadRulesFromDirectory' does not load rules from a
 -- dot-directory when dot-files should be ignored.
@@ -64,10 +58,15 @@ test_rulesLoadRulesDotDirectory =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ (".domain1" </> "config1.yml", domain1Text)
-        , ("domain2" </> "config2.yaml", domain2Text) ]
+        [ simpleRuleFile
+            (".domain1" </> "config1.yml")
+            domainDescriptorKeyValueText
+        , simpleRuleFile
+            ("domain2" </> "config2.yaml")
+            domainDescriptorKeyText
+        ]
       )
-      (#result $ Right [domain2])
+      (#result $ Right [domainDescriptorKey])
 
 -- | test that 'loadRulesFromDirectory' ignores dot-files.
 test_rulesLoadRules_ignoreDotFiles :: TestTree
@@ -76,10 +75,10 @@ test_rulesLoadRules_ignoreDotFiles =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ ("config1.yml", domain1Text)
-        , ("dir" </> ".config2.yaml", domain2Text) ]
+        [ simpleRuleFile "config1.yml" domainDescriptorKeyValueText
+        , simpleRuleFile ("dir" </> ".config2.yaml") domainDescriptorKeyText ]
       )
-      (#result $ Right [domain1])
+      (#result $ Right [domainDescriptorKeyValue])
 
 -- | test that 'loadRulesFromDirectory' does not ignore dot files.
 test_rulesLoadRules_dontIgnoreDotFiles :: TestTree
@@ -88,10 +87,10 @@ test_rulesLoadRules_dontIgnoreDotFiles =
     expectLoadRules
       (#ignoreDotFiles False)
       (#files
-        [ ("config1.yml", domain1Text)
-        , ("dir" </> ".config2.yaml", domain2Text) ]
+        [ simpleRuleFile "config1.yml" domainDescriptorKeyValueText
+        , simpleRuleFile ("dir" </> ".config2.yaml") domainDescriptorKeyText ]
       )
-      (#result $ Right [domain1, domain2])
+      (#result $ Right [domainDescriptorKeyValue, domainDescriptorKey])
 
 -- | Test that 'loadRulesFromDirectory' loads rules from all files, not just
 -- YAML files.
@@ -103,10 +102,10 @@ test_rulesLoadRulesNonYaml =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ ("config1.bin", domain1Text)
-        , ("config2", domain2Text) ]
+        [ simpleRuleFile "config1.bin" domainDescriptorKeyValueText
+        , simpleRuleFile "config2" domainDescriptorKeyText ]
       )
-      (#result $ Right [domain1, domain2])
+      (#result $ Right [domainDescriptorKeyValue, domainDescriptorKey])
 
 -- | Test that 'loadRulesFromDirectory' loads rules recursively.
 --
@@ -117,10 +116,15 @@ test_rulesLoadRulesRecursively =
     expectLoadRules
       (#ignoreDotFiles True)
       (#files
-        [ ("domain1" </> "config.yml", domain1Text)
-        , ("domain2" </> "config" </> "config.yml", domain2Text) ]
+        [ simpleRuleFile
+            ("domain1" </> "config.yml")
+            domainDescriptorKeyValueText
+        , simpleRuleFile
+            ("domain2" </> "config" </> "config.yml")
+            domainDescriptorKeyText
+        ]
       )
-      (#result $ Right [domain1, domain2])
+      (#result $ Right [domainDescriptorKeyValue, domainDescriptorKey])
 
 -- | Test that 'loadRulesFromDirectory' returns exceptions for an
 -- invalid domain. The 'loadRulesFromDirectory' function fails to load
@@ -131,12 +135,14 @@ test_rulesLoadRulesException =
     expectLoadRules
       (#ignoreDotFiles False)
       (#files
-        [ ("domain1.yaml", domain1Text)
-        , ("faultyDomain.yaml", faultyDomain)
+        [ simpleRuleFile "domain1.yaml" domainDescriptorKeyValueText
+        , simpleRuleFile "faultyDomain.yaml" faultyDomain
         ]
       )
       (#result $ Left
-         [LoadRulesParseError "faultyDomain.yaml" $ Yaml.AesonException ""])
+         [LoadRulesParseError "faultyDomain.yaml" $
+           Yaml.AesonException
+             "Error in $.descriptors[1]: key \"key\" not present"])
 
 -- | test that 'loadRulesFromDirectory' accepts a minimal
 -- configuration containing only the domain id.
@@ -147,8 +153,22 @@ test_rulesLoadRulesMinimal =
   testCase "Minimal rules contain domain id only" $
     expectLoadRules
       (#ignoreDotFiles False)
-      (#files [("min.yaml", minimalDomainText)] )
+      (#files [simpleRuleFile "min.yaml" minimalDomainText])
       (#result $ Right [minimalDomain])
+
+-- | test that 'loadRulesFromDirectory' accepts a configuration that
+-- starts in "---", a YAML document separator. Fencer matches
+-- Ratelimit in such a case: it works only if there is one YAML
+-- document in the file, i.e., one domain. In general, neither
+-- Ratelimit nor Fencer support YAML files with multiple
+-- documents.
+test_rulesYAMLSeparator :: TestTree
+test_rulesYAMLSeparator =
+  testCase "One domain after a YAML separator" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files [simpleRuleFile "sep.yaml" separatorDomainText] )
+      (#result $ Right [separatorDomain])
 
 -- | test that 'loadRulesFromDirectory' loads a configuration file in
 -- presence of another configuration file without read permissions.
@@ -157,13 +177,19 @@ test_rulesLoadRulesMinimal =
 test_rulesLoadRulesReadPermissions :: TestTree
 test_rulesLoadRulesReadPermissions =
   testCase "Configuration file read permissions" $
-    expectLoadRulesWithPermissions
+    expectLoadRules
       (#ignoreDotFiles False)
-      (#files
-        [ ("domain1" </> "config.yml", domain1Text, const Dir.emptyPermissions)
-        , ("domain2" </> "config" </> "config.yml", domain2Text, id) ]
-      )
-      (#result $ Right [domain2])
+      (#files [file1, file2])
+      (#result $ Right [domainDescriptorKey])
+ where
+  file1, file2 :: RuleFile
+  file1 = MkRuleFile
+    ("domain1" </> "config.yml")
+    domainDescriptorKeyValueText
+    (const Dir.emptyPermissions)
+  file2 = simpleRuleFile
+    ("domain2" </> "config" </> "config.yml")
+    domainDescriptorKeyText
 
 -- | test that faulty rules in reloading with 'loadRulesFromDirectory'
 -- are rejected and the valid ones that were previously loaded are
@@ -199,190 +225,21 @@ test_rulesReloadRules =
              (sortOn domainDefinitionId <$> result)
              (Right $ sortOn domainDefinitionId definitions))
  where
-  files :: [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+  files :: [RuleFile]
   files =
-    [ ("domain1" </> "config.yml", domain1Text, id)
-    , ("domain2" </> "config.yml", domain2Text, id) ]
-  files' :: [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+    [ simpleRuleFile ("domain1" </> "config.yml") domainDescriptorKeyValueText
+    , simpleRuleFile ("domain2" </> "config.yml") domainDescriptorKeyText ]
+  files' :: [RuleFile]
   files' =
-    [ ("domain1" </> "config.yml", domain1Text, id)
-    , ("faultyDomain.yaml", faultyDomain, id) ]
+    [ simpleRuleFile ("domain1" </> "config.yml") domainDescriptorKeyValueText
+    , simpleRuleFile "faultyDomain.yaml" faultyDomain ]
 
   expectedFailure :: Either [LoadRulesError] [DomainDefinition]
   expectedFailure =
-    Left [LoadRulesParseError "faultyDomain.yaml" $ Yaml.AesonException ""]
+    Left [LoadRulesParseError
+            "faultyDomain.yaml" $
+              Yaml.AesonException
+                "Error in $.descriptors[1]: key \"key\" not present"]
 
   result :: Either [LoadRulesError] [DomainDefinition]
-  result = Right [domain1, domain2]
-
-----------------------------------------------------------------------------
--- Helpers
-----------------------------------------------------------------------------
-
--- | Get a list of values on the Left or an empty list if it is a
--- Right value.
-toErrorList :: Either [a] [b] -> [a]
-toErrorList (Right _) = []
-toErrorList (Left xs) = xs
-
--- | Write contents to a path in the given root and modify file
--- permissions.
-writeFile
-  :: "root" :! FilePath
-  -> "path" :! FilePath
-  -> "content" :! Text
-  -> "modifyPerms" :! (Dir.Permissions -> Dir.Permissions)
-  -> IO ()
-writeFile
-  (arg #root -> root)
-  (arg #path -> path)
-  (arg #content -> content)
-  (arg #modifyPerms -> modifyPerms) = do
-
-  let
-    dir = takeDirectory path
-    fullPath = root </> path
-  Dir.createDirectoryIfMissing True (root </> dir)
-  TIO.writeFile fullPath content
-  perms <- Dir.getPermissions fullPath
-  Dir.setPermissions fullPath (modifyPerms perms)
-
--- | Write the content of files at the given root and load the files.
-writeAndLoadRules
-  :: "ignoreDotFiles" :! Bool
-  -> "root" :! FilePath
-  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
-  -> IO (Either [LoadRulesError] [DomainDefinition])
-writeAndLoadRules
-  (arg #ignoreDotFiles -> ignoreDotFiles)
-  (arg #root -> root)
-  (arg #files -> files) = do
-
-  forM_ files $ \(path, txt, permUpdate) -> Fencer.Rules.Test.writeFile
-    (#root root)
-    (#path path)
-    (#content txt)
-    (#modifyPerms permUpdate)
-  loadRulesFromDirectory
-    (#rootDirectory root)
-    (#subDirectory ".")
-    (#ignoreDotFiles ignoreDotFiles)
-
--- | Create given directory structure and check that
--- 'loadRulesFromDirectory' produces expected result such that file
--- permissions are configurable.
-expectLoadRulesWithPermissions
-  :: "ignoreDotFiles" :! Bool
-  -> "files" :! [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
-  -> "result" :! Either [LoadRulesError] [DomainDefinition]
-  -> Assertion
-expectLoadRulesWithPermissions
-  (arg #ignoreDotFiles -> ignoreDotFiles)
-  (arg #files -> files)
-  (arg #result -> result) =
-  Temp.withSystemTempDirectory "fencer-config" $ \tempDir ->
-    writeAndLoadRules
-      (#ignoreDotFiles ignoreDotFiles)
-      (#root tempDir)
-      (#files files)
-      >>= \case
-      f@(Left _) ->
-        -- Paths to temporary files vary and there is not much point
-        -- in writing down exact expected exception messages so the
-        -- only assertion made is that the number of exceptions is the
-        -- same.
-        assertEqual
-          "unexpected failure"
-          (length . toErrorList $ result)
-          (length . toErrorList $ f)
-      Right definitions -> assertBool "unexpected definitions"
-        (((==) `on` show)
-        (sortOn domainDefinitionId <$> result)
-        (Right $ sortOn domainDefinitionId definitions))
-
--- | Create given directory structure and check that 'loadRulesFromDirectory'
--- produces expected result.
-expectLoadRules
-  :: "ignoreDotFiles" :! Bool
-  -> "files" :! [(FilePath, Text)]
-  -> "result" :! Either [LoadRulesError] [DomainDefinition]
-  -> Assertion
-expectLoadRules
-  (arg #ignoreDotFiles -> ignoreDotFiles)
-  (arg #files -> files)
-  (arg #result -> result) =
-
-  expectLoadRulesWithPermissions
-    (#ignoreDotFiles ignoreDotFiles)
-    (#files (map (\(path, txt) -> (path, txt, id)) files))
-    (#result result)
-
-----------------------------------------------------------------------------
--- Sample definitions
-----------------------------------------------------------------------------
-
-domain1 :: DomainDefinition
-domain1 = DomainDefinition
-  { domainDefinitionId = DomainId "domain1"
-  , domainDefinitionDescriptors = [descriptor1]
-  }
-  where
-    descriptor1 :: DescriptorDefinition
-    descriptor1 = DescriptorDefinition
-      { descriptorDefinitionKey = RuleKey "some key"
-      , descriptorDefinitionValue = Just $ RuleValue "some value"
-      , descriptorDefinitionRateLimit = Nothing
-      , descriptorDefinitionDescriptors = Nothing
-      }
-
-domain1Text :: Text
-domain1Text = [text|
-  domain: domain1
-  descriptors:
-    - key: some key
-      value: some value
-  |]
-
-domain2 :: DomainDefinition
-domain2 = DomainDefinition
-  { domainDefinitionId = DomainId "domain2"
-  , domainDefinitionDescriptors = [descriptor2]
-  }
-  where
-    descriptor2 :: DescriptorDefinition
-    descriptor2 = DescriptorDefinition
-      { descriptorDefinitionKey = RuleKey "some key 2"
-      , descriptorDefinitionValue = Nothing
-      , descriptorDefinitionRateLimit = Nothing
-      , descriptorDefinitionDescriptors = Nothing
-      }
-
-domain2Text :: Text
-domain2Text = [text|
-  domain: domain2
-  descriptors:
-    - key: some key 2
-  |]
-
-faultyDomain :: Text
-faultyDomain = [text|
-  domain: another
-  descriptors:
-    - key: key2
-      rate_limit:
-        unit: minute
-        requests_per_unit: 20
-    - keyz: key3
-      rate_limit:
-        unit: hour
-        requests_per_unit: 10
-  |]
-
-minimalDomain :: DomainDefinition
-minimalDomain = DomainDefinition
-  { domainDefinitionId = DomainId "min"
-  , domainDefinitionDescriptors = []
-  }
-
-minimalDomainText :: Text
-minimalDomainText = [text| domain: min |]
+  result = Right [domainDescriptorKeyValue, domainDescriptorKey]
