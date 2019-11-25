@@ -20,8 +20,9 @@ import BasePrelude
 import Control.Applicative (liftA2)
 import Control.Monad.Extra (partitionM, concatMapM, ifM)
 import Data.Either (partitionEithers)
-import Data.Maybe (catMaybes)
 import qualified Data.HashMap.Strict as HM
+import Data.List.NonEmpty (NonEmpty)
+import Data.Maybe (catMaybes)
 import qualified Data.List.NonEmpty as NE
 import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, getPermissions, pathIsSymbolicLink, readable)
@@ -60,7 +61,7 @@ loadRulesFromDirectory
     :: "rootDirectory" :! FilePath
     -> "subDirectory" :! FilePath
     -> "ignoreDotFiles" :! Bool
-    -> IO (Either [LoadRulesError] [DomainDefinition])
+    -> IO (Either (NonEmpty LoadRulesError) [DomainDefinition])
 loadRulesFromDirectory
     (arg #rootDirectory -> rootDirectory)
     (arg #subDirectory -> subDirectory)
@@ -123,9 +124,9 @@ loadRulesFromDirectory
 -- of @lyft/ratelimit@.
 validatePotentialDomains
   :: [Either LoadRulesError (Maybe DomainDefinition)]
-  -> Either [LoadRulesError] [DomainDefinition]
+  -> Either (NonEmpty LoadRulesError) [DomainDefinition]
 validatePotentialDomains res = case partitionEithers res of
-  (errs@(_:_), _    ) -> Left errs
+  (errs@(_:_), _    ) -> Left $ NE.fromList errs
   ([]        , mRules) -> do
     -- check if there are any duplicate domains
     let

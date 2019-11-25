@@ -9,6 +9,7 @@ module Fencer.Rules.Test
 
 import           BasePrelude
 
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Yaml as Yaml
 import qualified System.Directory as Dir
 import           System.FilePath ((</>))
@@ -138,7 +139,7 @@ test_rulesLoadRulesException =
         , simpleRuleFile "faultyDomain.yaml" faultyDomain
         ]
       )
-      (#result $ Left
+      (#result $ Left $ NE.fromList
          [LoadRulesParseError "faultyDomain.yaml" $
            Yaml.AesonException
              "Error in $.descriptors[1]: key \"key\" not present"])
@@ -183,7 +184,8 @@ test_rulesLoadRulesDuplicateDomain =
         , simpleRuleFile "two.yaml" domainDescriptorKeyValueText
         ]
       )
-      (#result $ Left [LoadRulesDuplicateDomain $ DomainId "domain1"])
+      (#result $
+         Left $ NE.fromList [LoadRulesDuplicateDomain $ DomainId "domain1"])
 
 -- | test that 'loadRulesFromDirectory' loads a configuration file in
 -- presence of another configuration file without read permissions.
