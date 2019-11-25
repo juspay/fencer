@@ -6,29 +6,24 @@
 -- | Tests for "Fencer.Rules".
 module Fencer.Rules.Test
   ( tests
-  , writeAndLoadRules
   -- example values
   , domain1Text
   , domain2Text
-  , RuleFile(..)
-  , simpleRuleFile
   ) where
 
 import           BasePrelude
 
-import           Data.List (sortOn)
 import           Data.Text (Text)
-import qualified Data.Text.IO as TIO
 import qualified Data.Yaml as Yaml
-import           Named ((:!), arg)
 import           NeatInterpolation (text)
-import qualified System.IO.Temp as Temp
-import           System.FilePath (takeDirectory, (</>))
 import qualified System.Directory as Dir
+import           System.FilePath ((</>))
 import           Test.Tasty (TestTree, testGroup)
-import           Test.Tasty.HUnit (assertBool, assertEqual, Assertion, testCase)
+import           Test.Tasty.HUnit (testCase)
 
 import           Fencer.Rules
+import           Fencer.Rules.Test.Helpers (expectLoadRules)
+import           Fencer.Rules.Test.Types
 import           Fencer.Types
 
 
@@ -189,101 +184,6 @@ test_rulesLoadRulesReadPermissions =
   file2 = simpleRuleFile
     ("domain2" </> "config" </> "config.yml")
     domain2Text
-
-----------------------------------------------------------------------------
--- Helpers
-----------------------------------------------------------------------------
-
--- | Get a list of values on the Left or an empty list if it is a
--- Right value.
-toErrorList :: Either [a] [b] -> [a]
-toErrorList (Right _) = []
-toErrorList (Left xs) = xs
-
--- | A record useful in testing, which groups together a file path,
--- its contents and file permissions.
-data RuleFile = MkRuleFile
-  {  -- | The path to the file
-    ruleFilePath :: FilePath
-    -- | The contents of the file in plain text
-  , ruleFileContents :: Text
-    -- | A function specifying how the file permissions should be
-    -- changed, i.e., what they should be once the file is written to
-    -- disk.
-  , ruleFileModifyPermissions :: Dir.Permissions -> Dir.Permissions
-  }
-
-simpleRuleFile :: FilePath -> Text -> RuleFile
-simpleRuleFile p c = MkRuleFile p c id
-
--- | Write contents to a path in the given root and modify file
--- permissions.
-writeFile
-  :: "root" :! FilePath
-  -> "file" :! RuleFile
-  -> IO ()
-writeFile
-  (arg #root -> root)
-  (arg #file -> file) = do
-
-  let
-    dir = takeDirectory (ruleFilePath file)
-    fullPath = root </> (ruleFilePath file)
-  Dir.createDirectoryIfMissing True (root </> dir)
-  TIO.writeFile fullPath (ruleFileContents file)
-  perms <- Dir.getPermissions fullPath
-  Dir.setPermissions fullPath (ruleFileModifyPermissions file perms)
-
--- | Write the content of files at the given root and load the files.
-writeAndLoadRules
-  :: "ignoreDotFiles" :! Bool
-  -> "root" :! FilePath
-  -> "files" :! [RuleFile]
-  -> IO (Either [LoadRulesError] [DomainDefinition])
-writeAndLoadRules
-  (arg #ignoreDotFiles -> ignoreDotFiles)
-  (arg #root -> root)
-  (arg #files -> files) = do
-
-  forM_ files $ \file -> Fencer.Rules.Test.writeFile
-    (#root root)
-    (#file file)
-  loadRulesFromDirectory
-    (#rootDirectory root)
-    (#subDirectory ".")
-    (#ignoreDotFiles ignoreDotFiles)
-
--- | Create given directory structure and check that
--- 'loadRulesFromDirectory' produces expected result such that file
--- permissions are configurable.
-expectLoadRules
-  :: "ignoreDotFiles" :! Bool
-  -> "files" :! [RuleFile]
-  -> "result" :! Either [LoadRulesError] [DomainDefinition]
-  -> Assertion
-expectLoadRules
-  (arg #ignoreDotFiles -> ignoreDotFiles)
-  (arg #files -> files)
-  (arg #result -> result) =
-  Temp.withSystemTempDirectory "fencer-config" $ \tempDir ->
-    writeAndLoadRules
-      (#ignoreDotFiles ignoreDotFiles)
-      (#root tempDir)
-      (#files files)
-      >>= \case
-      f@(Left _) ->
-        -- Paths to temporary files vary and there is not much point
-        -- in writing down exact expected exception messages so the
-        -- only assertion made is that the number of exceptions is the
-        -- same.
-        assertEqual
-          "unexpected failure"
-          (length . toErrorList $ result)
-          (length . toErrorList $ f)
-      Right definitions -> assertBool "unexpected definitions"
-        (((==) `on` show)
-        (sortOn domainDefinitionId <$> result)
-        (Right $ sortOn domainDefinitionId definitions))
 
 ----------------------------------------------------------------------------
 -- Sample definitions
