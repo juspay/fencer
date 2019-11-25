@@ -16,12 +16,12 @@ where
 import BasePrelude
 
 import Control.Applicative (liftA2)
-import Control.Monad.Extra (partitionM, concatMapM)
+import Control.Monad.Extra (partitionM, concatMapM, ifM)
 import Data.Either (partitionEithers)
 import Data.Maybe (catMaybes)
 import qualified Data.HashMap.Strict as HM
 import Named ((:!), arg)
-import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
+import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, getPermissions, pathIsSymbolicLink, readable)
 import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
 import qualified Data.Yaml as Yaml
 
@@ -69,23 +69,22 @@ loadRulesFromDirectory
     pure $ if (null @[] errs) then Right (catMaybes mRules) else Left errs
   where
     loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
-    loadFile file = catch
-      (parseErrorHandle file <$> Yaml.decodeFileEither @DomainDefinition file)
-      (pure . Left . LoadRulesIOError)
+    loadFile file = do
+      ifM (getPermissions file >>= pure . readable)
+        (catch
+          (convertParseType file <$> Yaml.decodeFileEither @DomainDefinition file)
+          (pure . Left . LoadRulesIOError)
+        )
+        (pure $ Right Nothing)
 
-    -- | Handle a special case when the input file cannot be read due
-    -- to file permissions by returning Nothing on the Right.
-    parseErrorHandle
+    -- | Convert to the needed sum type.
+    convertParseType
       :: FilePath
       -> Either Yaml.ParseException DomainDefinition
          ----------------------------------------------
       -> Either LoadRulesError (Maybe DomainDefinition)
-    parseErrorHandle _    (Right def)  = Right $ Just def
-    parseErrorHandle file (Left parEx) = case parEx of
-      Yaml.InvalidYaml (Just (Yaml.YamlException _)) ->
-        Right Nothing
-      err ->
-        Left $ LoadRulesParseError file err
+    convertParseType _    (Right def) = Right $ Just def
+    convertParseType file (Left err)  = Left $ LoadRulesParseError file err
 
     isDotFile :: FilePath -> Bool
     isDotFile file =
