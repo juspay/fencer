@@ -137,7 +137,9 @@ test_rulesLoadRulesException =
         ]
       )
       (#result $ Left
-         [LoadRulesParseError "faultyDomain.yaml" $ Yaml.AesonException ""])
+         [LoadRulesParseError "faultyDomain.yaml" $
+           Yaml.AesonException
+             "Error in $.descriptors[1]: key \"key\" not present"])
 
 -- | test that 'loadRulesFromDirectory' accepts a minimal
 -- configuration containing only the domain id.

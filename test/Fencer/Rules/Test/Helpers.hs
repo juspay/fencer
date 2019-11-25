@@ -3,8 +3,7 @@
 
 -- | Module with helper functions used in rules and other testing.
 module Fencer.Rules.Test.Helpers
-  ( toErrorList
-  , writeContentsToFile
+  ( writeContentsToFile
   , writeAndLoadRules
   , expectLoadRules
   )
@@ -15,19 +14,14 @@ import           BasePrelude
 import qualified Data.Text.IO as TIO
 import           Named ((:!), arg)
 import qualified System.Directory as Dir
-import           System.FilePath (FilePath, takeDirectory, (</>))
+import           System.FilePath (FilePath, takeDirectory, takeFileName, (</>))
 import qualified System.IO.Temp as Temp
-import           Test.Tasty.HUnit (assertBool, assertEqual, Assertion)
+import           Test.Tasty.HUnit (assertBool, assertFailure, Assertion)
 
-import           Fencer.Rules (LoadRulesError(..), loadRulesFromDirectory)
+import           Fencer.Rules (LoadRulesError(..), loadRulesFromDirectory, prettyPrintErrors, showError)
 import           Fencer.Rules.Test.Types (RuleFile(..))
 import           Fencer.Types (DomainDefinition(..))
 
--- | Get a list of values on the Left or an empty list if it is a
--- Right value.
-toErrorList :: Either [a] [b] -> [a]
-toErrorList (Right _) = []
-toErrorList (Left xs) = xs
 
 -- | Write contents to a path in the given root and modify file
 -- permissions.
@@ -84,17 +78,22 @@ expectLoadRules
       (#root tempDir)
       (#files files)
       >>= \case
-      f@(Left _) ->
-        -- Paths to temporary files vary and there is not much point
-        -- in writing down exact expected exception messages so the
-        -- only assertion made is that the number of exceptions is the
-        -- same.
-        assertEqual
-          "unexpected failure"
-          (length . toErrorList $ result)
-          (length . toErrorList $ f)
+      Left errs -> do
+        case result of
+          Right _ ->
+            assertFailure "Expected failures, got domain definitions!"
+          Left expectedErrs -> do
+            assertBool ("Exceptions differ! Expected: " ++
+                        (prettyPrintErrors expectedErrs) ++ "\nGot: " ++
+                        (prettyPrintErrors errs))
+              (((==) `on` (fmap showError))
+               (sortBy (compare `on` showError) (trimPath <$> expectedErrs))
+               (sortBy (compare `on` showError) (trimPath <$> errs)))
       Right definitions -> assertBool "unexpected definitions"
         (((==) `on` show)
         (sortOn domainDefinitionId <$> result)
         (Right $ sortOn domainDefinitionId definitions))
-
+ where
+  trimPath :: LoadRulesError -> LoadRulesError
+  trimPath (LoadRulesParseError p ex) = LoadRulesParseError (takeFileName p) ex
+  trimPath e                          = e

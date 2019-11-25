@@ -6,6 +6,7 @@
 module Fencer.Rules
     ( LoadRulesError(..)
     , prettyPrintErrors
+    , showError
     , loadRulesFromDirectory
     , definitionsToRuleTree
     , domainToRuleTree
@@ -32,14 +33,15 @@ data LoadRulesError
   | LoadRulesIOError IOException
   deriving stock (Show)
 
+-- | Pretty-print a 'LoadRulesError'.
+showError :: LoadRulesError -> String
+showError (LoadRulesParseError file yamlEx) =
+  show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
+showError (LoadRulesIOError ex) = "IO error: " ++ displayException ex
+
 -- | Pretty-print a list of 'LoadRulesError's.
 prettyPrintErrors :: [LoadRulesError] -> String
 prettyPrintErrors = intercalate ", " . fmap showError
-  where
-    showError (LoadRulesParseError file yamlEx) =
-      show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
-    showError (LoadRulesIOError ex) =
-      "IO error: " ++ displayException ex
 
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension. If
