@@ -14,6 +14,7 @@ where
 
 import           BasePrelude
 
+import           Control.Monad (replicateM_)
 import           Data.ByteString (ByteString)
 import qualified Data.Vector as Vector
 import           GHC.Exts (fromList)
@@ -105,11 +106,15 @@ test_serverResponseNoConfigurationDirectory =
           Right rules -> do
             atomically (setRules (serverAppState server) (domainToRuleTree <$> rules))
             withService server $ \service -> do
-              response <- Proto.rateLimitServiceShouldRateLimit service $
-                Grpc.ClientNormalRequest request 1 mempty
-              expectSuccess
-                (genericOKResponse, Grpc.StatusOk)
-                response
+              let communicationRoundtrip = do
+                    response <- Proto.rateLimitServiceShouldRateLimit service $
+                      Grpc.ClientNormalRequest request 1 mempty
+                    expectSuccess
+                      (genericOKResponse, Grpc.StatusOk)
+                      response
+              -- Test that having a sequence of requests does not
+              -- change the server state
+              replicateM_ 5 communicationRoundtrip
   where
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
