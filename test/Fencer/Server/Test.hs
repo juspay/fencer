@@ -214,7 +214,7 @@ test_serverResponseReadPermissions =
               response <- Proto.rateLimitServiceShouldRateLimit service $
                 Grpc.ClientNormalRequest request 1 mempty
               expectSuccess
-                (expectedResponse, Grpc.StatusOk)
+                (genericOKResponse, Grpc.StatusOk)
                 response
   where
     files :: [RuleFile]
@@ -237,20 +237,6 @@ test_serverResponseReadPermissions =
               fromList [Proto.RateLimitDescriptor_Entry "key" ""]
           ]
       , Proto.rateLimitRequestHitsAddend = 0
-      }
-
-    expectedResponse :: Proto.RateLimitResponse
-    expectedResponse = Proto.RateLimitResponse
-      { rateLimitResponseOverallCode =
-          Enumerated $ Right Proto.RateLimitResponse_CodeOK
-      , rateLimitResponseStatuses = Vector.singleton
-          Proto.RateLimitResponse_DescriptorStatus
-          { rateLimitResponse_DescriptorStatusCode =
-              Enumerated $ Right Proto.RateLimitResponse_CodeOK
-          , rateLimitResponse_DescriptorStatusCurrentLimit = Nothing
-          , rateLimitResponse_DescriptorStatusLimitRemaining = 0
-          }
-      , rateLimitResponseHeaders = Vector.empty
       }
 
 -- | A parameterized test that checks if a request with a non-empty
@@ -327,12 +313,6 @@ test_serverResponseDuplicateRule =
 ----------------------------------------------------------------------------
 -- Helpers
 ----------------------------------------------------------------------------
-
-domainDefinitionWithoutRules :: DomainDefinition
-domainDefinitionWithoutRules = DomainDefinition
-  { domainDefinitionId = DomainId "domain"
-  , domainDefinitionDescriptors = []
-  }
 
 -- | Assert that a gRPC request is successful and has a specific result and
 -- status code.
@@ -469,3 +449,29 @@ withService server act =
   Grpc.withGRPCClient (clientConfig (serverPort server)) $ \grpcClient -> do
     service <- Proto.rateLimitServiceClient grpcClient
     act service
+
+----------------------------------------------------------------------------
+-- Various useful values
+----------------------------------------------------------------------------
+
+domainDefinitionWithoutRules :: DomainDefinition
+domainDefinitionWithoutRules = DomainDefinition
+  { domainDefinitionId = DomainId "domain"
+  , domainDefinitionDescriptors = []
+  }
+
+-- | A generic response useful for testing situations where the server
+-- replies with a generic OK response.
+genericOKResponse :: Proto.RateLimitResponse
+genericOKResponse = Proto.RateLimitResponse
+  { rateLimitResponseOverallCode =
+      Enumerated $ Right Proto.RateLimitResponse_CodeOK
+  , rateLimitResponseStatuses = Vector.singleton
+      Proto.RateLimitResponse_DescriptorStatus
+      { rateLimitResponse_DescriptorStatusCode =
+          Enumerated $ Right Proto.RateLimitResponse_CodeOK
+      , rateLimitResponse_DescriptorStatusCurrentLimit = Nothing
+      , rateLimitResponse_DescriptorStatusLimitRemaining = 0
+      }
+  , rateLimitResponseHeaders = Vector.empty
+  }
