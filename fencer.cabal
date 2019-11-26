@@ -127,6 +127,7 @@ test-suite test-fencer
     , base-prelude
     , bytestring
     , directory
+    , either
     , filepath
     , grpc-haskell
     , named

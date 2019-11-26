@@ -31,10 +31,12 @@ import qualified Data.Yaml as Yaml
 
 import Fencer.Types
 
+
 data LoadRulesError
   = LoadRulesParseError FilePath Yaml.ParseException
   | LoadRulesIOError IOException
   | LoadRulesDuplicateDomain DomainId
+  | LoadRulesDuplicateRule DomainId RuleKey
   deriving stock (Show)
 
 -- | Pretty-print a 'LoadRulesError'.
@@ -44,6 +46,9 @@ showError (LoadRulesParseError file yamlEx) =
 showError (LoadRulesIOError ex) = "IO error: " ++ displayException ex
 showError (LoadRulesDuplicateDomain d) =
   "duplicate domain " ++ (show . unDomainId $ d) ++ " in config file"
+showError (LoadRulesDuplicateRule dom key) =
+  "duplicate descriptor composite key " ++
+  (show . unDomainId $ dom) ++ "." ++ (show . unRuleKey $ key)
 
 -- | Pretty-print a list of 'LoadRulesError's.
 prettyPrintErrors :: [LoadRulesError] -> String
@@ -127,18 +132,49 @@ validatePotentialDomains
   -> Either (NonEmpty LoadRulesError) [DomainDefinition]
 validatePotentialDomains res = case partitionEithers res of
   (errs@(_:_), _    ) -> Left $ NE.fromList errs
-  ([]        , mRules) -> do
+  ([]        , mDomains) -> do
     -- check if there are any duplicate domains
-    let
-      rules = catMaybes mRules
-      groupedRules :: [NonEmpty DomainDefinition] = NE.groupBy
-        ((==) `on` (unDomainId . domainDefinitionId))
-        (NE.fromList $ sortOn domainDefinitionId rules)
-    if (length @[] rules /= length @[] groupedRules)
+    domains <- do
+      let
+        domains = catMaybes mDomains
+        groupedDomains :: [NonEmpty DomainDefinition] = NE.groupBy
+          ((==) `on` domainDefinitionId)
+          (NE.fromList $ sortOn domainDefinitionId domains)
+      if (length @[] domains /= length @[] groupedDomains)
       then
-        let dupDomain = NE.head . head $ filter (\l -> NE.length l > 1) groupedRules
-         in Left . pure . LoadRulesDuplicateDomain . domainDefinitionId $ dupDomain
-      else Right rules
+        let dupDomain =
+              NE.head . head $ filter (\l -> NE.length l > 1) groupedDomains
+        in
+          Left .
+          pure .
+          LoadRulesDuplicateDomain .
+          domainDefinitionId $
+            dupDomain
+      else Right domains
+    -- check if there are any duplicate rules
+    traverse_ (dupRuleCheck . (\dom -> (domainDefinitionId dom, dom))) domains
+
+    pure domains
+ where
+  dupRuleCheck
+    :: HasDescriptors a
+    => (DomainId, a)
+    -> Either (NonEmpty LoadRulesError) ()
+  dupRuleCheck (_, d) | null @[] (descriptorsOf d) = Right ()
+  dupRuleCheck (domId, d) = do
+    let
+      descs = descriptorsOf d
+      groupedDescs :: [NonEmpty DescriptorDefinition] = NE.groupBy
+        ((==) `on` descriptorDefinitionKey)
+        (NE.fromList $ sortOn (unRuleKey . descriptorDefinitionKey) descs)
+    if (length @[] descs /= length @[] groupedDescs)
+    then
+      let dupRule = NE.head . head $ filter (\l -> NE.length l > 1) groupedDescs
+      in Left . pure $
+        LoadRulesDuplicateRule
+          domId
+          (descriptorDefinitionKey dupRule)
+    else traverse_ (curry dupRuleCheck domId) $ descriptorsOf d
 
 -- | Convert a list of descriptors to a 'RuleTree'.
 definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree

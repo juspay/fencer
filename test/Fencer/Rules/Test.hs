@@ -9,6 +9,7 @@ module Fencer.Rules.Test
 
 import           BasePrelude
 
+import           Data.Either.Combinators (mapLeft)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Yaml as Yaml
 import qualified System.Directory as Dir
@@ -21,7 +22,7 @@ import           Fencer.Rules
 import           Fencer.Rules.Test.Examples
 import           Fencer.Rules.Test.Helpers (expectLoadRules, writeAndLoadRules, toErrorList)
 import           Fencer.Rules.Test.Types
-import           Fencer.Types (DomainDefinition, domainDefinitionId, DomainId(..))
+import           Fencer.Types (DomainDefinition, domainDefinitionId, DomainId(..), RuleKey(..))
 
 
 tests :: TestTree
@@ -38,6 +39,7 @@ tests = testGroup "Rule tests"
   , test_rulesYAMLSeparator
   , test_rulesReloadRules
   , test_rulesLoadRulesDuplicateDomain
+  , test_rulesLoadRulesDuplicateRule
   ]
 
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
@@ -187,7 +189,26 @@ test_rulesLoadRulesDuplicateDomain =
         ]
       )
       (#result $
-         Left $ NE.fromList [LoadRulesDuplicateDomain $ DomainId "domain1"])
+        Left $ NE.fromList [LoadRulesDuplicateDomain $ DomainId "domain1"]
+      )
+
+-- | test that 'loadRulesFromDirectory' rejects a configuration with a
+-- duplicate rule.
+--
+-- This matches the behavior of @lyft/ratelimit@.
+test_rulesLoadRulesDuplicateRule :: TestTree
+test_rulesLoadRulesDuplicateRule =
+  testCase "Error on a configuration with a duplicate rule" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files [simpleRuleFile "another.yaml" duplicateRuleDomain])
+      (#result $
+         Left $ NE.fromList
+           [LoadRulesDuplicateRule
+             (DomainId "another")
+             (RuleKey "key1")
+           ]
+      )
 
 -- | test that 'loadRulesFromDirectory' loads a configuration file in
 -- presence of another configuration file without read permissions.
@@ -238,7 +259,7 @@ test_rulesReloadRules =
         (Right definitions, f@(Left _)) -> do
           assertEqual
             "unexpected failure"
-            (length . toErrorList $ f)
+            (length . toErrorList $ mapLeft NE.toList f)
             (length . toErrorList $ expectedFailure)
           assertBool "unexpected definitions"
             (((==) `on` show)
