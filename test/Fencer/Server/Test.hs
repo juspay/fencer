@@ -51,8 +51,9 @@ import qualified Fencer.Proto as Proto
 
 tests :: TestTree
 tests = testGroup "Server tests"
-  [ test_serverResponseNoRules
-  , test_serverResponseNoConfigurationDirectory
+  [ test_serverResponseNoConfigurationDirectory
+  , test_serverResponseRulesNotLoaded
+  , test_serverResponseNoRules
   , test_serverResponseEmptyDomain
   , test_serverResponseEmptyDescriptorList
   , test_serverResponseReadPermissions
@@ -60,14 +61,19 @@ tests = testGroup "Server tests"
   , test_serverResponseDuplicateRule
   ]
 
--- | Test that when Fencer is started without any rules provided to it (i.e.
--- 'reloadRules' has never been ran), requests to Fencer will error out.
+-- | Test that when Fencer is started without rule loading (i.e.
+-- 'reloadRules' has never been ran), requests to Fencer will error
+-- out.
+--
+-- This test also corresponds to a case when there is faulty
+-- configuration and Fencer loads no rules at startup. In such a case
+-- the server responds to requests with an error.
 --
 -- This behavior matches @lyft/ratelimit@.
-test_serverResponseNoRules :: TestTree
-test_serverResponseNoRules =
+test_serverResponseRulesNotLoaded :: TestTree
+test_serverResponseRulesNotLoaded =
   withResource createServer destroyServer $ \serverIO ->
-    testCase "When no rules have been loaded, all requests error out" $ do
+    testCase "When no rule loading was done, all requests error out" $ do
       server <- serverIO
       withService server $ \service -> do
         response <- Proto.rateLimitServiceShouldRateLimit service $
@@ -115,6 +121,39 @@ test_serverResponseNoConfigurationDirectory =
               -- Test that having a sequence of requests does not
               -- change the server state
               replicateM_ 5 communicationRoundtrip
+  where
+    request :: Proto.RateLimitRequest
+    request = Proto.RateLimitRequest
+      { Proto.rateLimitRequestDomain = "domain"
+      , Proto.rateLimitRequestDescriptors =
+          fromList $
+          [ Proto.RateLimitDescriptor $
+              fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
+          ]
+      , Proto.rateLimitRequestHitsAddend = 0
+      }
+
+-- | Test that when Fencer is started and there are no rules after
+-- loading (i.e., 'reloadRules' has been ran, but there is no
+-- configuration), requests to Fencer will be responded to with OK.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseNoRules :: TestTree
+test_serverResponseNoRules =
+  withResource createServer destroyServer $ \serverIO ->
+    testCase "When no rules have been loaded, all responses are OK" $ do
+      server <- serverIO
+      atomically (setRules (serverAppState server) []) -- an empty rule list
+      withService server $ \service -> do
+        let communicationRoundtrip = do
+              response <- Proto.rateLimitServiceShouldRateLimit service $
+                Grpc.ClientNormalRequest request 1 mempty
+              expectSuccess
+                (genericOKResponse, Grpc.StatusOk)
+                response
+        -- Test that having a sequence of requests does not change the
+        -- server state
+        replicateM_ 5 communicationRoundtrip
   where
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
@@ -207,7 +246,7 @@ test_serverResponseReadPermissions =
               response <- Proto.rateLimitServiceShouldRateLimit service $
                 Grpc.ClientNormalRequest request 1 mempty
               expectSuccess
-                (expectedResponse, Grpc.StatusOk)
+                (genericOKResponse, Grpc.StatusOk)
                 response
   where
     files :: [RuleFile]
@@ -230,20 +269,6 @@ test_serverResponseReadPermissions =
               fromList [Proto.RateLimitDescriptor_Entry "key" ""]
           ]
       , Proto.rateLimitRequestHitsAddend = 0
-      }
-
-    expectedResponse :: Proto.RateLimitResponse
-    expectedResponse = Proto.RateLimitResponse
-      { rateLimitResponseOverallCode =
-          Enumerated $ Right Proto.RateLimitResponse_CodeOK
-      , rateLimitResponseStatuses = Vector.singleton
-          Proto.RateLimitResponse_DescriptorStatus
-          { rateLimitResponse_DescriptorStatusCode =
-              Enumerated $ Right Proto.RateLimitResponse_CodeOK
-          , rateLimitResponse_DescriptorStatusCurrentLimit = Nothing
-          , rateLimitResponse_DescriptorStatusLimitRemaining = 0
-          }
-      , rateLimitResponseHeaders = Vector.empty
       }
 
 -- | A parameterized test that checks if a request with a non-empty
@@ -321,12 +346,6 @@ test_serverResponseDuplicateRule =
 -- Helpers
 ----------------------------------------------------------------------------
 
-domainDefinitionWithoutRules :: DomainDefinition
-domainDefinitionWithoutRules = DomainDefinition
-  { domainDefinitionId = DomainId "domain"
-  , domainDefinitionDescriptors = []
-  }
-
 -- | Assert that a gRPC request is successful and has a specific result and
 -- status code.
 expectSuccess
@@ -396,7 +415,7 @@ createServer = do
   serverThreadId <- forkIO $ runServerWithPort serverPort serverLogger serverAppState
 
   -- NOTE(md): For reasons unkown, without a delay the delay in the thread makes a
-  -- server test failure for 'test_serverResponseNoRules' go
+  -- server test failure for 'test_serverResponseRulesNotLoaded' go
   -- away. See <https://github.com/juspay/fencer/issues/53>.
   --
   -- The delay was introduced by assuming it might help
@@ -466,6 +485,12 @@ withService server act =
 ----------------------------------------------------------------------------
 -- Various useful values
 ----------------------------------------------------------------------------
+
+domainDefinitionWithoutRules :: DomainDefinition
+domainDefinitionWithoutRules = DomainDefinition
+  { domainDefinitionId = DomainId "domain"
+  , domainDefinitionDescriptors = []
+  }
 
 -- | A generic response useful for testing situations where the server
 -- replies with a generic OK response.
