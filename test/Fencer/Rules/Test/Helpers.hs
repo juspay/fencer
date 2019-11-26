@@ -6,6 +6,7 @@ module Fencer.Rules.Test.Helpers
   ( writeContentsToFile
   , writeAndLoadRules
   , expectLoadRules
+  , trimPath
   )
 where
 
@@ -95,7 +96,10 @@ expectLoadRules
         (((==) `on` show)
         (sortOn domainDefinitionId <$> result)
         (Right $ sortOn domainDefinitionId definitions))
- where
-  trimPath :: LoadRulesError -> LoadRulesError
-  trimPath (LoadRulesParseError p ex) = LoadRulesParseError (takeFileName p) ex
-  trimPath e                          = e
+
+-- | Trim a path in a 'LoadRulesParseError' such that only the file
+-- name is retained. This is useful in testing where a test file has
+-- an unpredictable path in a temporary directory.
+trimPath :: LoadRulesError -> LoadRulesError
+trimPath (LoadRulesParseError p ex) = LoadRulesParseError (takeFileName p) ex
+trimPath e                          = e
