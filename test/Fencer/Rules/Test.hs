@@ -13,14 +13,15 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Yaml as Yaml
 import qualified System.Directory as Dir
 import           System.FilePath ((</>))
+import qualified System.IO.Temp as Temp
 import           Test.Tasty (TestTree, testGroup)
-import           Test.Tasty.HUnit (testCase)
+import           Test.Tasty.HUnit (assertBool, assertFailure, testCase)
 
 import           Fencer.Rules
 import           Fencer.Rules.Test.Examples
-import           Fencer.Rules.Test.Helpers (expectLoadRules)
+import           Fencer.Rules.Test.Helpers (expectLoadRules, writeAndLoadRules, trimPath)
 import           Fencer.Rules.Test.Types
-import           Fencer.Types (DomainId(..), RuleKey(..))
+import           Fencer.Types (DomainDefinition, domainDefinitionId, DomainId(..), RuleKey(..))
 
 
 tests :: TestTree
@@ -33,8 +34,9 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRules_dontIgnoreDotFiles
   , test_rulesLoadRulesException
   , test_rulesLoadRulesMinimal
-  , test_rulesYAMLSeparator
   , test_rulesLoadRulesReadPermissions
+  , test_rulesYAMLSeparator
+  , test_rulesReloadRules
   , test_rulesLoadRulesDuplicateDomain
   , test_rulesLoadRulesDuplicateRule
   ]
@@ -227,3 +229,66 @@ test_rulesLoadRulesReadPermissions =
   file2 = simpleRuleFile
     ("domain2" </> "config" </> "config.yml")
     domainDescriptorKeyText
+
+-- | test that faulty rules in reloading with 'loadRulesFromDirectory'
+-- are rejected and the valid ones that were previously loaded are
+-- kept instead.
+--
+-- This matches the behavior of @lyft/ratelimit@.
+test_rulesReloadRules :: TestTree
+test_rulesReloadRules =
+  testCase "Rules fail to reload for an invalid domain" $
+    Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
+      rules <- writeAndLoadRules
+        (#ignoreDotFiles False)
+        (#root tempDir)
+        (#files files)
+      failures <- writeAndLoadRules
+        (#ignoreDotFiles False)
+        (#root tempDir)
+        (#files filesFailure)
+      case (rules, failures) of
+        (Left errs, _) ->
+          assertFailure
+            ("Expected domains, got failures: " ++
+             prettyPrintErrors (NE.toList errs))
+        (Right _, Right newDefinitions) ->
+          assertFailure
+            ("Expected failures, got domains: " ++ show newDefinitions)
+        (Right definitions, Left errs) -> do
+          let
+            sortedResult = sortOn domainDefinitionId <$> result
+            sortedDefs   = sortOn domainDefinitionId definitions
+          assertBool
+            ("Unexpected definitions! Expected: " ++ (show sortedResult) ++
+             "\nGot: " ++ show sortedDefs) $
+            ((==) `on` show) sortedResult (Right sortedDefs)
+
+          assertBool
+            ("Unexpected failure! Expected: " ++
+              (prettyPrintErrors . NE.toList $ expectedFailure) ++
+              "\nGot: " ++
+              (prettyPrintErrors . NE.toList $ errs)
+            ) $
+            ((==) `on` (fmap showError . NE.toList))
+              expectedFailure
+              (trimPath <$> errs)
+ where
+  files :: [RuleFile]
+  files =
+    [ simpleRuleFile ("domain1" </> "config.yml") domainDescriptorKeyValueText
+    , simpleRuleFile ("domain2" </> "config.yml") domainDescriptorKeyText ]
+  filesFailure :: [RuleFile]
+  filesFailure =
+    [ simpleRuleFile ("domain1" </> "config.yml") domainDescriptorKeyValueText
+    , simpleRuleFile "faultyDomain.yaml" faultyDomain ]
+
+  expectedFailure :: NonEmpty LoadRulesError
+  expectedFailure =
+    NE.fromList [LoadRulesParseError
+      "faultyDomain.yaml" $
+        Yaml.AesonException
+          "Error in $.descriptors[1]: key \"key\" not present"]
+
+  result :: Either (NonEmpty LoadRulesError) [DomainDefinition]
+  result = Right [domainDescriptorKeyValue, domainDescriptorKey]

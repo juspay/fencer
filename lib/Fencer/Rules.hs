@@ -152,7 +152,7 @@ validatePotentialDomains res = case partitionEithers res of
             dupDomain
       else Right domains
     -- check if there are any duplicate rules
-    traverse_ (dupRuleCheck . (\dom -> (domainDefinitionId dom, dom))) domains
+    traverse_ (\dom -> dupRuleCheck (domainDefinitionId dom, dom)) domains
 
     pure domains
  where
