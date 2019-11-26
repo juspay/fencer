@@ -63,6 +63,10 @@ tests = testGroup "Server tests"
 -- 'reloadRules' has never been ran), requests to Fencer will error
 -- out.
 --
+-- This test also corresponds to a case when there is faulty
+-- configuration and Fencer loads no rules at startup. In such a case
+-- the server responds to requests with an error.
+--
 -- This behavior matches @lyft/ratelimit@.
 test_serverResponseRulesNotLoaded :: TestTree
 test_serverResponseRulesNotLoaded =
