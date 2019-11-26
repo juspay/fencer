@@ -3,10 +3,10 @@
 
 -- | Module with helper functions used in rules and other testing.
 module Fencer.Rules.Test.Helpers
-  ( toErrorList
-  , writeContentsToFile
+  ( writeContentsToFile
   , writeAndLoadRules
   , expectLoadRules
+  , trimPath
   )
 where
 
@@ -25,12 +25,6 @@ import           Fencer.Rules (LoadRulesError(..), loadRulesFromDirectory, prett
 import           Fencer.Rules.Test.Types (RuleFile(..))
 import           Fencer.Types (DomainDefinition(..))
 
-
--- | Get a list of values on the Left or an empty list if it is a
--- Right value.
-toErrorList :: Either [a] [b] -> [a]
-toErrorList (Right _) = []
-toErrorList (Left xs) = xs
 
 -- | Write contents to a path in the given root and modify file
 -- permissions.
@@ -102,7 +96,10 @@ expectLoadRules
         (((==) `on` show)
         (sortOn domainDefinitionId <$> result)
         (Right $ sortOn domainDefinitionId definitions))
- where
-  trimPath :: LoadRulesError -> LoadRulesError
-  trimPath (LoadRulesParseError p ex) = LoadRulesParseError (takeFileName p) ex
-  trimPath e                          = e
+
+-- | Trim a path in a 'LoadRulesParseError' such that only the file
+-- name is retained. This is useful in testing where a test file has
+-- an unpredictable path in a temporary directory.
+trimPath :: LoadRulesError -> LoadRulesError
+trimPath (LoadRulesParseError p ex) = LoadRulesParseError (takeFileName p) ex
+trimPath e                          = e

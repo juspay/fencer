@@ -9,18 +9,17 @@ module Fencer.Rules.Test
 
 import           BasePrelude
 
-import           Data.Either.Combinators (mapLeft)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Yaml as Yaml
 import qualified System.Directory as Dir
 import           System.FilePath ((</>))
 import qualified System.IO.Temp as Temp
 import           Test.Tasty (TestTree, testGroup)
-import           Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
+import           Test.Tasty.HUnit (assertBool, assertFailure, testCase)
 
 import           Fencer.Rules
 import           Fencer.Rules.Test.Examples
-import           Fencer.Rules.Test.Helpers (expectLoadRules, writeAndLoadRules, toErrorList)
+import           Fencer.Rules.Test.Helpers (expectLoadRules, writeAndLoadRules, trimPath)
 import           Fencer.Rules.Test.Types
 import           Fencer.Types (DomainDefinition, domainDefinitionId, DomainId(..), RuleKey(..))
 
@@ -256,15 +255,24 @@ test_rulesReloadRules =
         (Right _, Right newDefinitions) ->
           assertFailure
             ("Expected failures, got domains: " ++ show newDefinitions)
-        (Right definitions, f@(Left _)) -> do
-          assertEqual
-            "unexpected failure"
-            (length . toErrorList $ mapLeft NE.toList f)
-            (length . toErrorList $ expectedFailure)
-          assertBool "unexpected definitions"
-            (((==) `on` show)
-             (sortOn domainDefinitionId <$> result)
-             (Right $ sortOn domainDefinitionId definitions))
+        (Right definitions, Left errs) -> do
+          let
+            sortedResult = sortOn domainDefinitionId <$> result
+            sortedDefs   = sortOn domainDefinitionId definitions
+          assertBool
+            ("Unexpected definitions! Expected: " ++ (show sortedResult) ++
+             "\nGot: " ++ show sortedDefs) $
+            ((==) `on` show) sortedResult (Right sortedDefs)
+
+          assertBool
+            ("Unexpected failure! Expected: " ++
+              (prettyPrintErrors . NE.toList $ expectedFailure) ++
+              "\nGot: " ++
+              (prettyPrintErrors . NE.toList $ errs)
+            ) $
+            ((==) `on` (fmap showError . NE.toList))
+              expectedFailure
+              (trimPath <$> errs)
  where
   files :: [RuleFile]
   files =
@@ -275,12 +283,12 @@ test_rulesReloadRules =
     [ simpleRuleFile ("domain1" </> "config.yml") domainDescriptorKeyValueText
     , simpleRuleFile "faultyDomain.yaml" faultyDomain ]
 
-  expectedFailure :: Either [LoadRulesError] [DomainDefinition]
+  expectedFailure :: NonEmpty LoadRulesError
   expectedFailure =
-    Left [LoadRulesParseError
-            "faultyDomain.yaml" $
-              Yaml.AesonException
-                "Error in $.descriptors[1]: key \"key\" not present"]
+    NE.fromList [LoadRulesParseError
+      "faultyDomain.yaml" $
+        Yaml.AesonException
+          "Error in $.descriptors[1]: key \"key\" not present"]
 
-  result :: Either [LoadRulesError] [DomainDefinition]
+  result :: Either (NonEmpty LoadRulesError) [DomainDefinition]
   result = Right [domainDescriptorKeyValue, domainDescriptorKey]
