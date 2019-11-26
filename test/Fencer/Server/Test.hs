@@ -51,7 +51,8 @@ import qualified Fencer.Proto as Proto
 
 tests :: TestTree
 tests = testGroup "Server tests"
-  [ test_serverResponseRulesNotLoaded
+  [ test_serverResponseNoConfigurationDirectory
+  , test_serverResponseRulesNotLoaded
   , test_serverResponseNoRules
   , test_serverResponseEmptyDomain
   , test_serverResponseEmptyDescriptorList
@@ -80,17 +81,35 @@ test_serverResponseRulesNotLoaded =
         expectError
           (unknownError "no rate limit configuration loaded")
           response
-  where
-    request :: Proto.RateLimitRequest
-    request = Proto.RateLimitRequest
-      { Proto.rateLimitRequestDomain = "domain"
-      , Proto.rateLimitRequestDescriptors =
-          fromList $
-          [ Proto.RateLimitDescriptor $
-              fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
-          ]
-      , Proto.rateLimitRequestHitsAddend = 0
-      }
+
+-- | Test that when Fencer is started and there is no configuration
+-- directory, requests to Fencer will be responded to with OK.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseNoConfigurationDirectory :: TestTree
+test_serverResponseNoConfigurationDirectory =
+  withResource createServer destroyServer $ \serverIO ->
+    testCase "In absence of the configuration dir, all responses are OK" $
+      Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
+        server <- serverIO
+        writeAndLoadRules
+          (#ignoreDotFiles False)
+          (#root (tempDir </> "non-existing-dir"))
+          (#files [])
+          >>= \case
+          Left _ -> assertFailure "Failed to not load rules!"
+          Right rules -> do
+            atomically (setRules (serverAppState server) (domainToRuleTree <$> rules))
+            withService server $ \service -> do
+              let communicationRoundtrip = do
+                    response <- Proto.rateLimitServiceShouldRateLimit service $
+                      Grpc.ClientNormalRequest request 1 mempty
+                    expectSuccess
+                      (genericOKResponse, Grpc.StatusOk)
+                      response
+              -- Test that having a sequence of requests does not
+              -- change the server state
+              replicateM_ 5 communicationRoundtrip
 
 -- | Test that when Fencer is started and there are no rules after
 -- loading (i.e., 'reloadRules' has been ran, but there is no
@@ -113,17 +132,6 @@ test_serverResponseNoRules =
         -- Test that having a sequence of requests does not change the
         -- server state
         replicateM_ 5 communicationRoundtrip
-  where
-    request :: Proto.RateLimitRequest
-    request = Proto.RateLimitRequest
-      { Proto.rateLimitRequestDomain = "domain"
-      , Proto.rateLimitRequestDescriptors =
-          fromList $
-          [ Proto.RateLimitDescriptor $
-              fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
-          ]
-      , Proto.rateLimitRequestHitsAddend = 0
-      }
 
 -- | Test that requests with an empty domain name result in an error.
 --
@@ -136,24 +144,14 @@ test_serverResponseEmptyDomain =
       atomically (setRules (serverAppState server) rules)
       withService server $ \service -> do
         response <- Proto.rateLimitServiceShouldRateLimit service $
-          Grpc.ClientNormalRequest request 1 mempty
+          Grpc.ClientNormalRequest
+            (request {Proto.rateLimitRequestDomain = ""}) 1 mempty
         expectError
           (unknownError "rate limit domain must not be empty")
           response
   where
     rules :: [(DomainId, RuleTree)]
     rules = [domainToRuleTree domainDefinitionWithoutRules]
-
-    request :: Proto.RateLimitRequest
-    request = Proto.RateLimitRequest
-      { Proto.rateLimitRequestDomain = ""
-      , Proto.rateLimitRequestDescriptors =
-          fromList $
-          [ Proto.RateLimitDescriptor $
-              fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
-          ]
-      , Proto.rateLimitRequestHitsAddend = 0
-      }
 
 -- | Test that requests with an empty descriptor list result in an error.
 --
@@ -166,20 +164,16 @@ test_serverResponseEmptyDescriptorList =
       atomically (setRules (serverAppState server) rules)
       withService server $ \service -> do
         response <- Proto.rateLimitServiceShouldRateLimit service $
-          Grpc.ClientNormalRequest request 1 mempty
+          Grpc.ClientNormalRequest
+            (request {Proto.rateLimitRequestDescriptors = mempty})
+            1
+            mempty
         expectError
           (unknownError "rate limit descriptor list must not be empty")
           response
   where
     rules :: [(DomainId, RuleTree)]
     rules = [domainToRuleTree domainDefinitionWithoutRules]
-
-    request :: Proto.RateLimitRequest
-    request = Proto.RateLimitRequest
-      { Proto.rateLimitRequestDomain = "domain"
-      , Proto.rateLimitRequestDescriptors = mempty
-      , Proto.rateLimitRequestHitsAddend = 0
-      }
 
 -- | Test that a request with a non-empty descriptor list results in an
 -- OK response in presence of a configuration file without read
@@ -203,7 +197,7 @@ test_serverResponseReadPermissions =
               setRules (serverAppState server) (domainToRuleTree <$> rules)
             withService server $ \service -> do
               response <- Proto.rateLimitServiceShouldRateLimit service $
-                Grpc.ClientNormalRequest request 1 mempty
+                Grpc.ClientNormalRequest request' 1 mempty
               expectSuccess
                 (genericOKResponse, Grpc.StatusOk)
                 response
@@ -219,15 +213,13 @@ test_serverResponseReadPermissions =
           domainDescriptorKeyText
       ]
 
-    request :: Proto.RateLimitRequest
-    request = Proto.RateLimitRequest
-      { Proto.rateLimitRequestDomain = "domain"
-      , Proto.rateLimitRequestDescriptors =
+    request' :: Proto.RateLimitRequest
+    request' = request
+      { Proto.rateLimitRequestDescriptors =
           fromList $
           [ Proto.RateLimitDescriptor $
               fromList [Proto.RateLimitDescriptor_Entry "key" ""]
           ]
-      , Proto.rateLimitRequestHitsAddend = 0
       }
 
 -- | A parameterized test that checks if a request with a non-empty
@@ -259,22 +251,20 @@ test_serverResponseDuplicateDomainOrRule
           Left _ ->
             withService server $ \service -> do
               response <- Proto.rateLimitServiceShouldRateLimit service $
-                Grpc.ClientNormalRequest request 1 mempty
+                Grpc.ClientNormalRequest request' 1 mempty
               expectError
                 (unknownError "no rate limit configuration loaded")
                 response
           Right _ -> assertFailure $
             "Expected a failure, and got domain definitions instead"
   where
-    request :: Proto.RateLimitRequest
-    request = Proto.RateLimitRequest
-      { Proto.rateLimitRequestDomain = "domain1"
-      , Proto.rateLimitRequestDescriptors =
+    request' :: Proto.RateLimitRequest
+    request' = request
+      { Proto.rateLimitRequestDescriptors =
           fromList $
           [ Proto.RateLimitDescriptor $
-              fromList [Proto.RateLimitDescriptor_Entry "some key" ""]
+              fromList [Proto.RateLimitDescriptor_Entry "key" ""]
           ]
-      , Proto.rateLimitRequestHitsAddend = 0
       }
 
 -- | Test that a request with a non-empty descriptor list results in a
@@ -465,4 +455,16 @@ genericOKResponse = Proto.RateLimitResponse
       , rateLimitResponse_DescriptorStatusLimitRemaining = 0
       }
   , rateLimitResponseHeaders = Vector.empty
+  }
+
+-- | A generic request useful for testing the server.
+request :: Proto.RateLimitRequest
+request = Proto.RateLimitRequest
+  { Proto.rateLimitRequestDomain = "domain"
+  , Proto.rateLimitRequestDescriptors =
+      fromList $
+      [ Proto.RateLimitDescriptor $
+        fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
+      ]
+  , Proto.rateLimitRequestHitsAddend = 0
   }

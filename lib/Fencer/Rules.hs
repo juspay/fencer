@@ -131,7 +131,8 @@ validatePotentialDomains
   :: [Either LoadRulesError (Maybe DomainDefinition)]
   -> Either (NonEmpty LoadRulesError) [DomainDefinition]
 validatePotentialDomains res = case partitionEithers res of
-  (errs@(_:_), _    ) -> Left $ NE.fromList errs
+  (errs@(_:_), _       ) -> Left $ NE.fromList errs
+  ([]        , []      ) -> Right []
   ([]        , mDomains) -> do
     -- check if there are any duplicate domains
     domains <- do
