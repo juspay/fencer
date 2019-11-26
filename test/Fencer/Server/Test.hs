@@ -15,9 +15,9 @@ where
 import           BasePrelude
 
 import           Data.ByteString (ByteString)
-import           Data.Text (Text)
 import qualified Data.Vector as Vector
 import           GHC.Exts (fromList)
+import           Named ((:!), arg)
 import qualified Network.GRPC.HighLevel.Generated as Grpc
 import           Proto3.Suite.Types (Enumerated(..))
 import qualified System.Directory as Dir
@@ -32,7 +32,14 @@ import           Fencer.Server
 import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
 import           Fencer.Types
 import           Fencer.Rules
-import qualified Fencer.Rules.Test as RTest
+import           Fencer.Rules.Test.Examples
+                 ( domainDescriptorKeyValueText
+                 , domainDescriptorKeyText
+                 , domainDescriptorKeyValue
+                 , duplicateRuleDomain
+                 )
+import           Fencer.Rules.Test.Helpers (writeAndLoadRules)
+import           Fencer.Rules.Test.Types (RuleFile(..), simpleRuleFile)
 import qualified Fencer.Proto as Proto
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
@@ -48,6 +55,8 @@ tests = testGroup "Server tests"
   , test_serverResponseEmptyDomain
   , test_serverResponseEmptyDescriptorList
   , test_serverResponseReadPermissions
+  , test_serverResponseDuplicateDomain
+  , test_serverResponseDuplicateRule
   ]
 
 -- | Test that when Fencer is started without rule loading (i.e.
@@ -188,7 +197,7 @@ test_serverResponseReadPermissions =
     testCase "OK response with one YAML file without read permissions" $
       Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
         server <- serverIO
-        RTest.writeAndLoadRules
+        writeAndLoadRules
           (#ignoreDotFiles False)
           (#root tempDir)
           (#files files)
@@ -204,11 +213,16 @@ test_serverResponseReadPermissions =
                 (expectedResponse, Grpc.StatusOk)
                 response
   where
-    files :: [(FilePath, Text, Dir.Permissions -> Dir.Permissions)]
+    files :: [RuleFile]
     files =
-      [ ( "domain1" </> "config.yml", RTest.domain1Text
-        , const Dir.emptyPermissions)
-      , ("domain2" </> "config" </> "config.yml", RTest.domain2Text, id) ]
+      [ MkRuleFile
+          ("domain1" </> "config.yml")
+          domainDescriptorKeyValueText
+          (const Dir.emptyPermissions)
+      , simpleRuleFile
+          ("domain2" </> "config" </> "config.yml")
+          domainDescriptorKeyText
+      ]
 
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
@@ -234,6 +248,77 @@ test_serverResponseReadPermissions =
           }
       , rateLimitResponseHeaders = Vector.empty
       }
+
+-- | A parameterized test that checks if a request with a non-empty
+-- descriptor list results in a response with an unknown status code
+-- in presence of a configuration with a duplicate domain/rule.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseDuplicateDomainOrRule
+  :: "label" :! String
+  -> "definitionsOrFiles" :! Either [DomainDefinition] [RuleFile]
+  -> TestTree
+test_serverResponseDuplicateDomainOrRule
+  (arg #label -> label)
+  (arg #definitionsOrFiles -> definitionsOrFiles) =
+  withResource createServer destroyServer $ \serverIO ->
+    testCase ("In presence of duplicate " ++ label ++ " all requests error") $
+      Temp.withSystemTempDirectory "fencer-config" $ \tempDir -> do
+        server <- serverIO
+        df :: Either (NonEmpty LoadRulesError) [DomainDefinition] <-
+          case definitionsOrFiles of
+            Left domains ->
+              pure (validatePotentialDomains $ Right . Just <$> domains)
+            Right files  ->
+              writeAndLoadRules
+                (#ignoreDotFiles False)
+                (#root tempDir)
+                (#files files)
+        case df of
+          Left _ ->
+            withService server $ \service -> do
+              response <- Proto.rateLimitServiceShouldRateLimit service $
+                Grpc.ClientNormalRequest request 1 mempty
+              expectError
+                (unknownError "no rate limit configuration loaded")
+                response
+          Right _ -> assertFailure $
+            "Expected a failure, and got domain definitions instead"
+  where
+    request :: Proto.RateLimitRequest
+    request = Proto.RateLimitRequest
+      { Proto.rateLimitRequestDomain = "domain1"
+      , Proto.rateLimitRequestDescriptors =
+          fromList $
+          [ Proto.RateLimitDescriptor $
+              fromList [Proto.RateLimitDescriptor_Entry "some key" ""]
+          ]
+      , Proto.rateLimitRequestHitsAddend = 0
+      }
+
+-- | Test that a request with a non-empty descriptor list results in a
+-- response with an unknown status code in presence of a configuration
+-- with a duplicate domain.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseDuplicateDomain :: TestTree
+test_serverResponseDuplicateDomain =
+  test_serverResponseDuplicateDomainOrRule
+    (#label "domains")
+    (#definitionsOrFiles (Left $ replicate 2 domainDescriptorKeyValue))
+
+-- | Test that a request with a non-empty descriptor list results in a
+-- response with an unknown status code in presence of a configuration
+-- with a duplicate rule.
+--
+-- This behavior matches @lyft/ratelimit@.
+test_serverResponseDuplicateRule :: TestTree
+test_serverResponseDuplicateRule =
+  test_serverResponseDuplicateDomainOrRule
+    (#label "rules")
+    (#definitionsOrFiles
+       (Right [simpleRuleFile "another.yaml" duplicateRuleDomain])
+    )
 
 ----------------------------------------------------------------------------
 -- Helpers
