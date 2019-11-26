@@ -142,8 +142,14 @@ validatePotentialDomains res = case partitionEithers res of
           (NE.fromList $ sortOn domainDefinitionId domains)
       if (length @[] domains /= length @[] groupedDomains)
       then
-        let dupDomain = NE.head . head $ filter (\l -> NE.length l > 1) groupedDomains
-        in Left . pure . LoadRulesDuplicateDomain . domainDefinitionId $ dupDomain
+        let dupDomain =
+              NE.head . head $ filter (\l -> NE.length l > 1) groupedDomains
+        in
+          Left .
+          pure .
+          LoadRulesDuplicateDomain .
+          domainDefinitionId $
+            dupDomain
       else Right domains
     -- check if there are any duplicate rules
     traverse_ (dupRuleCheck . (\dom -> (domainDefinitionId dom, dom))) domains
