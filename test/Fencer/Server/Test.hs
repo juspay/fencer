@@ -14,6 +14,7 @@ where
 
 import           BasePrelude
 
+import           Control.Monad (replicateM_)
 import           Data.ByteString (ByteString)
 import qualified Data.Vector as Vector
 import           GHC.Exts (fromList)
@@ -103,11 +104,15 @@ test_serverResponseNoRules =
       server <- serverIO
       atomically (setRules (serverAppState server) []) -- an empty rule list
       withService server $ \service -> do
-        response <- Proto.rateLimitServiceShouldRateLimit service $
-          Grpc.ClientNormalRequest request 1 mempty
-        expectSuccess
-          (expectedResponse, Grpc.StatusOk)
-          response
+        let communicationRoundtrip = do
+              response <- Proto.rateLimitServiceShouldRateLimit service $
+                Grpc.ClientNormalRequest request 1 mempty
+              expectSuccess
+                (genericOKResponse, Grpc.StatusOk)
+                response
+        -- Test that having a sequence of requests does not change the
+        -- server state
+        replicateM_ 5 communicationRoundtrip
   where
     request :: Proto.RateLimitRequest
     request = Proto.RateLimitRequest
@@ -118,20 +123,6 @@ test_serverResponseNoRules =
               fromList [Proto.RateLimitDescriptor_Entry "key" "value"]
           ]
       , Proto.rateLimitRequestHitsAddend = 0
-      }
-
-    expectedResponse :: Proto.RateLimitResponse
-    expectedResponse = Proto.RateLimitResponse
-      { rateLimitResponseOverallCode =
-          Enumerated $ Right Proto.RateLimitResponse_CodeOK
-      , rateLimitResponseStatuses = Vector.singleton
-          Proto.RateLimitResponse_DescriptorStatus
-          { rateLimitResponse_DescriptorStatusCode =
-              Enumerated $ Right Proto.RateLimitResponse_CodeOK
-          , rateLimitResponse_DescriptorStatusCurrentLimit = Nothing
-          , rateLimitResponse_DescriptorStatusLimitRemaining = 0
-          }
-      , rateLimitResponseHeaders = Vector.empty
       }
 
 -- | Test that requests with an empty domain name result in an error.
