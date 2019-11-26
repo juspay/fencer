@@ -12,6 +12,7 @@ module Fencer.Rules.Test.Examples
   , minimalDomainText
   , separatorDomain
   , separatorDomainText
+  , duplicateRuleDomain
   )
   where
 
@@ -118,4 +119,24 @@ separatorDomainText = [text|
     - key: some key
       value: some value
     - key: some key 2
+  |]
+
+-- | The text value of a faulty domain definition that has a key
+-- repeated.
+duplicateRuleDomain :: Text
+duplicateRuleDomain = [text|
+  domain: another
+  descriptors:
+    - key: key1
+      rate_limit:
+        unit: minute
+        requests_per_unit: 20
+    - key: key2
+      rate_limit:
+        unit: minute
+        requests_per_unit: 30
+    - key: key1
+      rate_limit:
+        unit: hour
+        requests_per_unit: 10
   |]

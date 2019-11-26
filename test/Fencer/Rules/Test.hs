@@ -20,7 +20,7 @@ import           Fencer.Rules
 import           Fencer.Rules.Test.Examples
 import           Fencer.Rules.Test.Helpers (expectLoadRules)
 import           Fencer.Rules.Test.Types
-import           Fencer.Types (DomainId(..))
+import           Fencer.Types (DomainId(..), RuleKey(..))
 
 
 tests :: TestTree
@@ -36,6 +36,7 @@ tests = testGroup "Rule tests"
   , test_rulesYAMLSeparator
   , test_rulesLoadRulesReadPermissions
   , test_rulesLoadRulesDuplicateDomain
+  , test_rulesLoadRulesDuplicateRule
   ]
 
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
@@ -185,7 +186,26 @@ test_rulesLoadRulesDuplicateDomain =
         ]
       )
       (#result $
-         Left $ NE.fromList [LoadRulesDuplicateDomain $ DomainId "domain1"])
+        Left $ NE.fromList [LoadRulesDuplicateDomain $ DomainId "domain1"]
+      )
+
+-- | test that 'loadRulesFromDirectory' rejects a configuration with a
+-- duplicate rule.
+--
+-- This matches the behavior of @lyft/ratelimit@.
+test_rulesLoadRulesDuplicateRule :: TestTree
+test_rulesLoadRulesDuplicateRule =
+  testCase "Error on a configuration with a duplicate rule" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files [simpleRuleFile "another.yaml" duplicateRuleDomain])
+      (#result $
+         Left $ NE.fromList
+           [LoadRulesDuplicateRule
+             (DomainId "another")
+             (RuleKey "key1")
+           ]
+      )
 
 -- | test that 'loadRulesFromDirectory' loads a configuration file in
 -- presence of another configuration file without read permissions.
