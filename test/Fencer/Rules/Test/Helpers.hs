@@ -12,6 +12,8 @@ where
 
 import           BasePrelude
 
+import           Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Text.IO as TIO
 import           Named ((:!), arg)
 import qualified System.Directory as Dir
@@ -53,7 +55,7 @@ writeAndLoadRules
   :: "ignoreDotFiles" :! Bool
   -> "root" :! FilePath
   -> "files" :! [RuleFile]
-  -> IO (Either [LoadRulesError] [DomainDefinition])
+  -> IO (Either (NonEmpty LoadRulesError) [DomainDefinition])
 writeAndLoadRules
   (arg #ignoreDotFiles -> ignoreDotFiles)
   (arg #root -> root)
@@ -73,7 +75,7 @@ writeAndLoadRules
 expectLoadRules
   :: "ignoreDotFiles" :! Bool
   -> "files" :! [RuleFile]
-  -> "result" :! Either [LoadRulesError] [DomainDefinition]
+  -> "result" :! Either (NonEmpty LoadRulesError) [DomainDefinition]
   -> Assertion
 expectLoadRules
   (arg #ignoreDotFiles -> ignoreDotFiles)
@@ -91,11 +93,11 @@ expectLoadRules
             assertFailure "Expected failures, got domain definitions!"
           Left expectedErrs ->
             assertBool ("Exceptions differ! Expected: " ++
-                        (prettyPrintErrors expectedErrs) ++ "\nGot: " ++
-                        (prettyPrintErrors errs))
+                        (prettyPrintErrors $ NE.toList expectedErrs) ++ "\nGot: " ++
+                        (prettyPrintErrors $ NE.toList errs))
               (((==) `on` (fmap showError))
-               (sortBy (compare `on` showError) (trimPath <$> expectedErrs))
-               (sortBy (compare `on` showError) (trimPath <$> errs)))
+               (NE.sortBy (compare `on` showError) (trimPath <$> expectedErrs))
+               (NE.sortBy (compare `on` showError) (trimPath <$> errs)))
       Right definitions -> assertBool "unexpected definitions"
         (((==) `on` show)
         (sortOn domainDefinitionId <$> result)

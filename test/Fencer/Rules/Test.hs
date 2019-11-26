@@ -9,6 +9,7 @@ module Fencer.Rules.Test
 
 import           BasePrelude
 
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Yaml as Yaml
 import qualified System.Directory as Dir
 import           System.FilePath ((</>))
@@ -20,7 +21,7 @@ import           Fencer.Rules
 import           Fencer.Rules.Test.Examples
 import           Fencer.Rules.Test.Helpers (expectLoadRules, writeAndLoadRules, toErrorList)
 import           Fencer.Rules.Test.Types
-import           Fencer.Types (DomainDefinition, domainDefinitionId)
+import           Fencer.Types (DomainDefinition, domainDefinitionId, DomainId(..))
 
 
 tests :: TestTree
@@ -36,6 +37,7 @@ tests = testGroup "Rule tests"
   , test_rulesLoadRulesReadPermissions
   , test_rulesYAMLSeparator
   , test_rulesReloadRules
+  , test_rulesLoadRulesDuplicateDomain
   ]
 
 -- | test that 'loadRulesFromDirectory' loads rules from YAML files.
@@ -139,7 +141,7 @@ test_rulesLoadRulesException =
         , simpleRuleFile "faultyDomain.yaml" faultyDomain
         ]
       )
-      (#result $ Left
+      (#result $ Left $ NE.fromList
          [LoadRulesParseError "faultyDomain.yaml" $
            Yaml.AesonException
              "Error in $.descriptors[1]: key \"key\" not present"])
@@ -169,6 +171,23 @@ test_rulesYAMLSeparator =
       (#ignoreDotFiles False)
       (#files [simpleRuleFile "sep.yaml" separatorDomainText] )
       (#result $ Right [separatorDomain])
+
+-- | test that 'loadRulesFromDirectory' rejects a configuration with a
+-- duplicate domain.
+--
+-- This matches the behavior of @lyft/ratelimit@.
+test_rulesLoadRulesDuplicateDomain :: TestTree
+test_rulesLoadRulesDuplicateDomain =
+  testCase "Error on a configuration with a duplicate domain" $
+    expectLoadRules
+      (#ignoreDotFiles False)
+      (#files
+        [ simpleRuleFile "one.yaml" domainDescriptorKeyValueText
+        , simpleRuleFile "two.yaml" domainDescriptorKeyValueText
+        ]
+      )
+      (#result $
+         Left $ NE.fromList [LoadRulesDuplicateDomain $ DomainId "domain1"])
 
 -- | test that 'loadRulesFromDirectory' loads a configuration file in
 -- presence of another configuration file without read permissions.
@@ -211,7 +230,8 @@ test_rulesReloadRules =
       case (rules, failures) of
         (Left errs, _) ->
           assertFailure
-            ("Expected domains, got failures: " ++ prettyPrintErrors errs)
+            ("Expected domains, got failures: " ++
+             prettyPrintErrors (NE.toList errs))
         (Right _, Right newDefinitions) ->
           assertFailure
             ("Expected failures, got domains: " ++ show newDefinitions)
