@@ -246,7 +246,7 @@ test_rulesReloadRules =
       failures <- writeAndLoadRules
         (#ignoreDotFiles False)
         (#root tempDir)
-        (#files files')
+        (#files filesFailure)
       case (rules, failures) of
         (Left errs, _) ->
           assertFailure
@@ -278,8 +278,8 @@ test_rulesReloadRules =
   files =
     [ simpleRuleFile ("domain1" </> "config.yml") domainDescriptorKeyValueText
     , simpleRuleFile ("domain2" </> "config.yml") domainDescriptorKeyText ]
-  files' :: [RuleFile]
-  files' =
+  filesFailure :: [RuleFile]
+  filesFailure =
     [ simpleRuleFile ("domain1" </> "config.yml") domainDescriptorKeyValueText
     , simpleRuleFile "faultyDomain.yaml" faultyDomain ]
 
