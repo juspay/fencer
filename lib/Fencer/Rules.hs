@@ -6,7 +6,9 @@
 module Fencer.Rules
     ( LoadRulesError(..)
     , prettyPrintErrors
+    , showError
     , loadRulesFromDirectory
+    , validatePotentialDomains
     , definitionsToRuleTree
     , domainToRuleTree
     , applyRules
@@ -16,30 +18,41 @@ where
 import BasePrelude
 
 import Control.Applicative (liftA2)
-import Control.Monad.Extra (partitionM, concatMapM)
+import Control.Monad.Extra (partitionM, concatMapM, ifM)
 import Data.Either (partitionEithers)
-import Data.Maybe (catMaybes)
 import qualified Data.HashMap.Strict as HM
+import Data.List.NonEmpty (NonEmpty)
+import Data.Maybe (catMaybes)
+import qualified Data.List.NonEmpty as NE
 import Named ((:!), arg)
-import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
+import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, getPermissions, pathIsSymbolicLink, readable)
 import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
 import qualified Data.Yaml as Yaml
 
 import Fencer.Types
 
+
 data LoadRulesError
   = LoadRulesParseError FilePath Yaml.ParseException
   | LoadRulesIOError IOException
+  | LoadRulesDuplicateDomain DomainId
+  | LoadRulesDuplicateRule DomainId RuleKey
   deriving stock (Show)
+
+-- | Pretty-print a 'LoadRulesError'.
+showError :: LoadRulesError -> String
+showError (LoadRulesParseError file yamlEx) =
+  show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
+showError (LoadRulesIOError ex) = "IO error: " ++ displayException ex
+showError (LoadRulesDuplicateDomain d) =
+  "duplicate domain " ++ (show . unDomainId $ d) ++ " in config file"
+showError (LoadRulesDuplicateRule dom key) =
+  "duplicate descriptor composite key " ++
+  (show . unDomainId $ dom) ++ "." ++ (show . unRuleKey $ key)
 
 -- | Pretty-print a list of 'LoadRulesError's.
 prettyPrintErrors :: [LoadRulesError] -> String
 prettyPrintErrors = intercalate ", " . fmap showError
-  where
-    showError (LoadRulesParseError file yamlEx) =
-      show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
-    showError (LoadRulesIOError ex) =
-      "IO error: " ++ displayException ex
 
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension. If
@@ -53,7 +66,7 @@ loadRulesFromDirectory
     :: "rootDirectory" :! FilePath
     -> "subDirectory" :! FilePath
     -> "ignoreDotFiles" :! Bool
-    -> IO (Either [LoadRulesError] [DomainDefinition])
+    -> IO (Either (NonEmpty LoadRulesError) [DomainDefinition])
 loadRulesFromDirectory
     (arg #rootDirectory -> rootDirectory)
     (arg #subDirectory -> subDirectory)
@@ -65,27 +78,25 @@ loadRulesFromDirectory
     let filteredFiles = if ignoreDotFiles
         then filter (not . isDotFile) files
         else files
-    (errs, mRules) <- partitionEithers <$> mapM loadFile filteredFiles
-    pure $ if (null @[] errs) then Right (catMaybes mRules) else Left errs
+    validatePotentialDomains <$> mapM loadFile filteredFiles
   where
     loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
-    loadFile file = catch
-      (parseErrorHandle file <$> Yaml.decodeFileEither @DomainDefinition file)
-      (pure . Left . LoadRulesIOError)
+    loadFile file =
+      ifM (readable <$> getPermissions file)
+        (catch
+          (convertParseType file <$> Yaml.decodeFileEither @DomainDefinition file)
+          (pure . Left . LoadRulesIOError)
+        )
+        (pure $ Right Nothing)
 
-    -- | Handle a special case when the input file cannot be read due
-    -- to file permissions by returning Nothing on the Right.
-    parseErrorHandle
+    -- | Convert to the needed sum type.
+    convertParseType
       :: FilePath
       -> Either Yaml.ParseException DomainDefinition
          ----------------------------------------------
       -> Either LoadRulesError (Maybe DomainDefinition)
-    parseErrorHandle _    (Right def)  = Right $ Just def
-    parseErrorHandle file (Left parEx) = case parEx of
-      Yaml.InvalidYaml (Just (Yaml.YamlException _)) ->
-        Right Nothing
-      err ->
-        Left $ LoadRulesParseError file err
+    convertParseType _    (Right def) = Right $ Just def
+    convertParseType file (Left err)  = Left $ LoadRulesParseError file err
 
     isDotFile :: FilePath -> Bool
     isDotFile file =
@@ -113,6 +124,58 @@ loadRulesFromDirectory
         (files, other) <- partitionM doesFileExist contents
         dirs <- filterM isDirectory other
         (files ++) <$> concatMapM listAllFiles dirs
+
+-- | Perform validation checks to make sure the behavior matches that
+-- of @lyft/ratelimit@.
+validatePotentialDomains
+  :: [Either LoadRulesError (Maybe DomainDefinition)]
+  -> Either (NonEmpty LoadRulesError) [DomainDefinition]
+validatePotentialDomains res = case partitionEithers res of
+  (errs@(_:_), _       ) -> Left $ NE.fromList errs
+  ([]        , []      ) -> Right []
+  ([]        , mDomains) -> do
+    -- check if there are any duplicate domains
+    domains <- do
+      let
+        domains = catMaybes mDomains
+        groupedDomains :: [NonEmpty DomainDefinition] = NE.groupBy
+          ((==) `on` domainDefinitionId)
+          (NE.fromList $ sortOn domainDefinitionId domains)
+      if (length @[] domains /= length @[] groupedDomains)
+      then
+        let dupDomain =
+              NE.head . head $ filter (\l -> NE.length l > 1) groupedDomains
+        in
+          Left .
+          pure .
+          LoadRulesDuplicateDomain .
+          domainDefinitionId $
+            dupDomain
+      else Right domains
+    -- check if there are any duplicate rules
+    traverse_ (dupRuleCheck . (\dom -> (domainDefinitionId dom, dom))) domains
+
+    pure domains
+ where
+  dupRuleCheck
+    :: HasDescriptors a
+    => (DomainId, a)
+    -> Either (NonEmpty LoadRulesError) ()
+  dupRuleCheck (_, d) | null @[] (descriptorsOf d) = Right ()
+  dupRuleCheck (domId, d) = do
+    let
+      descs = descriptorsOf d
+      groupedDescs :: [NonEmpty DescriptorDefinition] = NE.groupBy
+        ((==) `on` descriptorDefinitionKey)
+        (NE.fromList $ sortOn (unRuleKey . descriptorDefinitionKey) descs)
+    if (length @[] descs /= length @[] groupedDescs)
+    then
+      let dupRule = NE.head . head $ filter (\l -> NE.length l > 1) groupedDescs
+      in Left . pure $
+        LoadRulesDuplicateRule
+          domId
+          (descriptorDefinitionKey dupRule)
+    else traverse_ (curry dupRuleCheck domId) $ descriptorsOf d
 
 -- | Convert a list of descriptors to a 'RuleTree'.
 definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree
