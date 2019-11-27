@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- | The gRPC server definition.
 module Fencer.Server
@@ -13,6 +14,7 @@ where
 import BasePrelude hiding ((+++))
 
 import           Control.Concurrent.STM (atomically)
+import           Control.Monad.Extra (unlessM)
 import qualified Data.ByteString.Char8 as B
 import           Data.Text (Text)
 import qualified Data.Text.Lazy as TL
@@ -84,14 +86,24 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = 
         Logger.field "descriptors" (show descriptors) .
         Logger.field "hits" hits
 
-    rulesLoaded <- atomically $ getAppStateRulesLoaded appState
-    unless rulesLoaded $ do
+    -- Check some conditions and throw errors if necessary.
+    let cancelWithError :: String -> IO ()
+        cancelWithError = Grpc.serverCallCancel serverCall Grpc.StatusUnknown
+
+    unlessM (atomically (getAppStateRulesLoaded appState)) $ do
         Logger.info logger $
             Logger.msg (Logger.val "Rules not loaded, responding with an error")
-        Grpc.serverCallCancel
-            serverCall
-            Grpc.StatusUnknown
-            "rate limit descriptor list must not be empty"
+        cancelWithError "no rate limit configuration loaded"
+
+    when (domain == DomainId "") $ do
+        Logger.info logger $
+            Logger.msg (Logger.val "Empty domain ID, responding with an error")
+        cancelWithError "rate limit domain must not be empty"
+
+    when (null @[] descriptors) $ do
+        Logger.info logger $
+            Logger.msg (Logger.val "Empty descriptor list, responding with an error")
+        cancelWithError "rate limit descriptor list must not be empty"
 
     -- Update all counters in one atomic operation, and collect the results.
     --

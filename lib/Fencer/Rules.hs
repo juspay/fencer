@@ -4,22 +4,55 @@
 
 -- | Working with rate limiting rules.
 module Fencer.Rules
-    ( loadRulesFromDirectory
+    ( LoadRulesError(..)
+    , prettyPrintErrors
+    , showError
+    , loadRulesFromDirectory
+    , validatePotentialDomains
     , definitionsToRuleTree
+    , domainToRuleTree
     , applyRules
     )
 where
 
 import BasePrelude
 
-import Control.Monad.Extra (partitionM, concatMapM)
+import Control.Applicative (liftA2)
+import Control.Monad.Extra (partitionM, concatMapM, ifM)
+import Data.Either (partitionEithers)
 import qualified Data.HashMap.Strict as HM
+import Data.List.NonEmpty (NonEmpty)
+import Data.Maybe (catMaybes)
+import qualified Data.List.NonEmpty as NE
 import Named ((:!), arg)
-import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, pathIsSymbolicLink)
+import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, getPermissions, pathIsSymbolicLink, readable)
 import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
 import qualified Data.Yaml as Yaml
 
 import Fencer.Types
+
+
+data LoadRulesError
+  = LoadRulesParseError FilePath Yaml.ParseException
+  | LoadRulesIOError IOException
+  | LoadRulesDuplicateDomain DomainId
+  | LoadRulesDuplicateRule DomainId RuleKey
+  deriving stock (Show)
+
+-- | Pretty-print a 'LoadRulesError'.
+showError :: LoadRulesError -> String
+showError (LoadRulesParseError file yamlEx) =
+  show file ++ ", " ++ (Yaml.prettyPrintParseException yamlEx)
+showError (LoadRulesIOError ex) = "IO error: " ++ displayException ex
+showError (LoadRulesDuplicateDomain d) =
+  "duplicate domain " ++ (show . unDomainId $ d) ++ " in config file"
+showError (LoadRulesDuplicateRule dom key) =
+  "duplicate descriptor composite key " ++
+  (show . unDomainId $ dom) ++ "." ++ (show . unRuleKey $ key)
+
+-- | Pretty-print a list of 'LoadRulesError's.
+prettyPrintErrors :: [LoadRulesError] -> String
+prettyPrintErrors = intercalate ", " . fmap showError
 
 -- | Read rate limiting rules from a directory, recursively. Files are
 -- assumed to be YAML, but do not have to have a @.yml@ extension. If
@@ -27,12 +60,13 @@ import Fencer.Types
 -- with a dot and dot-files are ignored, this function will skip
 -- loading rules from it and all directories below it.
 --
--- Throws an exception for unparseable or unreadable files.
+-- In case of unparsable or unreadable files returns a list of
+-- exceptions.
 loadRulesFromDirectory
     :: "rootDirectory" :! FilePath
     -> "subDirectory" :! FilePath
     -> "ignoreDotFiles" :! Bool
-    -> IO [DomainDefinition]
+    -> IO (Either (NonEmpty LoadRulesError) [DomainDefinition])
 loadRulesFromDirectory
     (arg #rootDirectory -> rootDirectory)
     (arg #subDirectory -> subDirectory)
@@ -41,11 +75,29 @@ loadRulesFromDirectory
     do
     let directory = rootDirectory </> subDirectory
     files <- listAllFiles directory
-    mapM Yaml.decodeFileThrow $
-        if ignoreDotFiles
-            then filter (not . isDotFile) files
-            else files
+    let filteredFiles = if ignoreDotFiles
+        then filter (not . isDotFile) files
+        else files
+    validatePotentialDomains <$> mapM loadFile filteredFiles
   where
+    loadFile :: FilePath -> IO (Either LoadRulesError (Maybe DomainDefinition))
+    loadFile file =
+      ifM (readable <$> getPermissions file)
+        (catch
+          (convertParseType file <$> Yaml.decodeFileEither @DomainDefinition file)
+          (pure . Left . LoadRulesIOError)
+        )
+        (pure $ Right Nothing)
+
+    -- | Convert to the needed sum type.
+    convertParseType
+      :: FilePath
+      -> Either Yaml.ParseException DomainDefinition
+         ----------------------------------------------
+      -> Either LoadRulesError (Maybe DomainDefinition)
+    convertParseType _    (Right def) = Right $ Just def
+    convertParseType file (Left err)  = Left $ LoadRulesParseError file err
+
     isDotFile :: FilePath -> Bool
     isDotFile file =
       let
@@ -73,6 +125,58 @@ loadRulesFromDirectory
         dirs <- filterM isDirectory other
         (files ++) <$> concatMapM listAllFiles dirs
 
+-- | Perform validation checks to make sure the behavior matches that
+-- of @lyft/ratelimit@.
+validatePotentialDomains
+  :: [Either LoadRulesError (Maybe DomainDefinition)]
+  -> Either (NonEmpty LoadRulesError) [DomainDefinition]
+validatePotentialDomains res = case partitionEithers res of
+  (errs@(_:_), _       ) -> Left $ NE.fromList errs
+  ([]        , []      ) -> Right []
+  ([]        , mDomains) -> do
+    -- check if there are any duplicate domains
+    domains <- do
+      let
+        domains = catMaybes mDomains
+        groupedDomains :: [NonEmpty DomainDefinition] = NE.groupBy
+          ((==) `on` domainDefinitionId)
+          (NE.fromList $ sortOn domainDefinitionId domains)
+      if (length @[] domains /= length @[] groupedDomains)
+      then
+        let dupDomain =
+              NE.head . head $ filter (\l -> NE.length l > 1) groupedDomains
+        in
+          Left .
+          pure .
+          LoadRulesDuplicateDomain .
+          domainDefinitionId $
+            dupDomain
+      else Right domains
+    -- check if there are any duplicate rules
+    traverse_ (\dom -> dupRuleCheck (domainDefinitionId dom, dom)) domains
+
+    pure domains
+ where
+  dupRuleCheck
+    :: HasDescriptors a
+    => (DomainId, a)
+    -> Either (NonEmpty LoadRulesError) ()
+  dupRuleCheck (_, d) | null @[] (descriptorsOf d) = Right ()
+  dupRuleCheck (domId, d) = do
+    let
+      descs = descriptorsOf d
+      groupedDescs :: [NonEmpty DescriptorDefinition] = NE.groupBy
+        ((==) `on` descriptorDefinitionKey)
+        (NE.fromList $ sortOn (unRuleKey . descriptorDefinitionKey) descs)
+    if (length @[] descs /= length @[] groupedDescs)
+    then
+      let dupRule = NE.head . head $ filter (\l -> NE.length l > 1) groupedDescs
+      in Left . pure $
+        LoadRulesDuplicateRule
+          domId
+          (descriptorDefinitionKey dupRule)
+    else traverse_ (curry dupRuleCheck domId) $ descriptorsOf d
+
 -- | Convert a list of descriptors to a 'RuleTree'.
 definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree
 definitionsToRuleTree = HM.fromList . map (\d -> (makeKey d, makeBranch d))
@@ -88,6 +192,14 @@ definitionsToRuleTree = HM.fromList . map (\d -> (makeKey d, makeBranch d))
               definitionsToRuleTree $
                   fromMaybe [] (descriptorDefinitionDescriptors desc)
         }
+
+-- | Convert a domain to a 'RuleTree' together with the domain ID. This is a
+-- trivial function but we need it often.
+domainToRuleTree :: DomainDefinition -> (DomainId, RuleTree)
+domainToRuleTree domain =
+  ( domainDefinitionId domain
+  , definitionsToRuleTree (domainDefinitionDescriptors domain)
+  )
 
 -- | In a tree of rules, find the 'RateLimit' that should be applied to a
 -- specific descriptor.

@@ -13,6 +13,7 @@ where
 import BasePrelude
 
 import Control.Concurrent.STM (atomically)
+import qualified Data.List.NonEmpty as NE
 import System.FilePath ((</>))
 import qualified System.Logger as Logger
 import System.Logger (Logger)
@@ -77,25 +78,26 @@ reloadRules logger settings appState = do
         Logger.msg ("Loading rules from " ++ configDir)
 
     -- Read and parse the rules
-    ruleDefinitions :: [DomainDefinition] <-
-        loadRulesFromDirectory
-            (#rootDirectory $ settingsRoot settings)
-            (#subDirectory $ settingsSubdirectory settings </> "config")
-            (#ignoreDotFiles (settingsIgnoreDotFiles settings))
-    Logger.info logger $
-        Logger.msg ("Parsed rules for domains: " ++
-                    show (map (unDomainId . domainDefinitionId) ruleDefinitions))
+    loadRulesFromDirectory
+        (#rootDirectory $ settingsRoot settings)
+        (#subDirectory $ settingsSubdirectory settings </> "config")
+        (#ignoreDotFiles (settingsIgnoreDotFiles settings))
+    >>= \case
+    Left fs ->
+        Logger.err logger $
+            Logger.msg ("error loading new configuration from runtime: " ++
+                        prettyPrintErrors (NE.toList fs))
+    Right ruleDefinitions -> do
+        Logger.info logger $
+            Logger.msg ("Parsed rules for domains: " ++
+                show (map (unDomainId . domainDefinitionId) ruleDefinitions))
 
-    -- Recreate 'appStateRules'
-    --
-    -- There is no need to remove old rate limiting rules
-    atomically $
-        -- See the documentation of 'setRules' for details on what
-        -- happens with counters during rule reloading.
-        setRules appState
-            [ ( domainDefinitionId rule
-              , definitionsToRuleTree $ domainDefinitionDescriptors rule )
-            | rule <- ruleDefinitions
-            ]
-    Logger.info logger $
-        Logger.msg (Logger.val "Applied new rules")
+        -- Recreate 'appStateRules'
+        --
+        -- There is no need to remove old rate limiting rules
+        atomically $
+            -- See the documentation of 'setRules' for details on what
+            -- happens with counters during rule reloading.
+            setRules appState (map domainToRuleTree ruleDefinitions)
+        Logger.info logger $
+            Logger.msg (Logger.val "Applied new rules")
