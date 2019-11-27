@@ -131,7 +131,7 @@ used.
     ```
     nix-shell -p grpcurl 
     ...
-    > grpcurl -proto proto/rls.proto -plaintext -d '{"domain":"basic", "descriptors":[{"entries":[{"key":"key1"}]}]}' localhost:8081 envoy.service.ratelimit.v2.RateLimitService.ShouldRateLimit
+    > grpcurl -proto proto/rls.proto -plaintext -d '{"domain":"mongo_cps", "descriptors":[{"entries":[{"key":"database"}]}]}' localhost:8081 envoy.service.ratelimit.v2.RateLimitService.ShouldRateLimit
     ```
 
    If everything went fine, you should get an OK response informing
