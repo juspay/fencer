@@ -154,6 +154,10 @@ into `nix-shell` and use the following command:
 ./scripts/protoGen.sh
 ```
 
+### Running ratelimit
+
+To run lyft/ratelimit itself, see the instructions in `./nix/ratelimit/README.md`.
+
 ## Testing
 
 ### Go integration tests
