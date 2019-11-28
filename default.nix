@@ -26,8 +26,26 @@ let
   config = {
     packageOverrides = pkgs: rec {
 
-      protobuf = pkgs.callPackage ./nix/protobuf.nix { };
-      grpc = pkgs.callPackage ./nix/grpc.nix { };
+      protobuf = pkgs.protobuf.overrideAttrs (oldAttrs: rec {
+        # We want to make sure the result does not drag the C++ compiler
+        # into the closure
+        disallowedReferences = with pkgs; [ stdenv.cc ];
+        # '-g' adds debug symbols to binaries, and those contain paths to
+        # the C++ compiler, which get interpreted by Nix as a runtime
+        # dependency. See <https://github.com/NixOS/nixpkgs/issues/73919>
+        postConfigure = ''
+          sed -i -e 's/ -g / /g' Makefile src/Makefile gmock/make/Makefile googletest/make/Makefile
+        '';
+      });
+
+      grpcUpstream = with pkgs; import "${grpc-haskell-source}/nix/grpc.nix" {
+        inherit stdenv fetchFromGitHub cmake zlib c-ares pkgconfig openssl gflags protobuf;
+      };
+      grpc = grpcUpstream.overrideAttrs (oldAttrs: rec {
+        # We want to make sure the result does not drag the C++ compiler
+        # into the closure
+        disallowedReferences = with pkgs; [ stdenv.cc ];
+      });
 
       haskellPackages = pkgs.haskellPackages.override {
         overrides = self: super: rec {
