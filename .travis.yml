@@ -16,7 +16,8 @@ jobs:
       script:
         # Build the Docker image and create a list of paths to push to Cachix.
         # The secret signing key should not be available to the build process.
-        - ( unset CACHIX_SIGNING_KEY;
+        - ( set -e;
+            unset CACHIX_SIGNING_KEY;
             nix-env -iA cachix -f https://cachix.org/api/v1/install;
             cachix use fencer;
             imagepath=$(nix-build docker.nix);

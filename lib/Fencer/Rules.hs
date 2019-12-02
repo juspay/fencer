@@ -131,7 +131,8 @@ validatePotentialDomains
   :: [Either LoadRulesError (Maybe DomainDefinition)]
   -> Either (NonEmpty LoadRulesError) [DomainDefinition]
 validatePotentialDomains res = case partitionEithers res of
-  (errs@(_:_), _    ) -> Left $ NE.fromList errs
+  (errs@(_:_), _       ) -> Left $ NE.fromList errs
+  ([]        , []      ) -> Right []
   ([]        , mDomains) -> do
     -- check if there are any duplicate domains
     domains <- do
@@ -152,7 +153,7 @@ validatePotentialDomains res = case partitionEithers res of
             dupDomain
       else Right domains
     -- check if there are any duplicate rules
-    traverse_ (dupRuleCheck . (\dom -> (domainDefinitionId dom, dom))) domains
+    traverse_ (\dom -> dupRuleCheck (domainDefinitionId dom, dom)) domains
 
     pure domains
  where

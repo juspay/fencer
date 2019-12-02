@@ -15,9 +15,37 @@ let
     ] ++
     old.configureFlags;
   });
+
+  grpc-haskell-source = (import nixpkgs { }).fetchFromGitHub {
+    owner = "awakesecurity";
+    repo = "gRPC-haskell";
+    rev = "41646238443a34f7c4856c89327e7d304e4ffe8b";
+    sha256 = "1wz69gvivs4mb4480x5ry9ac8m1hw1kvqz9ir20prnw38r3pdr9f";
+  };
+
   config = {
     packageOverrides = pkgs: rec {
-      grpc = pkgs.callPackage ./nix/grpc.nix { };
+
+      protobuf = pkgs.protobuf.overrideAttrs (oldAttrs: rec {
+        # We want to make sure the result does not drag the C++ compiler
+        # into the closure
+        disallowedReferences = with pkgs; [ stdenv.cc ];
+        # '-g' adds debug symbols to binaries, and those contain paths to
+        # the C++ compiler, which get interpreted by Nix as a runtime
+        # dependency. See <https://github.com/NixOS/nixpkgs/issues/73919>
+        postConfigure = ''
+          sed -i -e 's/ -g / /g' Makefile src/Makefile gmock/make/Makefile googletest/make/Makefile
+        '';
+      });
+
+      grpcUpstream = with pkgs; import "${grpc-haskell-source}/nix/grpc.nix" {
+        inherit stdenv fetchFromGitHub cmake zlib c-ares pkgconfig openssl gflags protobuf;
+      };
+      grpc = grpcUpstream.overrideAttrs (oldAttrs: rec {
+        # We want to make sure the result does not drag the C++ compiler
+        # into the closure
+        disallowedReferences = with pkgs; [ stdenv.cc ];
+      });
 
       haskellPackages = pkgs.haskellPackages.override {
         overrides = self: super: rec {
@@ -72,15 +100,17 @@ let
                    fetchSubmodules = true;
                  }) { });
 
+          gpr = grpc;
+
           grpc-haskell-core =
             pkgs.haskell.lib.dontCheck
-              (self.callPackage ./nix/grpc-haskell-core.nix { });
+              (self.callCabal2nix "grpc-haskell-core"
+                 "${grpc-haskell-source}/core" { });
 
-          # Skip tests for grpc-haskell because they depend on the library
-          # already being built. This is a known grpc-haskell issue.
           grpc-haskell =
             pkgs.haskell.lib.dontCheck
-              (self.callPackage ./nix/grpc-haskell.nix { });
+              (self.callCabal2nix "grpc-haskell"
+                 grpc-haskell-source { });
 
           fencer =
             self.callCabal2nix "fencer" (pkgs.lib.cleanSource ./.) { };
