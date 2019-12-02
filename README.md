@@ -360,8 +360,9 @@ where:
      threshold rate, and
   3. `total_hits` is the total number of rule hits.
 
-For example, the following statistics could be logged by Fencer for a
-run on the `messaging` example configuration given above:
+For example, the following statistics could be logged by Fencer at a
+given moment for a run on the `messaging` example configuration given
+above:
 
 ```
 fencer.service.rate_limit.messaging.to_number.near_limit: 10
