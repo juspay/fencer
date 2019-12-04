@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -17,17 +17,24 @@ where
 
 import BasePrelude
 
-import Control.Applicative (liftA2)
-import Control.Monad.Extra (partitionM, concatMapM, ifM)
-import Data.Either (partitionEithers)
+import           Control.Applicative (liftA2)
+import           Control.Monad.Extra (partitionM, concatMapM, ifM)
+import           Data.Either (partitionEithers)
 import qualified Data.HashMap.Strict as HM
-import Data.List.NonEmpty (NonEmpty)
-import Data.Maybe (catMaybes)
+import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
-import Named ((:!), arg)
-import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, getPermissions, pathIsSymbolicLink, readable)
-import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
+import           Data.Maybe (catMaybes)
 import qualified Data.Yaml as Yaml
+import           Named ((:!), arg)
+import           System.Directory
+                 ( doesFileExist
+                 , doesDirectoryExist
+                 , getPermissions
+                 , listDirectory
+                 , pathIsSymbolicLink
+                 , readable
+                 )
+import           System.FilePath ((</>), makeRelative, normalise, splitDirectories)
 
 import Fencer.Types
 
