@@ -136,6 +136,8 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
               Just c  -> pure $ Just (limit, status, c)
 
     let
+      -- | Compute the near limit statistic based on a rate limit and
+      -- a counter status.
       statNearLimit
         :: RateLimit
         -> CounterStatus
@@ -152,6 +154,8 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
            else if remaining + threshold > limit
              then 0
              else limit - threshold - remaining
+      -- | Log the three statistics: near limit, over limit and total
+      -- hits.
       logStats
         :: [(RuleKey, RuleValue)]
         -> Maybe (RateLimit, CounterStatus, Counter)
@@ -159,18 +163,16 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
       logStats _     Nothing            = pure ()
       logStats descs (Just (limit, status, counter)) = do
         let
-          withDomain = B.pack . unpack $
-            "fencer.service.rate_limit." <> (unDomainId domain)
-          subPath = B.pack $ intercalate "." . fmap showKeyValue $ descs
-          fullPrefix = withDomain <> "." <> subPath <> "."
+          prefix = B.pack $
+            unpack ("fencer.service.rate_limit." <> (unDomainId domain)) <>
+            "." <>
+            (intercalate "." . fmap showKeyValue $ descs) <> "."
         forM_
           [ ("near_limit", statNearLimit limit status)
           , ("over_limit", counterHitsOverLimit status)
           , ("total_hits", counterHits counter) ] $ \(s, m) -> do
             Logger.info logger $ Logger.msg $ Logger.val $
-              fullPrefix <>
-              s <> ": " <>
-              (B.pack . show $ m)
+              prefix <> s <> ": " <> (B.pack . show $ m)
     -- TODO(md): Run the following logging conditionally, i.e., only
     -- when enabled by a flag in settings
     forM_ (descriptors `zip` limitsStatusesCounters) $ uncurry logStats
