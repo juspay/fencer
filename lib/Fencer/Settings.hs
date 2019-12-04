@@ -45,6 +45,10 @@ data Settings = Settings
       -- | @USE_STATSD@: whether to create statistics for rate
       -- limits. The default value is @false@.
     , settingsUseStatsd :: Bool
+      -- | A ratio informing the number of hits to the rate limit at
+      -- which it is near the rate limit. For now the user has no way
+      -- of configuring it and it is always set to 0.8.
+    , settingsNearLimitRatio :: Double
     }
     deriving (Show)
 
@@ -70,6 +74,7 @@ getSettingsFromEnvironment = do
       Just s  -> case parseBool s of
         Just b  -> pure b
         Nothing -> error ("Could not parse USE_STATSD: " ++ show s)
+    let settingsNearLimitRatio = 0.8
     pure Settings{..}
 
 -- | Get 'Logger.Level' from the environment variable LOG_LEVEL and

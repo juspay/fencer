@@ -7,7 +7,7 @@
 -- | The gRPC server definition.
 module Fencer.Server
     ( runServer
-    , runServerWithPort
+    , runServerDefaultPort
     )
 where
 
@@ -16,7 +16,7 @@ import BasePrelude hiding ((+++))
 import           Control.Concurrent.STM (atomically)
 import           Control.Monad.Extra (unlessM)
 import qualified Data.ByteString.Char8 as B
-import           Data.Text (Text)
+import           Data.Text (Text, unpack)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import qualified Network.GRPC.HighLevel.Generated as Grpc
@@ -28,7 +28,7 @@ import           System.Logger.Message ((+++))
 import           Fencer.Logic
 import           Fencer.Counter
 import qualified Fencer.Proto as Proto
-import           Fencer.Settings (defaultGRPCPort)
+import           Fencer.Settings
 import           Fencer.Types
 
 ----------------------------------------------------------------------------
@@ -38,10 +38,12 @@ import           Fencer.Types
 -- | Run the gRPC server serving ratelimit requests.
 --
 -- TODO: fail if the port is taken? or does it fail already?
-runServerWithPort :: Port -> Logger -> AppState -> IO ()
-runServerWithPort (Port port) logger appState = do
+runServer :: Settings -> Logger -> AppState -> IO ()
+runServer settings logger appState = do
+    let port = unPort $ settingsGRPCPort settings
     let handlers = Proto.RateLimitService
-            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit logger appState
+            { Proto.rateLimitServiceShouldRateLimit =
+                  shouldRateLimit settings logger appState
             }
     let options = Grpc.defaultServiceOptions
             { Grpc.serverHost = "0.0.0.0"
@@ -54,8 +56,9 @@ runServerWithPort (Port port) logger appState = do
 
 -- | Run the gRPC server serving ratelimit requests on the default
 -- port.
-runServer :: Logger -> AppState -> IO ()
-runServer = runServerWithPort defaultGRPCPort
+runServerDefaultPort :: Settings -> Logger -> AppState -> IO ()
+runServerDefaultPort settings =
+    runServer (settings {settingsGRPCPort = defaultGRPCPort})
 
 ----------------------------------------------------------------------------
 -- The "should rate limit" method
@@ -63,28 +66,24 @@ runServer = runServerWithPort defaultGRPCPort
 
 -- | gRPC handler for the "should rate limit?" method.
 shouldRateLimit
-    :: Logger
+    :: Settings
+    -> Logger
     -> AppState
     -> Grpc.ServerRequest 'Grpc.Normal Proto.RateLimitRequest Proto.RateLimitResponse
     -> IO (Grpc.ServerResponse 'Grpc.Normal Proto.RateLimitResponse)
-shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = do
+shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall request) = do
     -- Decode the protobuf request into our domain types.
     let domain = DomainId (TL.toStrict (Proto.rateLimitRequestDomain request))
     let descriptors :: [[(RuleKey, RuleValue)]]
         descriptors =
             map rateLimitDescriptorFromProto $
             toList (Proto.rateLimitRequestDescriptors request)
+
     -- Note: 'rateLimitRequestHitsAddend' is 0 (default protobuf value) if
     -- not specified by the caller in the request. We are required to treat
     -- this case as 1 hit.
     let hits :: Word
         hits = max 1 (fromIntegral (Proto.rateLimitRequestHitsAddend request))
-
-    Logger.debug logger $
-        Logger.msg (Logger.val "Got rate limit request") .
-        Logger.field "domain" (Proto.rateLimitRequestDomain request) .
-        Logger.field "descriptors" (show descriptors) .
-        Logger.field "hits" hits
 
     -- Check some conditions and throw errors if necessary.
     let cancelWithError :: String -> IO ()
@@ -114,11 +113,71 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = 
     -- requests in parallel might lead to both requests being reported as
     -- "over limit", even though one of them would have succeeded if the
     -- ordering of descriptors was "A", "B" in both requests.
+    let
+      showKeyValue :: (RuleKey, RuleValue) -> String
+      showKeyValue (RuleKey k, RuleValue v) = unpack k ++ case v of
+        "" -> ""
+        _  -> "_" ++ unpack v
+    limitsStatuses :: [Maybe (RateLimit, CounterStatus)] <- atomically $
+      forM descriptors $ \descriptor ->
+        updateLimitCounter appState (#hits hits) domain descriptor
+    limitsStatusesCounters :: [Maybe (RateLimit, CounterStatus, Counter)] <- atomically $
+      forM (descriptors `zip` limitsStatuses) $ \(descriptor, limitStatus) -> do
+        case limitStatus of
+          Nothing -> pure Nothing
+          Just (limit, status) -> do
+            let counterKey = CounterKey
+                  { counterKeyDomain = domain
+                  , counterKeyDescriptor = descriptor
+                  , counterKeyUnit = rateLimitUnit limit
+                  }
+            getCounter appState counterKey >>= \case
+              Nothing -> pure Nothing
+              Just c  -> pure $ Just (limit, status, c)
+
+    let
+      statNearLimit
+        :: RateLimit
+        -> CounterStatus
+        -> Word
+      statNearLimit rateLimit status =
+        let
+          limit = rateLimitRequestsPerUnit rateLimit
+          nearRatio = settingsNearLimitRatio settings
+          threshold = round $
+            fromIntegral limit * nearRatio
+          remaining = counterRemainingLimit status
+         in if counterHitsOverLimit status /= 0
+           then 0
+           else if remaining + threshold > limit
+             then 0
+             else limit - threshold - remaining
+      logStats
+        :: [(RuleKey, RuleValue)]
+        -> Maybe (RateLimit, CounterStatus, Counter)
+        -> IO ()
+      logStats _     Nothing            = pure ()
+      logStats descs (Just (limit, status, counter)) = do
+        let
+          withDomain = B.pack . unpack $
+            "fencer.service.rate_limit." <> (unDomainId domain)
+          subPath = B.pack $ intercalate "." . fmap showKeyValue $ descs
+          fullPrefix = withDomain <> "." <> subPath <> "."
+        forM_
+          [ ("near_limit", statNearLimit limit status)
+          , ("over_limit", counterHitsOverLimit status)
+          , ("total_hits", counterHits counter) ] $ \(s, m) -> do
+            Logger.info logger $ Logger.msg $ Logger.val $
+              fullPrefix <>
+              s <> ": " <>
+              (B.pack . show $ m)
+    -- TODO(md): Run the following logging conditionally, i.e., only
+    -- when enabled by a flag in settings
+    forM_ (descriptors `zip` limitsStatusesCounters) $ uncurry logStats
     (codes :: [Proto.RateLimitResponse_Code],
-     statuses :: [Proto.RateLimitResponse_DescriptorStatus]) <-
-        fmap (unzip . map (maybe ruleNotFoundResponse counterStatusToProto)) $
-        atomically $ forM descriptors $ \descriptor ->
-            updateLimitCounter appState (#hits hits) domain descriptor
+     statuses :: [Proto.RateLimitResponse_DescriptorStatus]) <- fmap
+         (unzip . map (maybe ruleNotFoundResponse counterStatusToProto))
+         (pure limitsStatuses)
 
     -- Return server response.
     let overallCode =

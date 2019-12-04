@@ -9,6 +9,7 @@ module Fencer.Logic
 
     -- * Methods for working with 'AppState'
     , getLimit
+    , getCounter
     , setRules
     , getAppStateRulesLoaded
     , updateCurrentTime
@@ -152,6 +153,14 @@ getLimit appState domain descriptor =
     StmMap.lookup domain (appStateRules appState) >>= \case
         Nothing -> pure Nothing
         Just ruleTree -> pure (applyRules descriptor ruleTree)
+
+-- | Fetch the current counter for a descriptor.
+getCounter
+    :: AppState
+    -> CounterKey
+    -> STM (Maybe Counter)
+getCounter appState counterKey = do
+    StmMap.lookup counterKey (appStateCounters appState)
 
 -- | Handle a single descriptor in a 'shouldRateLimit' request.
 --
