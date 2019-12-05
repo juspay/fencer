@@ -20,19 +20,28 @@ where
 
 import BasePrelude
 
+import           Control.Concurrent.STM.TVar (modifyTVar')
+import           Control.Monad.Extra (unlessM)
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Trans.Class (lift)
+import qualified Data.HashSet as Set
+import           Data.HashSet (HashSet)
+import qualified Focus as Focus
+import qualified ListT as ListT
+import           Named ((:!), arg)
 import qualified StmContainers.Map as StmMap
 import qualified StmContainers.Multimap as StmMultimap
 import qualified StmContainers.Set as StmSet
-import qualified ListT as ListT
-import Named ((:!), arg)
-import qualified Focus as Focus
-import Control.Monad.Trans.Class (lift)
-import System.Metrics (newStore, Store)
+import           System.Logger (Logger)
+import           System.Metrics (newStore, registerGroup, Store)
 
-import Fencer.Counter
-import Fencer.Rules
-import Fencer.Time
-import Fencer.Types
+import           Fencer.Counter
+import qualified Fencer.Metrics as Metrics
+import           Fencer.Rules
+import           Fencer.Settings (Settings)
+import           Fencer.Time
+import           Fencer.Types
+
 
 -- | Fencer runtime context and in-memory state.
 --
@@ -72,8 +81,15 @@ data AppState = AppState
     , appStateCounters :: !(StmMap.Map CounterKey Counter)
       -- | All counters, indexed by expiry date.
     , appStateCounterExpiry :: !(StmMultimap.Multimap Timestamp CounterKey)
-      -- | A metrics store for the statsd server.
+      -- | A mutable metrics store for the statsd server. See
+      -- 'System.Metrics.Store' for more information.
     , appStateMetricsStore :: !Store
+      -- | A mutable set of registered metrics. This set is used to
+      -- keep track of descriptors that have been added so that a
+      -- descriptor can be added to the metrics store if it is not
+      -- there already.
+    , appStateRegisteredDescriptors ::
+        !(TVar (HashSet (DomainId, [(RuleKey, RuleValue)])))
     }
 
 -- | Initialize the environment.
@@ -89,6 +105,7 @@ initAppState = do
     appStateCounters <- StmMap.newIO
     appStateCounterExpiry <- StmMultimap.newIO
     appStateMetricsStore <- newStore
+    appStateRegisteredDescriptors <- newTVarIO Set.empty
     pure AppState{..}
 
 -- | Apply hits to a counter.
@@ -158,6 +175,35 @@ getLimit appState domain descriptor =
         Nothing -> pure Nothing
         Just ruleTree -> pure (applyRules descriptor ruleTree)
 
+-- | Check if a descriptor has already been added to the metrics store.
+isInMetricsStore
+  :: AppState
+  -> DomainId
+  -> [(RuleKey, RuleValue)]
+  -> STM Bool
+isInMetricsStore appState domain descriptor =
+  readTVar (appStateRegisteredDescriptors appState) >>=
+    pure . Set.member (domain, descriptor)
+
+-- | Register a metric group corresponding to a descriptor if it has
+-- not been registered.
+registerMetric
+  :: AppState
+  -> DomainId
+  -> [(RuleKey, RuleValue)]
+  -> STM ()
+registerMetric appState domain descriptor = do
+  unlessM (isInMetricsStore appState domain descriptor) $ do
+    modifyTVar'
+      (appStateRegisteredDescriptors appState)
+      (Set.insert (domain, descriptor))
+    let
+      prefix = Metrics.limitToPath domain descriptor
+      store  = appStateMetricsStore appState
+    pure ()
+    -- TODO(md): actually register the descriptor with its three metrics
+    -- liftIO $ registerGroup undefined undefined store
+
 -- | Fetch the current counter for a descriptor.
 getCounter
     :: AppState
@@ -174,12 +220,20 @@ getCounter appState counterKey =
 -- not exist, or update an existing counter otherwise. The counter will be
 -- reset if it has expired, and 'appStateCounterExpiry' will be updated.
 updateLimitCounter
-    :: AppState
+    :: Settings
+    -> Logger
+    -> AppState
     -> "hits" :! Word
     -> DomainId
     -> [(RuleKey, RuleValue)]
     -> STM (Maybe (RateLimit, CounterStatus))
-updateLimitCounter appState (arg #hits -> hits) domain descriptor =
+updateLimitCounter
+  settings
+  logger
+  appState
+  (arg #hits -> hits)
+  domain
+  descriptor =
     getLimit appState domain descriptor >>= \case
         Nothing -> pure Nothing
         Just limit -> do
@@ -189,6 +243,7 @@ updateLimitCounter appState (arg #hits -> hits) domain descriptor =
                   , counterKeyDescriptor = descriptor
                   , counterKeyUnit = rateLimitUnit limit }
             status <- recordHits appState (#hits hits) (#limit limit) counterKey
+            registerMetric appState domain descriptor
             pure (Just (limit, status))
 
 -- | Set 'appStateRules' and 'appStateRulesLoaded'.

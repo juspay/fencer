@@ -117,7 +117,7 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
     let
     limitsStatuses :: [Maybe (RateLimit, CounterStatus)] <- atomically $
       forM descriptors $ \descriptor ->
-        updateLimitCounter appState (#hits hits) domain descriptor
+        updateLimitCounter settings logger appState (#hits hits) domain descriptor
     limitsStatusesCounters :: [Maybe (RateLimit, CounterStatus, Counter)] <- atomically $
       forM (descriptors `zip` limitsStatuses) $ \(descriptor, limitStatus) ->
         case limitStatus of
@@ -133,23 +133,6 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
               Just c  -> pure $ Just (limit, status, c)
 
     let
-      -- | Compute the near limit statistic based on a rate limit and
-      -- a counter status.
-      statNearLimit
-        :: RateLimit
-        -> CounterStatus
-        -> Word
-      statNearLimit rateLimit status =
-        let
-          limit = rateLimitRequestsPerUnit rateLimit
-          nearRatio = settingsNearLimitRatio settings
-          threshold = round $
-            fromIntegral limit * nearRatio
-          remaining = counterRemainingLimit status
-         in if (counterHitsOverLimit status /= 0) ||
-                 (remaining + threshold > limit)
-              then 0
-              else limit - threshold - remaining
       -- | Log the three statistics: near limit, over limit and total
       -- hits.
       logStats
@@ -162,7 +145,7 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
           prefix = B.pack $
             (Metrics.limitToPath domain descs) <> "."
         forM_
-          [ ("near_limit", statNearLimit limit status)
+          [ ("near_limit", Metrics.statNearLimit settings limit status)
           , ("over_limit", counterHitsOverLimit status)
           , ("total_hits", counterHits counter) ] $ \(s, m) ->
             Logger.info logger $ Logger.msg $ Logger.val $

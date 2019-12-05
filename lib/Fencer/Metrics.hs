@@ -5,14 +5,18 @@
 module Fencer.Metrics
   ( fencerNamespace
   , limitToPath
+  , statNearLimit
   ) where
 
 import           BasePrelude
 
 import           Data.Text (unpack)
 
+import           Fencer.Counter (CounterStatus(..))
+import           Fencer.Settings (Settings, settingsNearLimitRatio)
 import           Fencer.Types
                  ( DomainId(..)
+                 , RateLimit(..)
                  , RuleKey(..)
                  , RuleValue(..)
                  )
@@ -40,3 +44,21 @@ limitToPath (DomainId domain) =
   ([fencerNamespace, unpack domain] ++) .
   fmap showKeyValue
 
+-- | Compute the near limit statistic based on a rate limit and
+-- a counter status.
+statNearLimit
+  :: Settings
+  -> RateLimit
+  -> CounterStatus
+  -> Word
+statNearLimit settings rateLimit status =
+  let
+    limit = rateLimitRequestsPerUnit rateLimit
+    nearRatio = settingsNearLimitRatio settings
+    threshold = round $
+      fromIntegral limit * nearRatio
+    remaining = counterRemainingLimit status
+  in if (counterHitsOverLimit status /= 0) ||
+          (remaining + threshold > limit)
+       then 0
+       else limit - threshold - remaining
