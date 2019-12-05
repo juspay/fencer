@@ -30,7 +30,7 @@ import           Test.Tasty.HUnit (HasCallStack, assertEqual, assertFailure, tes
 
 import           Fencer.Logic
 import           Fencer.Server
-import           Fencer.Settings (defaultGRPCPort, getLogLevel, newLogger)
+import           Fencer.Settings
 import           Fencer.Types
 import           Fencer.Rules
 import           Fencer.Rules.Test.Examples
@@ -341,7 +341,7 @@ data Server = Server
   { serverLogger    :: Logger.Logger
   , serverLogHandle :: Handle
   , serverThreadId  :: ThreadId
-  , serverPort      :: Port
+  , serverSettings  :: Settings
   , serverAppState  :: AppState
   }
 
@@ -360,8 +360,18 @@ createServer = do
   hClose serverLogHandle
   serverLogger   <- getLogLevel >>= newLogger (Logger.Path loggerPath)
   serverAppState <- initAppState
-  serverPort     <- getUniquePort
-  serverThreadId <- forkIO $ runServerWithPort serverPort serverLogger serverAppState
+  serverSettings <- do
+    p <- getUniquePort
+    pure Settings
+      { settingsRoot = ""
+      , settingsSubdirectory = ""
+      , settingsIgnoreDotFiles = False
+      , settingsGRPCPort = p
+      , settingsLogLevel = Logger.Debug
+      , settingsUseStatsd = False
+      , settingsNearLimitRatio = 0.8
+      }
+  serverThreadId <- forkIO $ runServer serverSettings serverLogger serverAppState
 
   -- NOTE(md): For reasons unkown, without a delay the delay in the thread makes a
   -- server test failure for 'test_serverResponseRulesNotLoaded' go
@@ -427,9 +437,12 @@ withService
   -> (Proto.RateLimitService Grpc.ClientRequest Grpc.ClientResult -> IO a)
   -> IO a
 withService server act =
-  Grpc.withGRPCClient (clientConfig (serverPort server)) $ \grpcClient -> do
+  Grpc.withGRPCClient (clientConfig port) $ \grpcClient -> do
     service <- Proto.rateLimitServiceClient grpcClient
     act service
+ where
+  port :: Port
+  port = settingsGRPCPort . serverSettings $ server
 
 ----------------------------------------------------------------------------
 -- Various useful values
