@@ -27,6 +27,7 @@ import qualified ListT as ListT
 import Named ((:!), arg)
 import qualified Focus as Focus
 import Control.Monad.Trans.Class (lift)
+import System.Metrics (newStore, Store)
 
 import Fencer.Counter
 import Fencer.Rules
@@ -71,6 +72,8 @@ data AppState = AppState
     , appStateCounters :: !(StmMap.Map CounterKey Counter)
       -- | All counters, indexed by expiry date.
     , appStateCounterExpiry :: !(StmMultimap.Multimap Timestamp CounterKey)
+      -- | A metrics store for the statsd server.
+    , appStateMetricsStore :: !Store
     }
 
 -- | Initialize the environment.
@@ -85,6 +88,7 @@ initAppState = do
     appStateCurrentTime <- newTVarIO =<< getTimestamp
     appStateCounters <- StmMap.newIO
     appStateCounterExpiry <- StmMultimap.newIO
+    appStateMetricsStore <- newStore
     pure AppState{..}
 
 -- | Apply hits to a counter.

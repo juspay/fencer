@@ -18,12 +18,12 @@ import System.FilePath ((</>))
 import qualified System.Logger as Logger
 import System.Logger (Logger)
 
-import Fencer.Types
 import Fencer.Logic
-import Fencer.Server
 import Fencer.Rules
-import Fencer.Watch
+import Fencer.Server
 import Fencer.Settings
+import Fencer.Types
+import Fencer.Watch
 
 ----------------------------------------------------------------------------
 -- Main

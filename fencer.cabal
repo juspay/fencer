@@ -44,21 +44,24 @@ library
   import:
     common
   exposed-modules:
-    Fencer.Main
-    Fencer.Logic
-    Fencer.Server
     Fencer.Counter
-    Fencer.Rules
-    Fencer.Watch
-    Fencer.Types
+    Fencer.Logic
+    Fencer.Main
+    Fencer.Metrics
     Fencer.Proto
-    Fencer.Time
+    Fencer.Rules
+    Fencer.Server
     Fencer.Settings
+    Fencer.Time
+    Fencer.Types
+    Fencer.Watch
   build-depends:
     base,
     base-prelude,
     extra,
     either,
+    ekg-core,
+    ekg-statsd,
     hashable,
     monad-loops,
     clock,

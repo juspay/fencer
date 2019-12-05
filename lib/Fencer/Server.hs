@@ -16,7 +16,7 @@ import BasePrelude hiding ((+++))
 import           Control.Concurrent.STM (atomically)
 import           Control.Monad.Extra (unlessM)
 import qualified Data.ByteString.Char8 as B
-import           Data.Text (Text, unpack)
+import           Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import qualified Network.GRPC.HighLevel.Generated as Grpc
@@ -25,8 +25,9 @@ import qualified System.Logger as Logger
 import           System.Logger (Logger)
 import           System.Logger.Message ((+++))
 
-import           Fencer.Logic
 import           Fencer.Counter
+import           Fencer.Logic
+import qualified Fencer.Metrics as Metrics
 import qualified Fencer.Proto as Proto
 import           Fencer.Settings
 import           Fencer.Types
@@ -114,10 +115,6 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
     -- "over limit", even though one of them would have succeeded if the
     -- ordering of descriptors was "A", "B" in both requests.
     let
-      showKeyValue :: (RuleKey, RuleValue) -> String
-      showKeyValue (RuleKey k, RuleValue v) = unpack k ++ case v of
-        "" -> ""
-        _  -> "_" ++ unpack v
     limitsStatuses :: [Maybe (RateLimit, CounterStatus)] <- atomically $
       forM descriptors $ \descriptor ->
         updateLimitCounter appState (#hits hits) domain descriptor
@@ -163,9 +160,7 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
       logStats descs (Just (limit, status, counter)) = do
         let
           prefix = B.pack $
-            unpack ("fencer.service.rate_limit." <> (unDomainId domain)) <>
-            "." <>
-            (intercalate "." . fmap showKeyValue $ descs) <> "."
+            (Metrics.limitToPath domain descs) <> "."
         forM_
           [ ("near_limit", statNearLimit limit status)
           , ("over_limit", counterHitsOverLimit status)
