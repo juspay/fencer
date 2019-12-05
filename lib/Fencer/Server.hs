@@ -173,9 +173,11 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
           , ("total_hits", counterHits counter) ] $ \(s, m) -> do
             Logger.info logger $ Logger.msg $ Logger.val $
               prefix <> s <> ": " <> (B.pack . show $ m)
-    -- TODO(md): Run the following logging conditionally, i.e., only
-    -- when enabled by a flag in settings
-    forM_ (descriptors `zip` limitsStatusesCounters) $ uncurry logStats
+
+    if settingsUseStatsd settings
+      then pure () -- TODO(md): implement sending statistics to the statsd
+      else forM_ (descriptors `zip` limitsStatusesCounters) $ uncurry logStats
+
     (codes :: [Proto.RateLimitResponse_Code],
      statuses :: [Proto.RateLimitResponse_DescriptorStatus]) <- fmap
          (unzip . map (maybe ruleNotFoundResponse counterStatusToProto))
