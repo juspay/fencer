@@ -159,7 +159,7 @@ getCounter
     :: AppState
     -> CounterKey
     -> STM (Maybe Counter)
-getCounter appState counterKey = do
+getCounter appState counterKey =
     StmMap.lookup counterKey (appStateCounters appState)
 
 -- | Handle a single descriptor in a 'shouldRateLimit' request.

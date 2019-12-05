@@ -122,7 +122,7 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
       forM descriptors $ \descriptor ->
         updateLimitCounter appState (#hits hits) domain descriptor
     limitsStatusesCounters :: [Maybe (RateLimit, CounterStatus, Counter)] <- atomically $
-      forM (descriptors `zip` limitsStatuses) $ \(descriptor, limitStatus) -> do
+      forM (descriptors `zip` limitsStatuses) $ \(descriptor, limitStatus) ->
         case limitStatus of
           Nothing -> pure Nothing
           Just (limit, status) -> do
@@ -149,11 +149,10 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
           threshold = round $
             fromIntegral limit * nearRatio
           remaining = counterRemainingLimit status
-         in if counterHitsOverLimit status /= 0
-           then 0
-           else if remaining + threshold > limit
-             then 0
-             else limit - threshold - remaining
+         in if (counterHitsOverLimit status /= 0) ||
+                 (remaining + threshold > limit)
+              then 0
+              else limit - threshold - remaining
       -- | Log the three statistics: near limit, over limit and total
       -- hits.
       logStats
@@ -170,7 +169,7 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
         forM_
           [ ("near_limit", statNearLimit limit status)
           , ("over_limit", counterHitsOverLimit status)
-          , ("total_hits", counterHits counter) ] $ \(s, m) -> do
+          , ("total_hits", counterHits counter) ] $ \(s, m) ->
             Logger.info logger $ Logger.msg $ Logger.val $
               prefix <> s <> ": " <> (B.pack . show $ m)
 
