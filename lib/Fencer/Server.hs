@@ -105,6 +105,17 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
             Logger.msg (Logger.val "Empty descriptor list, responding with an error")
         cancelWithError "rate limit descriptor list must not be empty"
 
+    -- Register all descriptors. This has to be done outside the
+    -- 'updateLimitCounter' function is in the STM monad and to
+    -- register descriptors with a store we have to run an action in
+    -- the IO monad.
+    forM descriptors $ \descriptor -> do
+      atomically $ checkAndMarkForRegistration appState domain descriptor
+      let
+        descMap  = undefined
+        ioAction = undefined
+      atomicWithStore appState $ \store -> do
+        pure () -- registerGroup descMap ioAction store
     -- Update all counters in one atomic operation, and collect the results.
     --
     -- Note: this might retry often if we touch too many keys, but doing

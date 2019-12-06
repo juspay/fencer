@@ -15,6 +15,8 @@ module Fencer.Logic
     , updateCurrentTime
     , deleteCountersWithExpiry
     , updateLimitCounter
+    , atomicWithStore
+    , checkAndMarkForRegistration
     )
 where
 
@@ -24,6 +26,7 @@ import           Control.Concurrent.STM.TVar (modifyTVar')
 import           Control.Monad.Extra (unlessM)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Trans.Class (lift)
+import           Data.Function ((&))
 import qualified Data.HashSet as Set
 import           Data.HashSet (HashSet)
 import qualified Focus as Focus
@@ -182,27 +185,49 @@ isInMetricsStore
   -> [(RuleKey, RuleValue)]
   -> STM Bool
 isInMetricsStore appState domain descriptor =
-  readTVar (appStateRegisteredDescriptors appState) >>=
-    pure . Set.member (domain, descriptor)
+  Set.member (domain, descriptor) <$>
+    readTVar (appStateRegisteredDescriptors appState)
 
--- | Register a metric group corresponding to a descriptor if it has
--- not been registered.
-registerMetric
+-- | Check if a descriptor has been added to the metrics store and
+-- prepare it for registration if this has not been done so far.
+checkAndMarkForRegistration
   :: AppState
   -> DomainId
   -> [(RuleKey, RuleValue)]
   -> STM ()
-registerMetric appState domain descriptor = do
-  unlessM (isInMetricsStore appState domain descriptor) $ do
-    modifyTVar'
+checkAndMarkForRegistration appState domain descriptor =
+  unlessM (isInMetricsStore appState domain descriptor) $
+    void $ (modifyTVar'
       (appStateRegisteredDescriptors appState)
-      (Set.insert (domain, descriptor))
-    let
-      prefix = Metrics.limitToPath domain descriptor
-      store  = appStateMetricsStore appState
-    pure ()
-    -- TODO(md): actually register the descriptor with its three metrics
-    -- liftIO $ registerGroup undefined undefined store
+      (Set.insert (domain, descriptor)))
+
+atomicWithStore
+  :: AppState
+  -> (Store -> IO ())
+  -> IO ()
+atomicWithStore appState action =
+  (appStateMetricsStore appState) & action
+
+-- | Register a metric group corresponding to a descriptor if it has
+-- not been registered.
+-- registerMetric
+--   :: AppState
+--   -> DomainId
+--   -> [(RuleKey, RuleValue)]
+--   -> STM ()
+-- registerMetric appState domain descriptor =
+--   unlessM (isInMetricsStore appState domain descriptor) $ do
+--     modifyTVar'
+--       (appStateRegisteredDescriptors appState)
+--       (Set.insert (domain, descriptor))
+--     let
+--       prefix = Metrics.limitToPath domain descriptor
+--       store  = appStateMetricsStore appState
+--       mapa   = undefined
+--       ioAction = undefined
+--     registerGroup mapa ioAction store
+--     -- TODO(md): actually register the descriptor with its three metrics
+--     -- liftIO $ registerGroup undefined undefined store
 
 -- | Fetch the current counter for a descriptor.
 getCounter
@@ -243,7 +268,6 @@ updateLimitCounter
                   , counterKeyDescriptor = descriptor
                   , counterKeyUnit = rateLimitUnit limit }
             status <- recordHits appState (#hits hits) (#limit limit) counterKey
-            registerMetric appState domain descriptor
             pure (Just (limit, status))
 
 -- | Set 'appStateRules' and 'appStateRulesLoaded'.
