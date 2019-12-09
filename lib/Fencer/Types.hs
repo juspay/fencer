@@ -173,7 +173,7 @@ instance HasDescriptors DomainDefinition where
   descriptorsOf = domainDefinitionDescriptors
 
 instance HasDescriptors DescriptorDefinition where
-  descriptorsOf (DescriptorDefinitionLeafNode _ _ _)  = []
+  descriptorsOf (DescriptorDefinitionLeafNode{})      = []
   descriptorsOf (DescriptorDefinitionInnerNode _ _ l) = l
 
 instance FromJSON DomainDefinition where
