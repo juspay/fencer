@@ -70,11 +70,10 @@ test_logicLimitUnitChange =
   domainId  = DomainId  "merchant_rate_limits"
 
   descriptor :: DescriptorDefinition
-  descriptor = DescriptorDefinition
+  descriptor = DescriptorDefinitionLeafNode
         { descriptorDefinitionKey         = ruleKey
         , descriptorDefinitionValue       = Just ruleValue
-        , descriptorDefinitionRateLimit   = Just $ RateLimit Minute limit
-        , descriptorDefinitionDescriptors = Nothing
+        , descriptorDefinitionRateLimit   = RateLimit Minute limit
         }
 
   definition1 :: DomainDefinition
@@ -88,8 +87,10 @@ test_logicLimitUnitChange =
 
   definition2 = definition1 {
     domainDefinitionDescriptors =
-      [descriptor
-        { descriptorDefinitionRateLimit = Just $ RateLimit Hour limit }
+      [DescriptorDefinitionLeafNode
+        (descriptorDefinitionKey descriptor)
+        (descriptorDefinitionValue descriptor)
+        (RateLimit Hour limit)
       ]
     }
 

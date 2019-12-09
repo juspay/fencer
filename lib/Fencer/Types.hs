@@ -35,12 +35,12 @@ module Fencer.Types
     )
 where
 
-import BasePrelude
+import BasePrelude hiding (lookup)
 
 import Data.Hashable (Hashable)
 import Data.Text (Text)
 import Data.Aeson (FromJSON(..), (.:), (.:?), (.!=), withObject, withText)
-import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict (HashMap, lookup)
 
 
 ----------------------------------------------------------------------------
@@ -152,11 +152,20 @@ data DomainDefinition = DomainDefinition
     deriving stock (Eq, Show)
 
 -- | Config for a single rule tree.
-data DescriptorDefinition = DescriptorDefinition
+data DescriptorDefinition
+  =
+    -- | An inner node with no rate limit
+    DescriptorDefinitionInnerNode
     { descriptorDefinitionKey :: !RuleKey
     , descriptorDefinitionValue :: !(Maybe RuleValue)
-    , descriptorDefinitionRateLimit :: !(Maybe RateLimit)
-    , descriptorDefinitionDescriptors :: !(Maybe [DescriptorDefinition])
+    , descriptorDefinitionDescriptors :: ![DescriptorDefinition]
+    }
+  |
+    -- | A leaf node with a rate limit
+    DescriptorDefinitionLeafNode
+    { descriptorDefinitionKey :: !RuleKey
+    , descriptorDefinitionValue :: !(Maybe RuleValue)
+    , descriptorDefinitionRateLimit :: !RateLimit
     }
     deriving stock (Eq, Show)
 
@@ -164,7 +173,8 @@ instance HasDescriptors DomainDefinition where
   descriptorsOf = domainDefinitionDescriptors
 
 instance HasDescriptors DescriptorDefinition where
-  descriptorsOf d = fromMaybe [] $ descriptorDefinitionDescriptors d
+  descriptorsOf (DescriptorDefinitionLeafNode _ _ _)  = []
+  descriptorsOf (DescriptorDefinitionInnerNode _ _ l) = l
 
 instance FromJSON DomainDefinition where
     parseJSON = withObject "DomainDefinition" $ \o -> do
@@ -175,12 +185,24 @@ instance FromJSON DomainDefinition where
         pure DomainDefinition{..}
 
 instance FromJSON DescriptorDefinition where
-    parseJSON = withObject "DescriptorDefinition" $ \o -> do
-        descriptorDefinitionKey <- o .: "key"
-        descriptorDefinitionValue <- o .:? "value"
-        descriptorDefinitionRateLimit <- o .:? "rate_limit"
-        descriptorDefinitionDescriptors <- o .:? "descriptors"
-        pure DescriptorDefinition{..}
+  parseJSON = withObject "DescriptorDefinition" $ \o -> do
+    key <- o .: "key"
+    value <- o .:? "value"
+    case lookup "rate_limit" o of
+      Just _ -> do
+        limit <- o .: "rate_limit"
+        case lookup "descriptors" o of
+          Nothing -> pure $ DescriptorDefinitionLeafNode key value limit
+          Just _ -> fail
+            "A descriptor with a rate limit cannot have a sub-descriptor"
+      Nothing ->
+        case lookup "descriptors" o of
+          Nothing -> fail $
+            "A descriptor definition must have either a rate limit " ++
+            "or sub-descriptor(s)"
+          Just _ -> do
+            descriptors <- o .: "descriptors"
+            pure $ DescriptorDefinitionInnerNode key value descriptors
 
 ----------------------------------------------------------------------------
 -- Rate limit rules in tree form
@@ -193,10 +215,9 @@ type RuleTree = HashMap (RuleKey, Maybe RuleValue) RuleBranch
 
 -- | A single branch in a rule tree, containing several (or perhaps zero)
 -- nested rules.
-data RuleBranch = RuleBranch
-    { ruleBranchRateLimit :: !(Maybe RateLimit)
-    , ruleBranchNested :: !RuleTree
-    }
+data RuleBranch
+  = RuleBranch {  ruleBranchNested :: !RuleTree }
+  | RuleLeaf { ruleBranchRateLimit :: !RateLimit }
 
 ----------------------------------------------------------------------------
 -- Fencer server

@@ -24,22 +24,22 @@ import           NeatInterpolation (text)
 import           Fencer.Types
 
 
--- | A descriptor definition with a key and value only.
+-- | A leaf descriptor definition with a key, a value and a rate
+-- limit.
 descriptorKeyValue :: DescriptorDefinition
-descriptorKeyValue = DescriptorDefinition
+descriptorKeyValue = DescriptorDefinitionLeafNode
   { descriptorDefinitionKey = RuleKey "some key"
   , descriptorDefinitionValue = Just $ RuleValue "some value"
-  , descriptorDefinitionRateLimit = Nothing
-  , descriptorDefinitionDescriptors = Nothing
+  , descriptorDefinitionRateLimit = RateLimit Hour 10
   }
 
--- | A descriptor definition with a key only.
+-- | A leaf inner descriptor definition with a key and rate limit
+-- only.
 descriptorKey :: DescriptorDefinition
-descriptorKey = DescriptorDefinition
+descriptorKey = DescriptorDefinitionLeafNode
   { descriptorDefinitionKey = RuleKey "some key 2"
   , descriptorDefinitionValue = Nothing
-  , descriptorDefinitionRateLimit = Nothing
-  , descriptorDefinitionDescriptors = Nothing
+  , descriptorDefinitionRateLimit = RateLimit Minute 20
   }
 
 -- | A domain definition with a single descriptor with a key and
@@ -57,6 +57,9 @@ domainDescriptorKeyValueText = [text|
   descriptors:
     - key: some key
       value: some value
+      rate_limit:
+        unit: hour
+        requests_per_unit: 10
   |]
 
 -- | A domain definition with a single descriptor with a key.
@@ -71,6 +74,9 @@ domainDescriptorKeyText = [text|
   domain: domain2
   descriptors:
     - key: some key 2
+      rate_limit:
+        unit: minute
+        requests_per_unit: 20
   |]
 
 -- | A faulty domain text. The text has "keyz" instead of "key", which
@@ -118,7 +124,13 @@ separatorDomainText = [text|
   descriptors:
     - key: some key
       value: some value
+      rate_limit:
+        unit: hour
+        requests_per_unit: 10
     - key: some key 2
+      rate_limit:
+        unit: minute
+        requests_per_unit: 20
   |]
 
 -- | The text value of a faulty domain definition that has a key
