@@ -1,5 +1,7 @@
 let
-  drv = import ./default.nix { withHoogle = true; };
+  drv = import ./default.nix {
+    withHoogle = if builtins.getEnv "TRAVIS" != "" then false else true;
+  };
   pkgs = drv.pkgs;
 in drv.fencer.env.overrideAttrs (attrs: {
   buildInputs = [
