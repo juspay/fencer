@@ -33,8 +33,7 @@ descriptorKeyValue =
     (Just $ RuleValue "some value")
     (RateLimit Hour 10)
 
--- | A leaf inner descriptor definition with a key and rate limit
--- only.
+-- | A leaf descriptor definition with a key and rate limit only.
 descriptorKey :: DescriptorDefinition
 descriptorKey =
   DescriptorDefinitionLeafNode
