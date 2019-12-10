@@ -48,11 +48,11 @@ test_parseJSONDescriptorDefinition =
       (parseEither (parseJSON @DescriptorDefinition) descriptor1)
  where
   expected :: DescriptorDefinition
-  expected = DescriptorDefinitionLeafNode
-    { descriptorDefinitionKey = RuleKey "some key"
-    , descriptorDefinitionValue = Just $ RuleValue "some value"
-    , descriptorDefinitionRateLimit = RateLimit Second 5
-    }
+  expected =
+    DescriptorDefinitionLeafNode
+      (RuleKey "some key")
+      (Just $ RuleValue "some value")
+      (RateLimit Second 5)
 
 -- | Test that parsing an invalid inner descriptor definition fails.
 test_parseJSONFaultyDescriptorDefinition1 :: TestTree
@@ -137,16 +137,14 @@ test_parseJSONDomainDefinition =
     }
   descriptor1' :: DescriptorDefinition
   descriptor1' = DescriptorDefinitionLeafNode
-    { descriptorDefinitionKey = RuleKey "some key"
-    , descriptorDefinitionValue = Just $ RuleValue "some value"
-    , descriptorDefinitionRateLimit = RateLimit Second 5
-    }
+    (RuleKey "some key")
+    (Just $ RuleValue "some value")
+    (RateLimit Second 5)
   descriptor2' :: DescriptorDefinition
   descriptor2' = DescriptorDefinitionInnerNode
-    { descriptorDefinitionKey = RuleKey "some key #2"
-    , descriptorDefinitionValue = Just $ RuleValue "some value #2"
-    , descriptorDefinitionDescriptors = [descriptor1']
-    }
+    (RuleKey "some key #2")
+    (Just $ RuleValue "some value #2")
+    [descriptor1']
 
 test_parseJSONDomainEmptyDescriptors :: TestTree
 test_parseJSONDomainEmptyDescriptors =
@@ -196,18 +194,13 @@ test_parseJSONOptionalDescriptorFields =
     |]
   desc1 :: DescriptorDefinition
   desc1 = DescriptorDefinitionInnerNode
-    {
-      descriptorDefinitionKey         = RuleKey "key #1"
-    , descriptorDefinitionValue       = Just . RuleValue $ "value #1"
-    , descriptorDefinitionDescriptors =
-      [ DescriptorDefinitionLeafNode
-        {
-          descriptorDefinitionKey       = RuleKey "inner key #1"
-        , descriptorDefinitionValue     = Nothing
-        , descriptorDefinitionRateLimit = RateLimit Minute 10
-        }
-      ]
-    }
+    (RuleKey "key #1")
+    (Just . RuleValue $ "value #1")
+    [ DescriptorDefinitionLeafNode
+        (RuleKey "inner key #1")
+        Nothing
+        (RateLimit Minute 10)
+    ]
   desc2Value :: Value
   desc2Value = [aesonQQ|
     {
@@ -217,11 +210,9 @@ test_parseJSONOptionalDescriptorFields =
     |]
   desc2 :: DescriptorDefinition
   desc2 = DescriptorDefinitionLeafNode
-    {
-      descriptorDefinitionKey         = RuleKey "key #2"
-    , descriptorDefinitionValue       = Nothing
-    , descriptorDefinitionRateLimit   = RateLimit Hour 1000
-    }
+    (RuleKey "key #2")
+    Nothing
+    (RateLimit Hour 1000)
   domainValue :: Value
   domainValue = [aesonQQ|
     {

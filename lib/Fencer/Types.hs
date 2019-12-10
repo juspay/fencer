@@ -1,7 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 
 -- | Types used in Fencer. We try to keep most types in one module to avoid
 -- circular dependencies between modules.
@@ -25,6 +27,8 @@ module Fencer.Types
     -- * Rate limit rule configs
     , DomainDefinition(..)
     , DescriptorDefinition(..)
+    , descriptorDefinitionKey
+    , descriptorDefinitionValue
 
     -- * Rate limit rules in tree form
     , RuleTree
@@ -152,22 +156,39 @@ data DomainDefinition = DomainDefinition
     deriving stock (Eq, Show)
 
 -- | Config for a single rule tree.
-data DescriptorDefinition
-  =
-    -- | An inner node with no rate limit
-    DescriptorDefinitionInnerNode
-    { descriptorDefinitionKey :: !RuleKey
-    , descriptorDefinitionValue :: !(Maybe RuleValue)
-    , descriptorDefinitionDescriptors :: ![DescriptorDefinition]
-    }
-  |
-    -- | A leaf node with a rate limit
-    DescriptorDefinitionLeafNode
-    { descriptorDefinitionKey :: !RuleKey
-    , descriptorDefinitionValue :: !(Maybe RuleValue)
-    , descriptorDefinitionRateLimit :: !RateLimit
-    }
-    deriving stock (Eq, Show)
+data DescriptorDefinition where
+  -- | An inner node with no rate limit
+  DescriptorDefinitionInnerNode
+    :: !RuleKey
+    -> !(Maybe RuleValue)
+    -> ![DescriptorDefinition]
+       -----------------------
+    -> DescriptorDefinition
+
+  -- | A leaf node with a rate limit
+  DescriptorDefinitionLeafNode
+    :: !RuleKey
+    -> !(Maybe RuleValue)
+    -> !RateLimit
+       --------------------
+    -> DescriptorDefinition
+
+deriving instance Eq DescriptorDefinition
+deriving instance Show DescriptorDefinition
+
+
+descriptorDefinitionKey
+  :: DescriptorDefinition
+  -> RuleKey
+descriptorDefinitionKey (DescriptorDefinitionInnerNode k _ _) = k
+descriptorDefinitionKey (DescriptorDefinitionLeafNode  k _ _) = k
+
+descriptorDefinitionValue
+  :: DescriptorDefinition
+  -> Maybe RuleValue
+descriptorDefinitionValue (DescriptorDefinitionInnerNode _ v _) = v
+descriptorDefinitionValue (DescriptorDefinitionLeafNode  _ v _) = v
+
 
 instance HasDescriptors DomainDefinition where
   descriptorsOf = domainDefinitionDescriptors
@@ -215,9 +236,9 @@ type RuleTree = HashMap (RuleKey, Maybe RuleValue) RuleBranch
 
 -- | A single branch in a rule tree, containing several (or perhaps zero)
 -- nested rules.
-data RuleBranch
-  = RuleBranch {  ruleBranchNested :: !RuleTree }
-  | RuleLeaf { ruleBranchRateLimit :: !RateLimit }
+data RuleBranch where
+  RuleBranch :: !RuleTree -> RuleBranch
+  RuleLeaf :: !RateLimit -> RuleBranch
 
 ----------------------------------------------------------------------------
 -- Fencer server

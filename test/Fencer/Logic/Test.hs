@@ -71,10 +71,9 @@ test_logicLimitUnitChange =
 
   descriptor :: DescriptorDefinition
   descriptor = DescriptorDefinitionLeafNode
-        { descriptorDefinitionKey         = ruleKey
-        , descriptorDefinitionValue       = Just ruleValue
-        , descriptorDefinitionRateLimit   = RateLimit Minute limit
-        }
+    ruleKey
+    (Just ruleValue)
+    (RateLimit Minute limit)
 
   definition1 :: DomainDefinition
   definition1 = DomainDefinition

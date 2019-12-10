@@ -27,20 +27,20 @@ import           Fencer.Types
 -- | A leaf descriptor definition with a key, a value and a rate
 -- limit.
 descriptorKeyValue :: DescriptorDefinition
-descriptorKeyValue = DescriptorDefinitionLeafNode
-  { descriptorDefinitionKey = RuleKey "some key"
-  , descriptorDefinitionValue = Just $ RuleValue "some value"
-  , descriptorDefinitionRateLimit = RateLimit Hour 10
-  }
+descriptorKeyValue =
+  DescriptorDefinitionLeafNode
+    (RuleKey "some key")
+    (Just $ RuleValue "some value")
+    (RateLimit Hour 10)
 
 -- | A leaf inner descriptor definition with a key and rate limit
 -- only.
 descriptorKey :: DescriptorDefinition
-descriptorKey = DescriptorDefinitionLeafNode
-  { descriptorDefinitionKey = RuleKey "some key 2"
-  , descriptorDefinitionValue = Nothing
-  , descriptorDefinitionRateLimit = RateLimit Minute 20
-  }
+descriptorKey =
+  DescriptorDefinitionLeafNode
+    (RuleKey "some key 2")
+    Nothing
+    (RateLimit Minute 20)
 
 -- | A domain definition with a single descriptor with a key and
 -- value.
