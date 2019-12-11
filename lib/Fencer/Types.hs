@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveAnyClass             #-}
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -156,22 +155,19 @@ data DomainDefinition = DomainDefinition
     deriving stock (Eq, Show)
 
 -- | Config for a single rule tree.
-data DescriptorDefinition where
-  -- | An inner node with no rate limit
-  DescriptorDefinitionInnerNode
-    :: !RuleKey
-    -> !(Maybe RuleValue)
-    -> ![DescriptorDefinition]
-       -----------------------
-    -> DescriptorDefinition
+data DescriptorDefinition
+  =
+    -- | An inner node with no rate limit
+    DescriptorDefinitionInnerNode
+      !RuleKey
+      !(Maybe RuleValue)
+      ![DescriptorDefinition]
 
-  -- | A leaf node with a rate limit
-  DescriptorDefinitionLeafNode
-    :: !RuleKey
-    -> !(Maybe RuleValue)
-    -> !RateLimit
-       --------------------
-    -> DescriptorDefinition
+    -- | A leaf node with a rate limit
+  | DescriptorDefinitionLeafNode
+      !RuleKey
+      !(Maybe RuleValue)
+      !RateLimit
 
 deriving instance Eq DescriptorDefinition
 deriving instance Show DescriptorDefinition
@@ -236,9 +232,9 @@ type RuleTree = HashMap (RuleKey, Maybe RuleValue) RuleBranch
 
 -- | A single branch in a rule tree, containing several (or perhaps zero)
 -- nested rules.
-data RuleBranch where
-  RuleBranch :: !RuleTree -> RuleBranch
-  RuleLeaf :: !RateLimit -> RuleBranch
+data RuleBranch
+  = RuleBranch !RuleTree
+  | RuleLeaf !RateLimit
 
 ----------------------------------------------------------------------------
 -- Fencer server
