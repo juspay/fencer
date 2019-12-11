@@ -355,10 +355,13 @@ registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
         Registered -> pure ()
         Unregistered -> do
           let
+            prefix = Metrics.limitToPath domain descriptor
             metrics =
-              -- TODO(md): Add "over_limit" and "total_hits" metrics
-              [ ( pack $ Metrics.limitToPath domain descriptor ++ "." ++ "near_limit"
+              -- TODO(md): Add the "total_hits" metric
+              [ ( pack $ prefix ++ "." ++ "near_limit"
                 , SysMetrics.Counter . fromIntegral . uncurry (Metrics.statNearLimit settings) )
+              , ( pack $ prefix ++ "." ++ "over_limit"
+                , SysMetrics.Counter . fromIntegral . counterHitsOverLimit . snd )
               ]
             descMap :: HashMap Text ((RateLimit, CounterStatus) -> SysMetrics.Value) = HM.fromList metrics
             ioAction :: IO (RateLimit, CounterStatus) =
