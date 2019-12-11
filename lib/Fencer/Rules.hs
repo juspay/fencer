@@ -185,13 +185,10 @@ definitionsToRuleTree = HM.fromList . map (\d -> (makeKey d, makeBranch d))
     makeKey desc = (descriptorDefinitionKey desc, descriptorDefinitionValue desc)
 
     makeBranch :: DescriptorDefinition -> RuleBranch
-    makeBranch desc = RuleBranch
-        { ruleBranchRateLimit =
-              descriptorDefinitionRateLimit desc
-        , ruleBranchNested =
-              definitionsToRuleTree $
-                  fromMaybe [] (descriptorDefinitionDescriptors desc)
-        }
+    makeBranch (DescriptorDefinitionLeafNode _ _ limit) =
+      RuleLeaf limit
+    makeBranch (DescriptorDefinitionInnerNode _ _ descs) =
+      RuleBranch (definitionsToRuleTree descs)
 
 -- | Convert a domain to a 'RuleTree' together with the domain ID. This is a
 -- trivial function but we need it often.
@@ -215,6 +212,8 @@ applyRules ((key, value):rest) tree = do
         HM.lookup (key, Nothing) tree
     -- If we reached the end of the descriptor, we use the current rate
     -- limit. Otherwise we keep going.
-    if null @[] rest
-        then ruleBranchRateLimit branch
-        else applyRules rest (ruleBranchNested branch)
+    case (null @[] rest, branch) of
+        (True,  RuleLeaf limit)   -> Just limit
+        (True,  RuleBranch _)     -> Nothing
+        (False, RuleLeaf _)       -> Nothing
+        (False, RuleBranch tree') -> applyRules rest tree'

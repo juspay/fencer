@@ -18,6 +18,8 @@ import           Test.Tasty.HUnit (assertEqual, testCase)
 tests :: TestTree
 tests = testGroup "Type tests"
   [ test_parseJSONDescriptorDefinition
+  , test_parseJSONFaultyDescriptorDefinition1
+  , test_parseJSONFaultyDescriptorDefinition2
   , test_parseJSONDomainDefinition
   , test_parseJSONDomainEmptyDescriptors
   , test_parseJSONNonEmptyDomainId
@@ -28,36 +30,88 @@ descriptor1 :: Value
 descriptor1 = [aesonQQ|
   {
     "key": "some key",
-    "value": "some value"
+    "value": "some value",
+    "rate_limit": {
+      "unit": "second",
+      "requests_per_unit": 5
+    }
   }
   |]
 
+-- | Test that parsing a valid leaf descriptor definition passes.
 test_parseJSONDescriptorDefinition :: TestTree
 test_parseJSONDescriptorDefinition =
-  testCase "Successful JSON parsing of DescriptorDefinition" $
+  testCase "Successful JSON parsing of DescriptorDefinitionLeafNode" $
     assertEqual
       "parsing DescriptorDefinition failed"
       (Right expected)
       (parseEither (parseJSON @DescriptorDefinition) descriptor1)
  where
   expected :: DescriptorDefinition
-  expected = DescriptorDefinition
-    { descriptorDefinitionKey = RuleKey "some key"
-    , descriptorDefinitionValue = Just $ RuleValue "some value"
-    , descriptorDefinitionRateLimit = Nothing
-    , descriptorDefinitionDescriptors = Nothing
-    }
+  expected =
+    DescriptorDefinitionLeafNode
+      (RuleKey "some key")
+      (Just $ RuleValue "some value")
+      (RateLimit Second 5)
+
+-- | Test that parsing an invalid inner descriptor definition fails.
+test_parseJSONFaultyDescriptorDefinition1 :: TestTree
+test_parseJSONFaultyDescriptorDefinition1 =
+  testCase "Unsuccessful JSON parsing of an inner DescriptorDefinition" $
+    assertEqual
+      "Expected a specific failure, but got something else"
+      (Left expectedErrMsg)
+      (parseEither (parseJSON @DescriptorDefinition) faultyInnerDescriptor)
+ where
+  expectedErrMsg :: String
+  expectedErrMsg =
+    "Error in $: A descriptor with a rate limit cannot have a sub-descriptor"
+
+-- | Test that parsing an invalid leaf descriptor definition fails.
+test_parseJSONFaultyDescriptorDefinition2 :: TestTree
+test_parseJSONFaultyDescriptorDefinition2 =
+  testCase "Unsuccessful JSON parsing of a leaf DescriptorDefinition" $
+    assertEqual
+      "Expected a specific failure, but got something else"
+      (Left expectedErrMsg)
+      (parseEither (parseJSON @DescriptorDefinition) faultyLeafDescriptor)
+ where
+  expectedErrMsg :: String
+  expectedErrMsg =
+    "Error in $: A descriptor definition must have either a rate limit " ++
+    "or sub-descriptor(s)"
 
 descriptor2 :: Value
 descriptor2 = [aesonQQ|
   {
     "key": "some key #2",
     "value": "some value #2",
+    "descriptors": [#{descriptor1}]
+  }
+  |]
+
+-- | An inner descriptor definition cannot have a rate limit so
+-- parsing it should fail.
+faultyInnerDescriptor :: Value
+faultyInnerDescriptor = [aesonQQ|
+  {
+    "key": "some key #2",
+    "value": "some value #2",
     "rate_limit": {
-      "unit": "second",
-      "requests_per_unit": 5
+      "unit": "minute",
+      "requests_per_unit": 11
     },
     "descriptors": [#{descriptor1}]
+  }
+  |]
+
+-- | A leaf descriptor definition must have a rate limit so parsing it
+-- should fail.
+faultyLeafDescriptor :: Value
+faultyLeafDescriptor = [aesonQQ|
+  {
+    "key": "some key #2",
+    "value": "some value #2"
   }
   |]
 
@@ -65,7 +119,7 @@ domain1 :: Value
 domain1 = [aesonQQ|
   {
     "domain": "some domain",
-    "descriptors": [#{descriptor1}, #{descriptor2}]
+    "descriptors": [#{descriptor2}]
   }
   |]
 
@@ -79,22 +133,18 @@ test_parseJSONDomainDefinition =
   expected :: DomainDefinition
   expected = DomainDefinition
     { domainDefinitionId = DomainId "some domain"
-    , domainDefinitionDescriptors = [descriptor1', descriptor2']
+    , domainDefinitionDescriptors = [descriptor2']
     }
   descriptor1' :: DescriptorDefinition
-  descriptor1' = DescriptorDefinition
-    { descriptorDefinitionKey = RuleKey "some key"
-    , descriptorDefinitionValue = Just $ RuleValue "some value"
-    , descriptorDefinitionRateLimit = Nothing
-    , descriptorDefinitionDescriptors = Nothing
-    }
+  descriptor1' = DescriptorDefinitionLeafNode
+    (RuleKey "some key")
+    (Just $ RuleValue "some value")
+    (RateLimit Second 5)
   descriptor2' :: DescriptorDefinition
-  descriptor2' = DescriptorDefinition
-    { descriptorDefinitionKey = RuleKey "some key #2"
-    , descriptorDefinitionValue = Just $ RuleValue "some value #2"
-    , descriptorDefinitionRateLimit = Just $ RateLimit Second 5
-    , descriptorDefinitionDescriptors = Just [descriptor1']
-    }
+  descriptor2' = DescriptorDefinitionInnerNode
+    (RuleKey "some key #2")
+    (Just $ RuleValue "some value #2")
+    [descriptor1']
 
 test_parseJSONDomainEmptyDescriptors :: TestTree
 test_parseJSONDomainEmptyDescriptors =
@@ -143,21 +193,14 @@ test_parseJSONOptionalDescriptorFields =
     }
     |]
   desc1 :: DescriptorDefinition
-  desc1 = DescriptorDefinition
-    {
-      descriptorDefinitionKey         = RuleKey "key #1"
-    , descriptorDefinitionValue       = Just . RuleValue $ "value #1"
-    , descriptorDefinitionRateLimit   = Nothing
-    , descriptorDefinitionDescriptors = Just [
-        DescriptorDefinition
-          {
-            descriptorDefinitionKey         = RuleKey "inner key #1"
-          , descriptorDefinitionValue       = Nothing
-          , descriptorDefinitionRateLimit   = Just RateLimit {rateLimitUnit = Minute, rateLimitRequestsPerUnit = 10}
-          , descriptorDefinitionDescriptors = Nothing
-          }
-        ]
-    }
+  desc1 = DescriptorDefinitionInnerNode
+    (RuleKey "key #1")
+    (Just . RuleValue $ "value #1")
+    [ DescriptorDefinitionLeafNode
+        (RuleKey "inner key #1")
+        Nothing
+        (RateLimit Minute 10)
+    ]
   desc2Value :: Value
   desc2Value = [aesonQQ|
     {
@@ -166,13 +209,10 @@ test_parseJSONOptionalDescriptorFields =
     }
     |]
   desc2 :: DescriptorDefinition
-  desc2 = DescriptorDefinition
-    {
-      descriptorDefinitionKey         = RuleKey "key #2"
-    , descriptorDefinitionValue       = Nothing
-    , descriptorDefinitionRateLimit   = Just RateLimit {rateLimitUnit = Hour, rateLimitRequestsPerUnit = 1000}
-    , descriptorDefinitionDescriptors = Nothing
-    }
+  desc2 = DescriptorDefinitionLeafNode
+    (RuleKey "key #2")
+    Nothing
+    (RateLimit Hour 1000)
   domainValue :: Value
   domainValue = [aesonQQ|
     {
