@@ -122,6 +122,10 @@ let
     if static
     then (import nixpkgs { inherit config; }).pkgsMusl
     else import nixpkgs { inherit config; };
+  fencerPre =
+    if pkgs.lib.inNixShell
+    then drv
+    else pkgs.haskell.lib.justStaticExecutables drv;
   drv =
     if static
     then staticPackage pkgs.haskellPackages.fencer
@@ -129,7 +133,7 @@ let
 in {
   pkgs = pkgs;
   fencer =
-    if pkgs.lib.inNixShell
-    then drv
-    else pkgs.haskell.lib.justStaticExecutables drv;
+      if builtins.getEnv "TRAVIS" == "true"
+      then pkgs.haskell.lib.dontHaddock fencerPre
+      else fencerPre;
 }
