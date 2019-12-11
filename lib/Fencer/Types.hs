@@ -168,10 +168,7 @@ data DescriptorDefinition
       !RuleKey
       !(Maybe RuleValue)
       !RateLimit
-
-deriving instance Eq DescriptorDefinition
-deriving instance Show DescriptorDefinition
-
+  deriving stock (Eq, Show)
 
 descriptorDefinitionKey
   :: DescriptorDefinition
