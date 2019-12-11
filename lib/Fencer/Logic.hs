@@ -15,28 +15,33 @@ module Fencer.Logic
     , updateCurrentTime
     , deleteCountersWithExpiry
     , updateLimitCounter
-    , atomicWithStore
+    , withStore
     , checkAndMarkForRegistration
+
+    , MetricRegistrationStatus(..)
+    , registerDescriptors
     )
 where
 
 import BasePrelude
 
 import           Control.Concurrent.STM.TVar (modifyTVar')
-import           Control.Monad.Extra (unlessM)
-import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Extra (ifM)
 import           Control.Monad.Trans.Class (lift)
 import           Data.Function ((&))
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as Set
 import           Data.HashSet (HashSet)
+import           Data.Text (Text, pack)
 import qualified Focus as Focus
 import qualified ListT as ListT
 import           Named ((:!), arg)
 import qualified StmContainers.Map as StmMap
 import qualified StmContainers.Multimap as StmMultimap
 import qualified StmContainers.Set as StmSet
-import           System.Logger (Logger)
 import           System.Metrics (newStore, registerGroup, Store)
+import qualified System.Metrics as SysMetrics
 
 import           Fencer.Counter
 import qualified Fencer.Metrics as Metrics
@@ -188,24 +193,32 @@ isInMetricsStore appState domain descriptor =
   Set.member (domain, descriptor) <$>
     readTVar (appStateRegisteredDescriptors appState)
 
+data MetricRegistrationStatus = Registered | Unregistered
+
 -- | Check if a descriptor has been added to the metrics store and
 -- prepare it for registration if this has not been done so far.
+--
+-- Return false if it has not been registered so far and true
+-- otherwise.
 checkAndMarkForRegistration
   :: AppState
   -> DomainId
   -> [(RuleKey, RuleValue)]
-  -> STM ()
+  -> STM MetricRegistrationStatus
 checkAndMarkForRegistration appState domain descriptor =
-  unlessM (isInMetricsStore appState domain descriptor) $
-    void $ (modifyTVar'
-      (appStateRegisteredDescriptors appState)
-      (Set.insert (domain, descriptor)))
+  ifM (isInMetricsStore appState domain descriptor)
+    (pure Registered)
+    (do
+       void $ (modifyTVar'
+               (appStateRegisteredDescriptors appState)
+               (Set.insert (domain, descriptor)))
+       pure Unregistered)
 
-atomicWithStore
+withStore
   :: AppState
   -> (Store -> IO ())
   -> IO ()
-atomicWithStore appState action =
+withStore appState action =
   (appStateMetricsStore appState) & action
 
 -- | Register a metric group corresponding to a descriptor if it has
@@ -245,16 +258,12 @@ getCounter appState counterKey =
 -- not exist, or update an existing counter otherwise. The counter will be
 -- reset if it has expired, and 'appStateCounterExpiry' will be updated.
 updateLimitCounter
-    :: Settings
-    -> Logger
-    -> AppState
+    :: AppState
     -> "hits" :! Word
     -> DomainId
     -> [(RuleKey, RuleValue)]
     -> STM (Maybe (RateLimit, CounterStatus))
 updateLimitCounter
-  settings
-  logger
   appState
   (arg #hits -> hits)
   domain
@@ -327,3 +336,36 @@ deleteCountersWithExpiry appState timestamp = do
             -- transaction because it might lead to nearly infinite retries.
             forM_ keys $ \key ->
                 atomically $ StmMap.delete key (appStateCounters appState)
+
+-- | Register each descriptor with the metrics store if it has not
+-- been done so far.
+registerDescriptors
+  :: Settings
+  -> AppState
+  -> DomainId
+  -> [[(RuleKey, RuleValue)]]
+  -> IO ()
+registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
+  mLimit <- atomically $ getLimit appState domain descriptor
+  case mLimit of
+    Nothing -> pure ()
+    Just _limit  -> do
+      regStatus <- atomically $ checkAndMarkForRegistration appState domain descriptor
+      case regStatus of
+        Registered -> pure ()
+        Unregistered -> do
+          let
+            metrics =
+              -- TODO(md): Add "over_limit" and "total_hits" metrics
+              [ ( pack $ Metrics.limitToPath domain descriptor ++ "." ++ "near_limit"
+                , SysMetrics.Counter . fromIntegral . uncurry (Metrics.statNearLimit settings) )
+              ]
+            descMap :: HashMap Text ((RateLimit, CounterStatus) -> SysMetrics.Value) = HM.fromList metrics
+            ioAction :: IO (RateLimit, CounterStatus) =
+              -- By passing in 0 hits we make sure not to change the
+              -- counter so the function serves as a pure getter.
+              atomically $ fromMaybe (error "") <$>
+                updateLimitCounter appState (#hits 0) domain descriptor
+
+          withStore appState $ \store -> do
+            registerGroup descMap ioAction store
