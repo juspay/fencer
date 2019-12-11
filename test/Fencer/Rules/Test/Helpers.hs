@@ -84,7 +84,7 @@ expectLoadRules
       Left errs ->
         case result of
           Right _ ->
-            assertFailure "Expected failures, got domain definitions!"
+            assertFailure "Expected domain definitions, got failures!"
           Left expectedErrs ->
             assertBool ("Exceptions differ! Expected: " ++
                         (prettyPrintErrors $ NE.toList expectedErrs) ++ "\nGot: " ++
