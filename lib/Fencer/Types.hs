@@ -1,7 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 -- | Types used in Fencer. We try to keep most types in one module to avoid
 -- circular dependencies between modules.
@@ -25,6 +25,8 @@ module Fencer.Types
     -- * Rate limit rule configs
     , DomainDefinition(..)
     , DescriptorDefinition(..)
+    , descriptorDefinitionKey
+    , descriptorDefinitionValue
 
     -- * Rate limit rules in tree form
     , RuleTree
@@ -35,12 +37,12 @@ module Fencer.Types
     )
 where
 
-import BasePrelude
+import BasePrelude hiding (lookup)
 
 import Data.Hashable (Hashable)
 import Data.Text (Text)
 import Data.Aeson (FromJSON(..), (.:), (.:?), (.!=), withObject, withText)
-import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict (HashMap, lookup)
 
 
 ----------------------------------------------------------------------------
@@ -152,19 +154,40 @@ data DomainDefinition = DomainDefinition
     deriving stock (Eq, Show)
 
 -- | Config for a single rule tree.
-data DescriptorDefinition = DescriptorDefinition
-    { descriptorDefinitionKey :: !RuleKey
-    , descriptorDefinitionValue :: !(Maybe RuleValue)
-    , descriptorDefinitionRateLimit :: !(Maybe RateLimit)
-    , descriptorDefinitionDescriptors :: !(Maybe [DescriptorDefinition])
-    }
-    deriving stock (Eq, Show)
+data DescriptorDefinition
+  =
+    -- | An inner node with no rate limit
+    DescriptorDefinitionInnerNode
+      !RuleKey
+      !(Maybe RuleValue)
+      ![DescriptorDefinition]
+
+    -- | A leaf node with a rate limit
+  | DescriptorDefinitionLeafNode
+      !RuleKey
+      !(Maybe RuleValue)
+      !RateLimit
+  deriving stock (Eq, Show)
+
+descriptorDefinitionKey
+  :: DescriptorDefinition
+  -> RuleKey
+descriptorDefinitionKey (DescriptorDefinitionInnerNode k _ _) = k
+descriptorDefinitionKey (DescriptorDefinitionLeafNode  k _ _) = k
+
+descriptorDefinitionValue
+  :: DescriptorDefinition
+  -> Maybe RuleValue
+descriptorDefinitionValue (DescriptorDefinitionInnerNode _ v _) = v
+descriptorDefinitionValue (DescriptorDefinitionLeafNode  _ v _) = v
+
 
 instance HasDescriptors DomainDefinition where
   descriptorsOf = domainDefinitionDescriptors
 
 instance HasDescriptors DescriptorDefinition where
-  descriptorsOf d = fromMaybe [] $ descriptorDefinitionDescriptors d
+  descriptorsOf (DescriptorDefinitionLeafNode{})      = []
+  descriptorsOf (DescriptorDefinitionInnerNode _ _ l) = l
 
 instance FromJSON DomainDefinition where
     parseJSON = withObject "DomainDefinition" $ \o -> do
@@ -175,12 +198,24 @@ instance FromJSON DomainDefinition where
         pure DomainDefinition{..}
 
 instance FromJSON DescriptorDefinition where
-    parseJSON = withObject "DescriptorDefinition" $ \o -> do
-        descriptorDefinitionKey <- o .: "key"
-        descriptorDefinitionValue <- o .:? "value"
-        descriptorDefinitionRateLimit <- o .:? "rate_limit"
-        descriptorDefinitionDescriptors <- o .:? "descriptors"
-        pure DescriptorDefinition{..}
+  parseJSON = withObject "DescriptorDefinition" $ \o -> do
+    key <- o .: "key"
+    value <- o .:? "value"
+    case lookup "rate_limit" o of
+      Just _ -> do
+        limit <- o .: "rate_limit"
+        case lookup "descriptors" o of
+          Nothing -> pure $ DescriptorDefinitionLeafNode key value limit
+          Just _ -> fail
+            "A descriptor with a rate limit cannot have a sub-descriptor"
+      Nothing ->
+        case lookup "descriptors" o of
+          Nothing -> fail $
+            "A descriptor definition must have either a rate limit " ++
+            "or sub-descriptor(s)"
+          Just _ -> do
+            descriptors <- o .: "descriptors"
+            pure $ DescriptorDefinitionInnerNode key value descriptors
 
 ----------------------------------------------------------------------------
 -- Rate limit rules in tree form
@@ -193,10 +228,9 @@ type RuleTree = HashMap (RuleKey, Maybe RuleValue) RuleBranch
 
 -- | A single branch in a rule tree, containing several (or perhaps zero)
 -- nested rules.
-data RuleBranch = RuleBranch
-    { ruleBranchRateLimit :: !(Maybe RateLimit)
-    , ruleBranchNested :: !RuleTree
-    }
+data RuleBranch
+  = RuleBranch !RuleTree
+  | RuleLeaf !RateLimit
 
 ----------------------------------------------------------------------------
 -- Fencer server
