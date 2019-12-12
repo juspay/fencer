@@ -131,6 +131,8 @@ test-suite test-fencer
     , base-prelude
     , bytestring
     , directory
+    , ekg-core
+    , ekg-statsd
     , filepath
     , grpc-haskell
     , named

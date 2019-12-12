@@ -150,12 +150,14 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
         forM_
           [ ("near_limit", Metrics.statNearLimit settings limit status)
           , ("over_limit", counterHitsOverLimit status)
-          , ("total_hits", counterHits counter) ] $ \(s, m) ->
-            Logger.info logger $ Logger.msg $ Logger.val $
-              prefix <> s <> ": " <> (B.pack . show $ m)
+          , ("total_hits", counterHits counter)
+          ] $
+          \(s, m) -> Logger.info logger $ Logger.msg $ Logger.val $
+            prefix <> s <> ": " <> (B.pack . show $ m)
 
     if settingsUseStatsd settings
-      then pure () -- TODO(md): implement sending statistics to the statsd
+      then pure () -- flushing from the store to statsd is done
+                   -- periodically by a thread created in Main.main.
       else forM_ (descriptors `zip` limitsStatusesCounters) $ uncurry logStats
 
     (codes :: [Proto.RateLimitResponse_Code],

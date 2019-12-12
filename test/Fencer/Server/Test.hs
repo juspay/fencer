@@ -23,8 +23,10 @@ import qualified Network.GRPC.HighLevel.Generated as Grpc
 import           Proto3.Suite.Types (Enumerated(..))
 import qualified System.Directory as Dir
 import           System.FilePath ((</>))
-import qualified System.Logger as Logger
 import qualified System.IO.Temp as Temp
+import qualified System.Logger as Logger
+import           System.Metrics (newStore)
+import           System.Remote.Monitoring.Statsd (defaultStatsdOptions, forkStatsd)
 import           Test.Tasty (TestTree, testGroup, withResource)
 import           Test.Tasty.HUnit (HasCallStack, assertEqual, assertFailure, testCase, Assertion)
 
@@ -359,7 +361,6 @@ createServer = do
   -- would fail due to a file lock.
   hClose serverLogHandle
   serverLogger   <- getLogLevel >>= newLogger (Logger.Path loggerPath)
-  serverAppState <- initAppState
   serverSettings <- do
     p <- getUniquePort
     pure Settings
@@ -371,6 +372,12 @@ createServer = do
       , settingsUseStatsd = False
       , settingsNearLimitRatio = 0.8
       }
+  -- Set up sending metrics to statsd
+  store <- newStore
+  statsd <- if settingsUseStatsd serverSettings
+    then Just <$> forkStatsd defaultStatsdOptions store
+    else pure Nothing
+  serverAppState <- initAppState store statsd
   serverThreadId <- forkIO $ runServer serverSettings serverLogger serverAppState
 
   -- NOTE(md): For reasons unkown, without a delay the delay in the thread makes a

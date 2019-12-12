@@ -12,11 +12,16 @@ where
 
 import BasePrelude
 
-import Control.Concurrent.STM (atomically)
+import           Control.Concurrent.STM (atomically)
 import qualified Data.List.NonEmpty as NE
-import System.FilePath ((</>))
+import           System.FilePath ((</>))
 import qualified System.Logger as Logger
-import System.Logger (Logger)
+import           System.Logger (Logger)
+import           System.Metrics (newStore)
+import           System.Remote.Monitoring.Statsd
+                 ( defaultStatsdOptions
+                 , forkStatsd
+                 )
 
 import Fencer.Logic
 import Fencer.Rules
@@ -37,8 +42,13 @@ main = do
     settings <- getSettingsFromEnvironment
     -- Initialize logging
     logger <- newLogger Logger.StdErr (settingsLogLevel settings)
+    -- Set up sending metrics to statsd
+    store <- newStore
+    statsd <- if settingsUseStatsd settings
+      then Just <$> forkStatsd defaultStatsdOptions store
+      else pure Nothing
     -- Create in-memory state
-    appState <- initAppState
+    appState <- initAppState store statsd
     -- Load rate limiting rules for the first time
     reloadRules logger settings appState
     -- Create a thread watching the config directory for changes

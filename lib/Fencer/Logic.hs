@@ -40,8 +40,9 @@ import           Named ((:!), arg)
 import qualified StmContainers.Map as StmMap
 import qualified StmContainers.Multimap as StmMultimap
 import qualified StmContainers.Set as StmSet
-import           System.Metrics (newStore, registerGroup, Store)
+import           System.Metrics (registerGroup, Store)
 import qualified System.Metrics as SysMetrics
+import           System.Remote.Monitoring.Statsd (Statsd)
 
 import           Fencer.Counter
 import qualified Fencer.Metrics as Metrics
@@ -92,6 +93,9 @@ data AppState = AppState
       -- | A mutable metrics store for the statsd server. See
       -- 'System.Metrics.Store' for more information.
     , appStateMetricsStore :: !Store
+      -- | A statsd synchronization handle. If the USE_STATSD flag is
+      -- set to true, this value is Nothing.
+    , appStateStatsd :: Maybe Statsd
       -- | A mutable set of registered metrics. This set is used to
       -- keep track of descriptors that have been added so that a
       -- descriptor can be added to the metrics store if it is not
@@ -105,14 +109,16 @@ data AppState = AppState
 -- * Set all maps to empty values.
 -- * Set 'appStateRulesLoaded' to @False@.
 -- * Set 'appStateCurrentTime' to the current time.
-initAppState :: IO AppState
-initAppState = do
+initAppState
+  :: Store
+  -> Maybe Statsd
+  -> IO AppState
+initAppState appStateMetricsStore appStateStatsd = do
     appStateRules <- StmMap.newIO
     appStateRulesLoaded <- newTVarIO False
     appStateCurrentTime <- newTVarIO =<< getTimestamp
     appStateCounters <- StmMap.newIO
     appStateCounterExpiry <- StmMultimap.newIO
-    appStateMetricsStore <- newStore
     appStateRegisteredDescriptors <- newTVarIO Set.empty
     pure AppState{..}
 
