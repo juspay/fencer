@@ -15,7 +15,6 @@ module Fencer.Logic
     , updateCurrentTime
     , deleteCountersWithExpiry
     , updateLimitCounter
-    , withStore
     , checkAndMarkForRegistration
 
     , MetricRegistrationStatus(..)
@@ -28,12 +27,11 @@ import BasePrelude
 import           Control.Concurrent.STM.TVar (modifyTVar')
 import           Control.Monad.Extra (ifM)
 import           Control.Monad.Trans.Class (lift)
-import           Data.Function ((&))
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as Set
 import           Data.HashSet (HashSet)
-import           Data.Text (Text, pack)
+import           Data.Text (Text)
 import qualified Focus as Focus
 import qualified ListT as ListT
 import           Named ((:!), arg)
@@ -220,34 +218,6 @@ checkAndMarkForRegistration appState domain descriptor =
                (Set.insert (domain, descriptor)))
        pure Unregistered)
 
-withStore
-  :: AppState
-  -> (Store -> IO ())
-  -> IO ()
-withStore appState action =
-  (appStateMetricsStore appState) & action
-
--- | Register a metric group corresponding to a descriptor if it has
--- not been registered.
--- registerMetric
---   :: AppState
---   -> DomainId
---   -> [(RuleKey, RuleValue)]
---   -> STM ()
--- registerMetric appState domain descriptor =
---   unlessM (isInMetricsStore appState domain descriptor) $ do
---     modifyTVar'
---       (appStateRegisteredDescriptors appState)
---       (Set.insert (domain, descriptor))
---     let
---       prefix = Metrics.limitToPath domain descriptor
---       store  = appStateMetricsStore appState
---       mapa   = undefined
---       ioAction = undefined
---     registerGroup mapa ioAction store
---     -- TODO(md): actually register the descriptor with its three metrics
---     -- liftIO $ registerGroup undefined undefined store
-
 -- | Fetch the current counter for a descriptor.
 getCounter
     :: AppState
@@ -360,44 +330,42 @@ registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
         checkAndMarkForRegistration appState domain descriptor
       case regStatus of
         Registered -> pure ()
-        Unregistered -> do
-          let
-            prefix = Metrics.limitToPath domain descriptor
-            metrics =
-              [ ( pack $ prefix ++ "." ++ "near_limit"
-                , toMetric .
-                  uncurry (Metrics.statNearLimit settings) .
-                  \(l, s, _) -> (l, s) )
-              , ( pack $ prefix ++ "." ++ "over_limit"
-                , toMetric .
-                  counterHitsOverLimit .
-                  \(_, s, _) -> s )
-              , ( pack $ prefix ++ "." ++ "total_hits"
-                , toMetric . counterHits . \(_, _, c) -> c )
-              ]
-            descMap
-              :: HashMap
-                   Text
-                   ((RateLimit, CounterStatus, Counter) -> SysMetrics.Value)
-              = HM.fromList metrics
-            ioAction :: IO (RateLimit, CounterStatus, Counter) =
-              atomically $ do
-                -- By passing in 0 hits we make sure not to change the
-                -- counter so the function serves as a pure getter.
-                (limit, status) <- fromMaybe (error "") <$>
-                  updateLimitCounter appState (#hits 0) domain descriptor
-                let counterKey = CounterKey
-                      { counterKeyDomain = domain
-                      , counterKeyDescriptor = descriptor
-                      , counterKeyUnit = rateLimitUnit limit
-                      }
-                mCounter <- getCounter appState counterKey
-                case mCounter of
-                  Nothing -> error "An internal error in statistics support"
-                  Just c  -> pure (limit, status, c)
-
-          withStore appState $ \store ->
-            registerGroup descMap ioAction store
+        Unregistered ->
+          registerGroup
+            (descMap descriptor)
+            (sampleMetrics appState domain descriptor)
+            (appStateMetricsStore appState)
  where
   toMetric :: Word -> SysMetrics.Value
   toMetric = SysMetrics.Counter . fromIntegral
+
+  descMap
+    :: [(RuleKey, RuleValue)]
+    -> HashMap
+         Text
+         ((RateLimit, CounterStatus, Counter) -> SysMetrics.Value)
+  descMap =
+    HM.fromList .
+    fmap (\(t, f) -> (t, toMetric . f)) .
+    Metrics.threeMetrics settings domain
+
+-- | A thread-safe sampling of a descriptor's three metrics.
+sampleMetrics
+  :: AppState
+  -> DomainId
+  -> [(RuleKey, RuleValue)]
+  -> IO (RateLimit, CounterStatus, Counter)
+sampleMetrics appState domain descriptor = atomically $ do
+  -- By passing in 0 hits we make sure not to change the
+  -- counter so the function serves as a pure getter.
+  (limit, status) <- fromMaybe (error "") <$>
+    updateLimitCounter appState (#hits 0) domain descriptor
+  let counterKey = CounterKey
+        { counterKeyDomain = domain
+        , counterKeyDescriptor = descriptor
+        , counterKeyUnit = rateLimitUnit limit
+        }
+  mCounter <- getCounter appState counterKey
+  case mCounter of
+    Nothing -> error "An internal error in statistics support"
+    Just c  -> pure (limit, status, c)

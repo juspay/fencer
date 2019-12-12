@@ -6,13 +6,14 @@ module Fencer.Metrics
   ( fencerNamespace
   , limitToPath
   , statNearLimit
+  , threeMetrics
   ) where
 
 import           BasePrelude
 
-import           Data.Text (unpack)
+import           Data.Text (Text, pack, unpack)
 
-import           Fencer.Counter (CounterStatus(..))
+import           Fencer.Counter (CounterStatus(..), Counter(..))
 import           Fencer.Settings (Settings, settingsNearLimitRatio)
 import           Fencer.Types
                  ( DomainId(..)
@@ -62,3 +63,24 @@ statNearLimit settings rateLimit status =
           (remaining + threshold > limit)
        then 0
        else limit - threshold - remaining
+
+-- | For a given domain and a descriptor, compute a list of metrics
+-- mapping. The mapping is from a metric name to a function that for a
+-- given sample of a metric group returns the metric's value.
+threeMetrics
+  :: Settings
+  -> DomainId
+  -> [(RuleKey, RuleValue)]
+  -> [(Text, (RateLimit, CounterStatus, Counter) -> Word)]
+threeMetrics settings domain descriptor =
+  [ ( pack $ prefix descriptor ++ "." ++ "near_limit"
+    , uncurry (statNearLimit settings) .
+      \(l, s, _) -> (l, s) )
+  , ( pack $ prefix descriptor ++ "." ++ "over_limit"
+    , counterHitsOverLimit . \(_, s, _) -> s )
+  , ( pack $ prefix descriptor ++ "." ++ "total_hits"
+    , counterHits . \(_, _, c) -> c )
+  ]
+ where
+  prefix :: [(RuleKey, RuleValue)] -> String
+  prefix = limitToPath domain
