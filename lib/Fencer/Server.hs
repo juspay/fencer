@@ -16,7 +16,7 @@ import BasePrelude hiding ((+++))
 import           Control.Concurrent.STM (atomically)
 import           Control.Monad.Extra (unlessM)
 import qualified Data.ByteString.Char8 as B
-import           Data.Text (Text)
+import           Data.Text (Text, unpack)
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import qualified Network.GRPC.HighLevel.Generated as Grpc
@@ -143,17 +143,10 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
         -> Maybe (RateLimit, CounterStatus, Counter)
         -> IO ()
       logStats _     Nothing            = pure ()
-      logStats descs (Just (limit, status, counter)) = do
-        let
-          prefix = B.pack $
-            (Metrics.limitToPath domain descs) <> "."
-        forM_
-          [ ("near_limit", Metrics.statNearLimit settings limit status)
-          , ("over_limit", counterHitsOverLimit status)
-          , ("total_hits", counterHits counter)
-          ] $
-          \(s, m) -> Logger.info logger $ Logger.msg $ Logger.val $
-            prefix <> s <> ": " <> (B.pack . show $ m)
+      logStats descriptor (Just tuple) =
+        forM_ (Metrics.threeMetrics settings domain descriptor) $ \(t, f) ->
+          Logger.info logger $ Logger.msg $ Logger.val $ B.pack $
+            unpack t ++ ": " ++ (show . f $ tuple)
 
     if settingsUseStatsd settings
       then pure () -- flushing from the store to statsd is done
