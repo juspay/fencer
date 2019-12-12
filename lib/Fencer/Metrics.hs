@@ -5,7 +5,6 @@
 module Fencer.Metrics
   ( fencerNamespace
   , limitToPath
-  , statNearLimit
   , threeMetrics
   ) where
 

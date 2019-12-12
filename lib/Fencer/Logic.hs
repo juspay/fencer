@@ -322,19 +322,19 @@ registerDescriptors
   -> [[(RuleKey, RuleValue)]]
   -> IO ()
 registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
-  mLimit <- atomically $ getLimit appState domain descriptor
-  case mLimit of
-    Nothing -> pure ()
-    Just _limit  -> do
-      regStatus <- atomically $
-        checkAndMarkForRegistration appState domain descriptor
-      case regStatus of
-        Registered -> pure ()
-        Unregistered ->
-          registerGroup
-            (descMap descriptor)
-            (sampleMetrics appState domain descriptor)
-            (appStateMetricsStore appState)
+  regStatus <- atomically $
+    getLimit appState domain descriptor >>= \case
+      -- In case of an invalid descriptor do nothing, just like in the
+      -- case of an already registered descriptor
+      Nothing -> pure Registered
+      Just _  -> checkAndMarkForRegistration appState domain descriptor
+  case regStatus of
+    Registered   -> pure ()
+    Unregistered ->
+      registerGroup
+        (descMap descriptor)
+        (sampleMetrics appState domain descriptor)
+        (appStateMetricsStore appState)
  where
   toMetric :: Word -> SysMetrics.Value
   toMetric = SysMetrics.Counter . fromIntegral

@@ -117,13 +117,9 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
     -- requests in parallel might lead to both requests being reported as
     -- "over limit", even though one of them would have succeeded if the
     -- ordering of descriptors was "A", "B" in both requests.
-    let
-    limitsStatuses :: [Maybe (RateLimit, CounterStatus)] <- atomically $
-      forM descriptors $ \descriptor ->
-        updateLimitCounter appState (#hits hits) domain descriptor
-    limitsStatusesCounters :: [Maybe (RateLimit, CounterStatus, Counter)] <- atomically $
-      forM (descriptors `zip` limitsStatuses) $ \(descriptor, limitStatus) ->
-        case limitStatus of
+    mLimitStatusCounters :: [Maybe (RateLimit, CounterStatus, Counter)] <-
+      atomically $ forM descriptors $ \descriptor ->
+        updateLimitCounter appState (#hits hits) domain descriptor >>= \case
           Nothing -> pure Nothing
           Just (limit, status) -> do
             let counterKey = CounterKey
@@ -135,28 +131,17 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
               Nothing -> pure Nothing
               Just c  -> pure $ Just (limit, status, c)
 
-    let
-      -- | Log the three statistics: near limit, over limit and total
-      -- hits.
-      logStats
-        :: [(RuleKey, RuleValue)]
-        -> Maybe (RateLimit, CounterStatus, Counter)
-        -> IO ()
-      logStats _     Nothing            = pure ()
-      logStats descriptor (Just tuple) =
-        forM_ (Metrics.threeMetrics settings domain descriptor) $ \(t, f) ->
-          Logger.info logger $ Logger.msg $ Logger.val $ B.pack $
-            unpack t ++ ": " ++ (show . f $ tuple)
-
     if settingsUseStatsd settings
-      then pure () -- flushing from the store to statsd is done
-                   -- periodically by a thread created in Main.main.
-      else forM_ (descriptors `zip` limitsStatusesCounters) $ uncurry logStats
+      then pure () -- Flushing from the store to statsd is done
+                   -- periodically by a thread created in Main.main,
+                   -- hence nothing to do here.
+      else forM_ (descriptors `zip` mLimitStatusCounters) $
+        uncurry (logStats domain)
 
     (codes :: [Proto.RateLimitResponse_Code],
      statuses :: [Proto.RateLimitResponse_DescriptorStatus]) <- fmap
          (unzip . map (maybe ruleNotFoundResponse counterStatusToProto))
-         (pure limitsStatuses)
+         (pure $ fmap (\(l, s, _) -> (l, s)) <$> mLimitStatusCounters)
 
     -- Return server response.
     let overallCode =
@@ -177,6 +162,19 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
     let metadata = mempty
     let statusDetails = ""
     pure $ Grpc.ServerNormalResponse answer metadata Grpc.StatusOk statusDetails
+  where
+    -- | Log the three statistics: near limit, over limit and total
+    -- hits.
+    logStats
+      :: DomainId
+      -> [(RuleKey, RuleValue)]
+      -> Maybe (RateLimit, CounterStatus, Counter)
+      -> IO ()
+    logStats _      _          Nothing      = pure ()
+    logStats domain descriptor (Just tuple) =
+      forM_ (Metrics.threeMetrics settings domain descriptor) $ \(t, f) ->
+        Logger.info logger $ Logger.msg $ Logger.val $ B.pack $
+          unpack t ++ ": " ++ (show . f $ tuple)
 
 ----------------------------------------------------------------------------
 -- Working with protobuf structures
