@@ -350,25 +350,48 @@ registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
   case mLimit of
     Nothing -> pure ()
     Just _limit  -> do
-      regStatus <- atomically $ checkAndMarkForRegistration appState domain descriptor
+      regStatus <- atomically $
+        checkAndMarkForRegistration appState domain descriptor
       case regStatus of
         Registered -> pure ()
         Unregistered -> do
           let
             prefix = Metrics.limitToPath domain descriptor
             metrics =
-              -- TODO(md): Add the "total_hits" metric
               [ ( pack $ prefix ++ "." ++ "near_limit"
-                , SysMetrics.Counter . fromIntegral . uncurry (Metrics.statNearLimit settings) )
+                , toMetric .
+                  uncurry (Metrics.statNearLimit settings) .
+                  \(l, s, _) -> (l, s) )
               , ( pack $ prefix ++ "." ++ "over_limit"
-                , SysMetrics.Counter . fromIntegral . counterHitsOverLimit . snd )
+                , toMetric .
+                  counterHitsOverLimit .
+                  \(_, s, _) -> s )
+              , ( pack $ prefix ++ "." ++ "total_hits"
+                , toMetric . counterHits . \(_, _, c) -> c )
               ]
-            descMap :: HashMap Text ((RateLimit, CounterStatus) -> SysMetrics.Value) = HM.fromList metrics
-            ioAction :: IO (RateLimit, CounterStatus) =
-              -- By passing in 0 hits we make sure not to change the
-              -- counter so the function serves as a pure getter.
-              atomically $ fromMaybe (error "") <$>
-                updateLimitCounter appState (#hits 0) domain descriptor
+            descMap
+              :: HashMap
+                   Text
+                   ((RateLimit, CounterStatus, Counter) -> SysMetrics.Value)
+              = HM.fromList metrics
+            ioAction :: IO (RateLimit, CounterStatus, Counter) =
+              atomically $ do
+                -- By passing in 0 hits we make sure not to change the
+                -- counter so the function serves as a pure getter.
+                (limit, status) <- fromMaybe (error "") <$>
+                  updateLimitCounter appState (#hits 0) domain descriptor
+                let counterKey = CounterKey
+                      { counterKeyDomain = domain
+                      , counterKeyDescriptor = descriptor
+                      , counterKeyUnit = rateLimitUnit limit
+                      }
+                mCounter <- getCounter appState counterKey
+                case mCounter of
+                  Nothing -> error "An internal error in statistics support"
+                  Just c  -> pure (limit, status, c)
 
-          withStore appState $ \store -> do
+          withStore appState $ \store ->
             registerGroup descMap ioAction store
+ where
+  toMetric :: Word -> SysMetrics.Value
+  toMetric = SysMetrics.Counter . fromIntegral

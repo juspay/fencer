@@ -105,7 +105,7 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
             Logger.msg (Logger.val "Empty descriptor list, responding with an error")
         cancelWithError "rate limit descriptor list must not be empty"
 
-    -- Register all descriptors
+    -- Register all descriptors with a metrics store
     registerDescriptors settings appState domain descriptors
 
     -- Update all counters in one atomic operation, and collect the results.
