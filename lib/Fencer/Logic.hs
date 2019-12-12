@@ -19,6 +19,7 @@ module Fencer.Logic
 
     , MetricRegistrationStatus(..)
     , registerDescriptors
+    , sampleMetrics
     )
 where
 
@@ -239,11 +240,7 @@ updateLimitCounter
     -> DomainId
     -> [(RuleKey, RuleValue)]
     -> STM (Maybe (RateLimit, CounterStatus))
-updateLimitCounter
-  appState
-  (arg #hits -> hits)
-  domain
-  descriptor =
+updateLimitCounter appState (arg #hits -> hits) domain descriptor =
     getLimit appState domain descriptor >>= \case
         Nothing -> pure Nothing
         Just limit -> do

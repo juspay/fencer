@@ -3,8 +3,7 @@
 -- | A module for tracking several metrics and interacting with a
 -- statsd server.
 module Fencer.Metrics
-  ( fencerNamespace
-  , limitToPath
+  ( limitToPath
   , threeMetrics
   ) where
 

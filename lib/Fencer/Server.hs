@@ -86,6 +86,12 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
     let hits :: Word
         hits = max 1 (fromIntegral (Proto.rateLimitRequestHitsAddend request))
 
+    Logger.debug logger $
+        Logger.msg (Logger.val "Got rate limit request") .
+        Logger.field "domain" (Proto.rateLimitRequestDomain request) .
+        Logger.field "descriptors" (show descriptors) .
+        Logger.field "hits" hits
+
     -- Check some conditions and throw errors if necessary.
     let cancelWithError :: String -> IO ()
         cancelWithError = Grpc.serverCallCancel serverCall Grpc.StatusUnknown
