@@ -342,8 +342,9 @@ traversing the whole subdirectory.
 
 Fencer generates usage statistics for configured rate limit rules. To
 log the statistics set the `USE_STATSD` environment variable to
-True. In the log that Fencer generates, each statistic has a path
-denoting the rule's domain, the key-value pair, and the statistic:
+True. Make sure to have `statsd` running on a UDP port 8125. In the
+log that Fencer generates, each statistic has a path denoting the
+rule's domain, the key-value pair, and the statistic:
 
 ```
 fencer.service.rate_limit.DOMAIN.KEY_VALUE.STAT

@@ -21,6 +21,7 @@ import           System.Metrics (newStore)
 import           System.Remote.Monitoring.Statsd
                  ( defaultStatsdOptions
                  , forkStatsd
+                 , debug
                  )
 
 import Fencer.Logic
@@ -45,7 +46,9 @@ main = do
     -- Set up sending metrics to statsd
     store <- newStore
     statsd <- if settingsUseStatsd settings
-      then Just <$> forkStatsd defaultStatsdOptions store
+      -- The connection to the statsd server is made on a UDP port. By
+      -- default it is port 8125.
+      then Just <$> forkStatsd (defaultStatsdOptions {debug = True}) store
       else pure Nothing
     -- Create in-memory state
     appState <- initAppState store statsd
