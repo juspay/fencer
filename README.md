@@ -347,7 +347,7 @@ log that Fencer generates, each statistic has a path denoting the
 rule's domain, the key-value pair, and the statistic:
 
 ```
-fencer.service.rate_limit.DOMAIN.KEY_VALUE.STAT
+stats.fencer.service.rate_limit.DOMAIN.KEY_VALUE.STAT
 ```
 
 where:
@@ -370,12 +370,12 @@ given moment for a run on the `messaging` example configuration given
 above:
 
 ```
-fencer.service.rate_limit.messaging.to_number.near_limit: 10
-fencer.service.rate_limit.messaging.to_number.over_limit: 0
-fencer.service.rate_limit.messaging.to_number.total_hits: 90
-fencer.service.rate_limit.messaging.message_type_marketing.to_number.near_limit: 0
-fencer.service.rate_limit.messaging.message_type_marketing.to_number.over_limit: 1
-fencer.service.rate_limit.messaging.message_type_marketing.to_number.total_hits: 6
+stats.fencer.service.rate_limit.messaging.to_number.near_limit: 10
+stats.fencer.service.rate_limit.messaging.to_number.over_limit: 0
+stats.fencer.service.rate_limit.messaging.to_number.total_hits: 90
+stats.fencer.service.rate_limit.messaging.message_type_marketing.to_number.near_limit: 0
+stats.fencer.service.rate_limit.messaging.message_type_marketing.to_number.over_limit: 1
+stats.fencer.service.rate_limit.messaging.message_type_marketing.to_number.total_hits: 6
 ```
 
 ## Differences to Lyft's rate limit service

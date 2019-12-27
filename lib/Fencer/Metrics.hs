@@ -5,6 +5,7 @@
 module Fencer.Metrics
   ( limitToPath
   , threeMetrics
+  , fencerNamespace
   ) where
 
 import           BasePrelude
@@ -22,9 +23,10 @@ import           Fencer.Types
 
 
 -- | The namespace provided by Fencer for metrics. It is used in
--- logging and with statsd.
+-- logging. The statsd prefix is provided in Fencer.Main.main during
+-- forking of a server thread.
 fencerNamespace :: String
-fencerNamespace = "fencer.service.rate_limit"
+fencerNamespace = "stats.fencer.service.rate_limit"
 
 -- | Convert a rule key and value to a partial path.
 showKeyValue :: (RuleKey, RuleValue) -> String
@@ -40,7 +42,7 @@ limitToPath
   -> String
 limitToPath (DomainId domain) =
   intercalate "." .
-  ([fencerNamespace, unpack domain] ++) .
+  ([unpack domain] ++) .
   fmap showKeyValue
 
 -- | Compute the near limit statistic based on a rate limit and

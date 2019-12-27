@@ -180,11 +180,11 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
     -- NOTE(md): Not sure if a call to Logic.sampleMetrics should
     -- happen here instead of receiving a tuple.
     logStats domain descriptor (Just tuple) = do
-      sampleTuple <- sampleMetrics appState domain descriptor
+      -- sampleTuple <- sampleMetrics appState domain descriptor
       forM_ (Metrics.threeMetrics settings domain descriptor) $ \(t, f) ->
         Logger.info logger $ Logger.msg $ Logger.val $ B.pack $
-          -- unpack t ++ ": " ++ (show . f $ tuple)
-          unpack t ++ ": " ++ (show . f $ sampleTuple)
+          Metrics.fencerNamespace ++ "." ++
+          unpack t ++ ": " ++ (show . f $ tuple)
 
 ----------------------------------------------------------------------------
 -- Working with protobuf structures
