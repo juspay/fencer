@@ -32,7 +32,7 @@ import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as Set
 import           Data.HashSet (HashSet)
-import           Data.Text (Text)
+import           Data.Text (takeWhileEnd, Text, unpack)
 import qualified Focus as Focus
 import qualified ListT as ListT
 import           Named ((:!), arg)
@@ -45,6 +45,7 @@ import           System.Remote.Monitoring.Statsd (Statsd)
 
 import           Fencer.Counter
 import qualified Fencer.Metrics as Metrics
+import           Fencer.Metrics (nearLimitLabel, overLimitLabel, totalHitsLabel)
 import           Fencer.Rules
 import           Fencer.Settings (Settings)
 import           Fencer.Time
@@ -332,8 +333,12 @@ registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
         (sampleMetrics appState domain descriptor)
         (appStateMetricsStore appState)
  where
-  toMetric :: Word -> SysMetrics.Value
-  toMetric = SysMetrics.Counter . fromIntegral
+  toMetric :: String -> Int64 -> SysMetrics.Value
+  toMetric t | t == totalHitsLabel = SysMetrics.Gauge
+  toMetric t | t == nearLimitLabel = SysMetrics.Counter
+  toMetric t | t == overLimitLabel = SysMetrics.Counter
+  toMetric t | otherwise           = error $
+    "toMetric invoked with the unsupported text: " ++ t
 
   descMap
     :: [(RuleKey, RuleValue)]
@@ -342,7 +347,11 @@ registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
          ((RateLimit, CounterStatus, Counter) -> SysMetrics.Value)
   descMap =
     HM.fromList .
-    fmap (\(t, f) -> (t, toMetric . f)) .
+    fmap (\(t, f) ->
+            ( t
+            , toMetric (unpack . takeWhileEnd (/='.') $ t) . fromIntegral . f
+            )
+         ) .
     Metrics.threeMetrics settings domain
 
 -- | A thread-safe sampling of a descriptor's three metrics.
