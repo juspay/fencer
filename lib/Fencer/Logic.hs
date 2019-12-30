@@ -213,11 +213,10 @@ checkAndMarkForRegistration
 checkAndMarkForRegistration appState domain descriptor =
   ifM (isInMetricsStore appState domain descriptor)
     (pure Registered)
-    (do
-       void $ (modifyTVar'
-               (appStateRegisteredDescriptors appState)
-               (Set.insert (domain, descriptor)))
-       pure Unregistered)
+    (modifyTVar'
+       (appStateRegisteredDescriptors appState)
+       (Set.insert (domain, descriptor))
+     >> pure Unregistered)
 
 -- | Fetch the current counter for a descriptor.
 getCounter
