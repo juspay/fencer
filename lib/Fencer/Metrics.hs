@@ -6,6 +6,9 @@ module Fencer.Metrics
   ( limitToPath
   , threeMetrics
   , fencerNamespace
+  , nearLimitLabel
+  , overLimitLabel
+  , totalHitsLabel
   ) where
 
 import           BasePrelude
@@ -27,6 +30,18 @@ import           Fencer.Types
 -- forking of a server thread.
 fencerNamespace :: String
 fencerNamespace = "stats.fencer.service.rate_limit"
+
+-- | A string constant "near_limit".
+nearLimitLabel :: String
+nearLimitLabel = "near_limit"
+
+-- | A string constant "over_limit".
+overLimitLabel :: String
+overLimitLabel = "over_limit"
+
+-- | A string constant "total_hits".
+totalHitsLabel :: String
+totalHitsLabel = "total_hits"
 
 -- | Convert a rule key and value to a partial path.
 showKeyValue :: (RuleKey, RuleValue) -> String
@@ -73,12 +88,12 @@ threeMetrics
   -> [(RuleKey, RuleValue)]
   -> [(Text, (RateLimit, CounterStatus, Counter) -> Word)]
 threeMetrics settings domain descriptor =
-  [ ( pack $ prefix descriptor ++ "." ++ "near_limit"
+  [ ( pack $ prefix descriptor ++ "." ++ nearLimitLabel
     , uncurry (statNearLimit settings) .
       \(l, s, _) -> (l, s) )
-  , ( pack $ prefix descriptor ++ "." ++ "over_limit"
+  , ( pack $ prefix descriptor ++ "." ++ overLimitLabel
     , counterHitsOverLimit . \(_, s, _) -> s )
-  , ( pack $ prefix descriptor ++ "." ++ "total_hits"
+  , ( pack $ prefix descriptor ++ "." ++ totalHitsLabel
     , counterHits . \(_, _, c) -> c )
   ]
  where
