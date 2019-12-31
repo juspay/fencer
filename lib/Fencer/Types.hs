@@ -17,6 +17,7 @@ module Fencer.Types
     , unRuleValue
     , RateLimit(..)
     , HasDescriptors(..)
+    , HitCount(..)
 
     -- * Time units
     , TimeUnit(..)
@@ -238,4 +239,12 @@ data RuleBranch
 
 -- | A network port wrapper
 newtype Port = Port { unPort :: Word }
+    deriving newtype (Eq, Show, Enum)
+
+----------------------------------------------------------------------------
+-- statsd statistics
+----------------------------------------------------------------------------
+
+-- | A hit count wrapper
+newtype HitCount = HitCount { unCount :: Word }
     deriving newtype (Eq, Show, Enum)

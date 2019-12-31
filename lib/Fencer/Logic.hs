@@ -101,6 +101,10 @@ data AppState = AppState
       -- there already.
     , appStateRegisteredDescriptors ::
         !(TVar (HashSet (DomainId, [(RuleKey, RuleValue)])))
+      -- | All hit counts between two statistics sampling. Counts get
+      -- reset to zero after sampling.
+    , appStateHitCounts ::
+        !(TVar (Map (DomainId, [(RuleKey, RuleValue)])) HitCount)
     }
 
 -- | Initialize the environment.
@@ -341,7 +345,7 @@ registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
          Text
          -- TODO(md): Here a 'HitCount' (a Word wrapper) has to be
          -- returned instead of a 'Counter'.
-         ((RateLimit, CounterStatus, Counter) -> SysMetrics.Value)
+         ((RateLimit, CounterStatus, HitCount) -> SysMetrics.Value)
   descMap =
     HM.fromList .
     fmap (\(t, f) -> (t, toMetric . f)) .
