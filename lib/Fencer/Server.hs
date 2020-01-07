@@ -123,7 +123,7 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
     -- requests in parallel might lead to both requests being reported as
     -- "over limit", even though one of them would have succeeded if the
     -- ordering of descriptors was "A", "B" in both requests.
-    mLimitStatusCounters :: [Maybe (RateLimit, CounterStatus, Counter)] <-
+    mLimitStatusCounters :: [Maybe (RateLimit, CounterStatus, HitCount)] <-
       atomically $ forM descriptors $ \descriptor ->
         updateLimitCounter appState (#hits hits) domain descriptor >>= \case
           Nothing -> pure Nothing
@@ -133,7 +133,7 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
                   , counterKeyDescriptor = descriptor
                   , counterKeyUnit = rateLimitUnit limit
                   }
-            getCounter appState counterKey >>= \case
+            getHitCount appState counterKey >>= \case
               Nothing -> pure Nothing
               Just c  -> pure $ Just (limit, status, c)
 
@@ -174,7 +174,7 @@ shouldRateLimit settings logger appState (Grpc.ServerNormalRequest serverCall re
     logStats
       :: DomainId
       -> [(RuleKey, RuleValue)]
-      -> Maybe (RateLimit, CounterStatus, Counter)
+      -> Maybe (RateLimit, CounterStatus, HitCount)
       -> IO ()
     logStats _      _          Nothing      = pure ()
     -- NOTE(md): Not sure if a call to Logic.sampleMetrics should

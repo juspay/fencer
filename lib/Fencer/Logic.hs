@@ -9,7 +9,7 @@ module Fencer.Logic
 
     -- * Methods for working with 'AppState'
     , getLimit
-    , getCounter
+    , getHitCount
     , setRules
     , getAppStateRulesLoaded
     , updateCurrentTime
@@ -104,7 +104,7 @@ data AppState = AppState
       -- | All hit counts between two statistics sampling. Counts get
       -- reset to zero after sampling.
     , appStateHitCounts ::
-        !(TVar (Map (DomainId, [(RuleKey, RuleValue)])) HitCount)
+        !(StmMap.Map CounterKey HitCount)
     }
 
 -- | Initialize the environment.
@@ -123,6 +123,7 @@ initAppState appStateMetricsStore appStateStatsd = do
     appStateCounters <- StmMap.newIO
     appStateCounterExpiry <- StmMultimap.newIO
     appStateRegisteredDescriptors <- newTVarIO Set.empty
+    appStateHitCounts <- StmMap.newIO
     pure AppState{..}
 
 -- | Apply hits to a counter.
@@ -152,6 +153,8 @@ recordHits appState (arg #hits -> hits) (arg #limit -> limit) counterKey = do
     -- Update 'appStateCounters'
     (mbOldCounter, newCounter, status) <-
         StmMap.focus updateCounterMap counterKey (appStateCounters appState)
+    -- Update 'appStateHitCounts'
+    void $ StmMap.focus updateHitCountMap counterKey (appStateHitCounts appState)
     -- Update 'appStateCounterExpiry'
     case mbOldCounter of
         Nothing ->
@@ -180,6 +183,20 @@ recordHits appState (arg #hits -> hits) (arg #limit -> limit) counterKey = do
                         Just oldCounter -> oldCounter
         Focus.insert newCounter
         pure (mbOldCounter, newCounter, status)
+    -- Update the hit count corresponding to 'key', or create a new
+    -- hit count if it does not exist. Returns the old hit count and
+    -- the new hit count.
+    updateHitCountMap
+        :: Focus.Focus HitCount STM (Maybe HitCount, HitCount)
+    updateHitCountMap = do
+        mbOldHitCount <- Focus.lookup
+        let newCounter =
+                updateHitCounter (#hits hits) (#oldCount $
+                    case mbOldHitCount of
+                        Nothing -> HitCount 0
+                        Just oldCounter -> oldCounter)
+        Focus.insert newCounter
+        pure (mbOldHitCount, newCounter)
 
 -- | Fetch the current limit for a descriptor.
 getLimit
@@ -222,13 +239,13 @@ checkAndMarkForRegistration appState domain descriptor =
        (Set.insert (domain, descriptor))
      >> pure Unregistered)
 
--- | Fetch the current counter for a descriptor.
-getCounter
+-- | Fetch the current hit count for a descriptor.
+getHitCount
     :: AppState
     -> CounterKey
-    -> STM (Maybe Counter)
-getCounter appState counterKey =
-    StmMap.lookup counterKey (appStateCounters appState)
+    -> STM (Maybe HitCount)
+getHitCount appState counterKey =
+    StmMap.lookup counterKey (appStateHitCounts appState)
 
 -- | Handle a single descriptor in a 'shouldRateLimit' request.
 --
@@ -343,20 +360,26 @@ registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
     :: [(RuleKey, RuleValue)]
     -> HashMap
          Text
-         -- TODO(md): Here a 'HitCount' (a Word wrapper) has to be
-         -- returned instead of a 'Counter'.
          ((RateLimit, CounterStatus, HitCount) -> SysMetrics.Value)
   descMap =
     HM.fromList .
     fmap (\(t, f) -> (t, toMetric . f)) .
     Metrics.threeMetrics settings domain
 
+-- | Reset metrics recorded for statistics support.
+resetStatisticsCounters
+    :: CounterKey
+    -> AppState
+    -> STM ()
+resetStatisticsCounters key =
+  StmMap.insert (HitCount 0) key . appStateHitCounts
+
 -- | A thread-safe sampling of a descriptor's three metrics.
 sampleMetrics
   :: AppState
   -> DomainId
   -> [(RuleKey, RuleValue)]
-  -> IO (RateLimit, CounterStatus, Counter)
+  -> IO (RateLimit, CounterStatus, HitCount)
 sampleMetrics appState domain descriptor = atomically $ do
   -- By passing in 0 hits we make sure not to change the
   -- counter so the function serves as a pure getter.
@@ -367,7 +390,9 @@ sampleMetrics appState domain descriptor = atomically $ do
         , counterKeyDescriptor = descriptor
         , counterKeyUnit = rateLimitUnit limit
         }
-  mCounter <- getCounter appState counterKey
-  case mCounter of
-    Nothing -> error "An internal error in statistics support"
-    Just c  -> pure (limit, status, c)
+  c <- fromMaybe (error "An internal error in statistics support")
+         <$> getHitCount appState counterKey
+  -- reset all counters now that they have been sampled
+  resetStatisticsCounters counterKey appState
+
+  pure (limit, status, c)

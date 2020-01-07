@@ -9,6 +9,7 @@ module Fencer.Counter
     , CounterStatus(..)
     , initCounter
     , updateCounter
+    , updateHitCounter
     )
 where
 
@@ -115,3 +116,11 @@ updateCounter (arg #now -> now) (arg #hits -> hits) (arg #limit -> limit) counte
            else CounterStatus
                     { counterRemainingLimit = 0
                     , counterHitsOverLimit = min hits (newHits - limitPerUnit) }
+
+-- | Update the hit count needed for statistics support.
+updateHitCounter
+  :: "hits" :! Word -- ^ How many new hits there are
+  -> "oldCount" :! HitCount
+  -> HitCount
+updateHitCounter (arg #hits -> hits) (arg #oldCount -> oldCount) =
+  HitCount $ hits + unCount oldCount

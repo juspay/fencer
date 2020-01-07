@@ -15,10 +15,11 @@ import           BasePrelude
 
 import           Data.Text (Text, pack, unpack)
 
-import           Fencer.Counter (CounterStatus(..), Counter(..))
+import           Fencer.Counter (CounterStatus(..))
 import           Fencer.Settings (Settings, settingsNearLimitRatio)
 import           Fencer.Types
                  ( DomainId(..)
+                 , HitCount(..)
                  , RateLimit(..)
                  , RuleKey(..)
                  , RuleValue(..)
@@ -86,7 +87,7 @@ threeMetrics
   :: Settings
   -> DomainId
   -> [(RuleKey, RuleValue)]
-  -> [(Text, (RateLimit, CounterStatus, Counter) -> Word)]
+  -> [(Text, (RateLimit, CounterStatus, HitCount) -> Word)]
 threeMetrics settings domain descriptor =
   [ ( pack $ prefix descriptor ++ "." ++ nearLimitLabel
     , uncurry (statNearLimit settings) .
@@ -94,7 +95,7 @@ threeMetrics settings domain descriptor =
   , ( pack $ prefix descriptor ++ "." ++ overLimitLabel
     , counterHitsOverLimit . \(_, s, _) -> s )
   , ( pack $ prefix descriptor ++ "." ++ totalHitsLabel
-    , counterHits . \(_, _, c) -> c )
+    , unCount . \(_, _, c) -> c )
   ]
  where
   prefix :: [(RuleKey, RuleValue)] -> String
