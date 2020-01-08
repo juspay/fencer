@@ -10,6 +10,7 @@ module Fencer.Counter
     , initCounter
     , updateCounter
     , updateHitCounter
+    , updateOverLimitCounter
     )
 where
 
@@ -123,4 +124,19 @@ updateHitCounter
   -> "oldCount" :! HitCount
   -> HitCount
 updateHitCounter (arg #hits -> hits) (arg #oldCount -> oldCount) =
-  HitCount $ hits + unCount oldCount
+  HitCount $ hits + unHitCount oldCount
+
+-- | Update the over limit count needed for statistics support.
+updateOverLimitCounter
+  :: "hits" :! Word -- ^ How many new hits there are
+  -> "limit" :! RateLimit
+  -> "oldCount" :! OverLimitCount
+  -> OverLimitCount
+updateOverLimitCounter
+  (arg #hits -> hits)
+  (arg #limit -> limit)
+  (arg #oldCount -> oldCount) =
+  OverLimitCount $ unOverLimitCount oldCount +
+    if hits > rateLimitRequestsPerUnit limit
+      then rateLimitRequestsPerUnit limit - hits
+      else 0

@@ -18,6 +18,7 @@ module Fencer.Types
     , RateLimit(..)
     , HasDescriptors(..)
     , HitCount(..)
+    , OverLimitCount(..)
 
     -- * Time units
     , TimeUnit(..)
@@ -246,5 +247,9 @@ newtype Port = Port { unPort :: Word }
 ----------------------------------------------------------------------------
 
 -- | A hit count wrapper
-newtype HitCount = HitCount { unCount :: Word }
+newtype HitCount = HitCount { unHitCount :: Word }
+    deriving newtype (Eq, Show, Enum)
+
+-- | An over limit count wrapper
+newtype OverLimitCount = OverLimitCount { unOverLimitCount :: Word }
     deriving newtype (Eq, Show, Enum)

@@ -105,6 +105,12 @@ data AppState = AppState
       -- reset to zero after sampling.
     , appStateHitCounts ::
         !(StmMap.Map CounterKey HitCount)
+      -- | All over limits between two statistics sampling. The
+      -- metrics get reset to zero after sampling.
+    , appStateOverLimits ::
+        !(StmMap.Map CounterKey OverLimitCount)
+      -- | All near limits between two statistics sampling. The
+      -- metrics get reset to zero after sampling.
     }
 
 -- | Initialize the environment.
@@ -124,6 +130,7 @@ initAppState appStateMetricsStore appStateStatsd = do
     appStateCounterExpiry <- StmMultimap.newIO
     appStateRegisteredDescriptors <- newTVarIO Set.empty
     appStateHitCounts <- StmMap.newIO
+    appStateOverLimits <- StmMap.newIO
     pure AppState{..}
 
 -- | Apply hits to a counter.
@@ -154,7 +161,9 @@ recordHits appState (arg #hits -> hits) (arg #limit -> limit) counterKey = do
     (mbOldCounter, newCounter, status) <-
         StmMap.focus updateCounterMap counterKey (appStateCounters appState)
     -- Update 'appStateHitCounts'
-    void $ StmMap.focus updateHitCountMap counterKey (appStateHitCounts appState)
+    StmMap.focus updateHitCountMap counterKey (appStateHitCounts appState)
+    -- Update 'appStateOverLimits'
+    StmMap.focus updateOverLimitMap counterKey (appStateOverLimits appState)
     -- Update 'appStateCounterExpiry'
     case mbOldCounter of
         Nothing ->
@@ -169,8 +178,7 @@ recordHits appState (arg #hits -> hits) (arg #limit -> limit) counterKey = do
     pure status
   where
     -- Update the counter corresponding to 'key', or create a new counter if
-    -- it does not exist. Returns the old counter, the new counter, and
-    -- counter status.
+    -- it does not exist.
     updateCounterMap
         :: Focus.Focus Counter STM (Maybe Counter, Counter, CounterStatus)
     updateCounterMap = do
@@ -184,10 +192,9 @@ recordHits appState (arg #hits -> hits) (arg #limit -> limit) counterKey = do
         Focus.insert newCounter
         pure (mbOldCounter, newCounter, status)
     -- Update the hit count corresponding to 'key', or create a new
-    -- hit count if it does not exist. Returns the old hit count and
-    -- the new hit count.
+    -- hit count if it does not exist.
     updateHitCountMap
-        :: Focus.Focus HitCount STM (Maybe HitCount, HitCount)
+        :: Focus.Focus HitCount STM ()
     updateHitCountMap = do
         mbOldHitCount <- Focus.lookup
         let newCounter =
@@ -196,7 +203,18 @@ recordHits appState (arg #hits -> hits) (arg #limit -> limit) counterKey = do
                         Nothing -> HitCount 0
                         Just oldCounter -> oldCounter)
         Focus.insert newCounter
-        pure (mbOldHitCount, newCounter)
+    -- Update the over limit count corresponding to 'key', or create a
+    -- new over limit count if it does not exist.
+    updateOverLimitMap
+        :: Focus.Focus OverLimitCount STM ()
+    updateOverLimitMap = do
+        mbOldOverLimit <- Focus.lookup
+        let newCounter =
+                updateOverLimitCounter (#hits hits) (#limit limit) (#oldCount $
+                    case mbOldOverLimit of
+                        Nothing -> OverLimitCount 0
+                        Just oldCounter -> oldCounter)
+        Focus.insert newCounter
 
 -- | Fetch the current limit for a descriptor.
 getLimit
@@ -371,8 +389,9 @@ resetStatisticsCounters
     :: CounterKey
     -> AppState
     -> STM ()
-resetStatisticsCounters key =
-  StmMap.insert (HitCount 0) key . appStateHitCounts
+resetStatisticsCounters key appState = do
+  StmMap.insert (HitCount 0)       key (appStateHitCounts appState)
+  StmMap.insert (OverLimitCount 0) key (appStateOverLimits appState)
 
 -- | A thread-safe sampling of a descriptor's three metrics.
 sampleMetrics

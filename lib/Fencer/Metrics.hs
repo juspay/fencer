@@ -95,7 +95,7 @@ threeMetrics settings domain descriptor =
   , ( pack $ prefix descriptor ++ "." ++ overLimitLabel
     , counterHitsOverLimit . \(_, s, _) -> s )
   , ( pack $ prefix descriptor ++ "." ++ totalHitsLabel
-    , unCount . \(_, _, c) -> c )
+    , unHitCount . \(_, _, c) -> c )
   ]
  where
   prefix :: [(RuleKey, RuleValue)] -> String
