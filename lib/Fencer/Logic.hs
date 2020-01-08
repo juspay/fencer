@@ -111,6 +111,8 @@ data AppState = AppState
         !(StmMap.Map CounterKey OverLimitCount)
       -- | All near limits between two statistics sampling. The
       -- metrics get reset to zero after sampling.
+    , appStateNearLimits ::
+        !(StmMap.Map CounterKey NearLimitCount)
     }
 
 -- | Initialize the environment.
@@ -131,6 +133,7 @@ initAppState appStateMetricsStore appStateStatsd = do
     appStateRegisteredDescriptors <- newTVarIO Set.empty
     appStateHitCounts <- StmMap.newIO
     appStateOverLimits <- StmMap.newIO
+    appStateNearLimits <- StmMap.newIO
     pure AppState{..}
 
 -- | Apply hits to a counter.
@@ -392,6 +395,7 @@ resetStatisticsCounters
 resetStatisticsCounters key appState = do
   StmMap.insert (HitCount 0)       key (appStateHitCounts appState)
   StmMap.insert (OverLimitCount 0) key (appStateOverLimits appState)
+  StmMap.insert (NearLimitCount 0) key (appStateNearLimits appState)
 
 -- | A thread-safe sampling of a descriptor's three metrics.
 sampleMetrics

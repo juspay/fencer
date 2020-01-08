@@ -19,6 +19,7 @@ module Fencer.Types
     , HasDescriptors(..)
     , HitCount(..)
     , OverLimitCount(..)
+    , NearLimitCount(..)
 
     -- * Time units
     , TimeUnit(..)
@@ -252,4 +253,8 @@ newtype HitCount = HitCount { unHitCount :: Word }
 
 -- | An over limit count wrapper
 newtype OverLimitCount = OverLimitCount { unOverLimitCount :: Word }
+    deriving newtype (Eq, Show, Enum)
+
+-- | A near limit count wrapper
+newtype NearLimitCount = NearLimitCount { unNearLimitCount :: Word }
     deriving newtype (Eq, Show, Enum)
