@@ -381,7 +381,7 @@ registerDescriptors settings appState domain = mapM_ $ \descriptor -> do
     :: [(RuleKey, RuleValue)]
     -> HashMap
          Text
-         ((RateLimit, CounterStatus, HitCount) -> SysMetrics.Value)
+         ((RateLimit, OverLimitCount, HitCount) -> SysMetrics.Value)
   descMap =
     HM.fromList .
     fmap (\(t, f) -> (t, toMetric . f)) .
@@ -402,20 +402,22 @@ sampleMetrics
   :: AppState
   -> DomainId
   -> [(RuleKey, RuleValue)]
-  -> IO (RateLimit, CounterStatus, HitCount)
+  -> IO (RateLimit, OverLimitCount, HitCount)
 sampleMetrics appState domain descriptor = atomically $ do
   -- By passing in 0 hits we make sure not to change the
   -- counter so the function serves as a pure getter.
-  (limit, status) <- fromMaybe (error "") <$>
+  (limit, _) <- fromMaybe (error "") <$>
     updateLimitCounter appState (#hits 0) domain descriptor
   let counterKey = CounterKey
         { counterKeyDomain = domain
         , counterKeyDescriptor = descriptor
         , counterKeyUnit = rateLimitUnit limit
         }
+  overLimit <- fromMaybe (error "") <$>
+    StmMap.lookup counterKey (appStateOverLimits appState)
   c <- fromMaybe (error "An internal error in statistics support")
          <$> getHitCount appState counterKey
   -- reset all counters now that they have been sampled
   resetStatisticsCounters counterKey appState
 
-  pure (limit, status, c)
+  pure (limit, overLimit, c)

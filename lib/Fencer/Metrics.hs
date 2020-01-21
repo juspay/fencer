@@ -20,6 +20,7 @@ import           Fencer.Settings (Settings, settingsNearLimitRatio)
 import           Fencer.Types
                  ( DomainId(..)
                  , HitCount(..)
+                 , OverLimitCount(..)
                  , RateLimit(..)
                  , RuleKey(..)
                  , RuleValue(..)
@@ -87,13 +88,14 @@ threeMetrics
   :: Settings
   -> DomainId
   -> [(RuleKey, RuleValue)]
-  -> [(Text, (RateLimit, CounterStatus, HitCount) -> Word)]
+  -> [(Text, (RateLimit, OverLimitCount, HitCount) -> Word)]
 threeMetrics settings domain descriptor =
   [ ( pack $ prefix descriptor ++ "." ++ nearLimitLabel
-    , uncurry (statNearLimit settings) .
+    -- , uncurry (statNearLimit settings) .
+    , const 100 .
       \(l, s, _) -> (l, s) )
   , ( pack $ prefix descriptor ++ "." ++ overLimitLabel
-    , counterHitsOverLimit . \(_, s, _) -> s )
+    , unOverLimitCount . \(_, s, _) -> s )
   , ( pack $ prefix descriptor ++ "." ++ totalHitsLabel
     , unHitCount . \(_, _, c) -> c )
   ]
