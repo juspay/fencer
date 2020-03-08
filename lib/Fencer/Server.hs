@@ -127,6 +127,9 @@ shouldRateLimit logger (arg #useStatsd -> useStatsd) appState (Grpc.ServerNormal
                    atomically (getStatsForKey appState key) >>= \case
                        Nothing -> pure ()
                        Just stats -> do
+                           Logger.debug logger $
+                               Logger.msg (Logger.val "Reporting to statsd") .
+                               Logger.field "key" (show key)
                            Gauge.add (statsTotalHits stats) $
                                fromIntegral hits
                            Gauge.add (statsOverLimit stats) $

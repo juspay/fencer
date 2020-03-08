@@ -14,6 +14,7 @@ module Fencer.Logic
     , setRules
     , getAppStateRulesLoaded
     , getStatsForKey
+    , getEkgStore
     , updateCurrentTime
     , deleteCountersWithExpiry
     , updateLimitCounter
@@ -162,6 +163,9 @@ getLeaf appState domain descriptor =
     StmMap.lookup domain (appStateRules appState) >>= \case
         Nothing -> pure Nothing
         Just ruleTree -> pure (applyRules descriptor ruleTree)
+
+getEkgStore :: AppState -> Ekg.Store
+getEkgStore = appStateEkgStore
 
 getStatsForKey :: AppState -> StatsKey -> STM (Maybe Stats)
 getStatsForKey appState key = StmMap.lookup key (appStateStats appState)

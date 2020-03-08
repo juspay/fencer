@@ -122,7 +122,7 @@ unDomainId (DomainId s) = s
 
 -- | A label for a branch in the rate limit rule tree.
 newtype RuleKey = RuleKey Text
-    deriving stock (Eq, Show)
+    deriving stock (Eq, Show, Ord)
     deriving newtype (Hashable, FromJSON)
 
 -- | Unwrap 'RuleKey'.
@@ -131,7 +131,7 @@ unRuleKey (RuleKey s) = s
 
 -- | An optional value associated with a rate limiting rule.
 newtype RuleValue = RuleValue Text
-    deriving stock (Eq, Show)
+    deriving stock (Eq, Show, Ord)
     deriving newtype (Hashable, FromJSON)
 
 -- | Unwrap 'RuleValue'.

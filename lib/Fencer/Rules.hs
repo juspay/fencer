@@ -40,7 +40,7 @@ data LoadRulesError
   = LoadRulesParseError FilePath Yaml.ParseException
   | LoadRulesIOError IOException
   | LoadRulesDuplicateDomain DomainId
-  | LoadRulesDuplicateRule DomainId RuleKey
+  | LoadRulesDuplicateRule DomainId (RuleKey, Maybe RuleValue)
   deriving stock (Show)
 
 -- | Pretty-print a 'LoadRulesError'.
@@ -50,9 +50,12 @@ showError (LoadRulesParseError file yamlEx) =
 showError (LoadRulesIOError ex) = "IO error: " ++ displayException ex
 showError (LoadRulesDuplicateDomain d) =
   "duplicate domain " ++ (show . unDomainId $ d) ++ " in config file"
-showError (LoadRulesDuplicateRule dom key) =
+showError (LoadRulesDuplicateRule dom (key, val)) =
   "duplicate descriptor composite key " ++
-  (show . unDomainId $ dom) ++ "." ++ (show . unRuleKey $ key)
+  show (unDomainId dom) ++ "." ++ show (unRuleKey key) ++
+  case val of
+    Nothing -> ""
+    Just v -> "." ++ show (unRuleValue v)
 
 -- | Pretty-print a list of 'LoadRulesError's.
 prettyPrintErrors :: [LoadRulesError] -> String
@@ -139,47 +142,34 @@ validatePotentialDomains res = case partitionEithers res of
   ([]        , []      ) -> Right []
   ([]        , mDomains) -> do
     -- check if there are any duplicate domains
-    domains <- do
-      let
-        domains = catMaybes mDomains
-        groupedDomains :: [NonEmpty DomainDefinition] = NE.groupBy
-          ((==) `on` domainDefinitionId)
-          (NE.fromList $ sortOn domainDefinitionId domains)
-      if (length @[] domains /= length @[] groupedDomains)
-      then
-        let dupDomain =
-              NE.head . head $ filter (\l -> NE.length l > 1) groupedDomains
-        in
-          Left .
-          pure .
-          LoadRulesDuplicateDomain .
-          domainDefinitionId $
-            dupDomain
-      else Right domains
+    let domains = catMaybes mDomains
+    let dupDomains =
+          filter (\ds -> length @[] ds > 1) $
+          groupWith domainDefinitionId domains
+    unless (null dupDomains) $
+      Left $ NE.fromList
+        [LoadRulesDuplicateDomain (domainDefinitionId dupDomain)
+          | dupDomain <- map head dupDomains]
     -- check if there are any duplicate rules
     traverse_ (\dom -> dupRuleCheck (domainDefinitionId dom, dom)) domains
-
     pure domains
  where
   dupRuleCheck
     :: HasDescriptors a
     => (DomainId, a)
     -> Either (NonEmpty LoadRulesError) ()
-  dupRuleCheck (_, d) | null @[] (descriptorsOf d) = Right ()
   dupRuleCheck (domId, d) = do
-    let
-      descs = descriptorsOf d
-      groupedDescs :: [NonEmpty DescriptorDefinition] = NE.groupBy
-        ((==) `on` descriptorDefinitionKey)
-        (NE.fromList $ sortOn (unRuleKey . descriptorDefinitionKey) descs)
-    if (length @[] descs /= length @[] groupedDescs)
-    then
-      let dupRule = NE.head . head $ filter (\l -> NE.length l > 1) groupedDescs
-      in Left . pure $
-        LoadRulesDuplicateRule
-          domId
-          (descriptorDefinitionKey dupRule)
-    else traverse_ (curry dupRuleCheck domId) $ descriptorsOf d
+    let dupDescs =
+          filter (\ds -> length @[] ds > 1) $
+          groupWith (\x -> (descriptorDefinitionKey x, descriptorDefinitionValue x)) $
+          descriptorsOf d
+    unless (null dupDescs) $
+      Left $ NE.fromList
+        [LoadRulesDuplicateRule
+           domId
+           (descriptorDefinitionKey dupRule, descriptorDefinitionValue dupRule)
+           | dupRule <- map head dupDescs]
+    traverse_ (curry dupRuleCheck domId) $ descriptorsOf d
 
 -- | Convert a domain to a 'RuleTree' together with the domain ID.
 constructRuleTree :: DomainDefinition -> (DomainId, RuleTree)
