@@ -205,7 +205,7 @@ test_rulesLoadRulesDuplicateRule =
          Left $ NE.fromList
            [LoadRulesDuplicateRule
              (DomainId "another")
-             (RuleKey "key1")
+             (RuleKey "key1", Nothing)
            ]
       )
 
