@@ -11,7 +11,7 @@ import           Test.Tasty.HUnit (assertEqual, testCase)
 
 import           Fencer.Counter (CounterStatus, counterRemainingLimit)
 import           Fencer.Logic (AppState, setRules, updateLimitCounter)
-import           Fencer.Rules (domainToRuleTree)
+import           Fencer.Rules (constructRuleTree)
 import           Fencer.Server.Test (withServer, serverAppState)
 import           Fencer.Types
 
@@ -26,7 +26,7 @@ test_logicLimitUnitChange =
   withServer $ \serverIO ->
     testCase "A rule limit unit change on rule reloading" $ do
       state <- serverAppState <$> serverIO
-      void $ atomically $ setRules state (map domainToRuleTree definitions1)
+      void $ setRules state (map constructRuleTree definitions1)
 
       -- Record a hit and get the remaining limit
       st1 <- getRemainingLimit <$> makeAHit state
@@ -36,7 +36,7 @@ test_logicLimitUnitChange =
         st1
 
       -- Set the new rules and the rules reloaded flag
-      atomically $ setRules state (map domainToRuleTree definitions2)
+      setRules state (map constructRuleTree definitions2)
       -- Record a hit and get a remaining limit
       st2 <- getRemainingLimit <$> makeAHit state
       assertEqual
@@ -45,7 +45,7 @@ test_logicLimitUnitChange =
         st2
 
       -- Set the old rules again
-      void $ atomically $ setRules state (map domainToRuleTree definitions1)
+      void $ setRules state (map constructRuleTree definitions1)
       -- Record a hit and get a remaining limit
       st1' <- getRemainingLimit <$> makeAHit state
       assertEqual
@@ -53,10 +53,10 @@ test_logicLimitUnitChange =
         (st1 - hits)
         st1'
  where
-  getRemainingLimit :: Maybe (RateLimit, CounterStatus) -> Word
+  getRemainingLimit :: Maybe (RuleLeaf, CounterStatus) -> Word
   getRemainingLimit = counterRemainingLimit . snd . fromMaybe (error "")
 
-  makeAHit :: AppState -> IO (Maybe (RateLimit, CounterStatus))
+  makeAHit :: AppState -> IO (Maybe (RuleLeaf, CounterStatus))
   makeAHit st = atomically $
     updateLimitCounter st (#hits hits) domainId ruleList
 

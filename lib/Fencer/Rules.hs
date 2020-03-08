@@ -1,3 +1,6 @@
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeApplications #-}
@@ -9,8 +12,7 @@ module Fencer.Rules
     , showError
     , loadRulesFromDirectory
     , validatePotentialDomains
-    , definitionsToRuleTree
-    , domainToRuleTree
+    , constructRuleTree
     , applyRules
     )
 where
@@ -28,6 +30,8 @@ import Named ((:!), arg)
 import System.Directory (listDirectory, doesFileExist, doesDirectoryExist, getPermissions, pathIsSymbolicLink, readable)
 import System.FilePath ((</>), makeRelative, normalise, splitDirectories)
 import qualified Data.Yaml as Yaml
+import Data.Text (Text)
+import qualified Data.Text as T
 
 import Fencer.Types
 
@@ -177,30 +181,42 @@ validatePotentialDomains res = case partitionEithers res of
           (descriptorDefinitionKey dupRule)
     else traverse_ (curry dupRuleCheck domId) $ descriptorsOf d
 
--- | Convert a list of descriptors to a 'RuleTree'.
-definitionsToRuleTree :: [DescriptorDefinition] -> RuleTree
-definitionsToRuleTree = HM.fromList . map (\d -> (makeKey d, makeBranch d))
+-- | Convert a domain to a 'RuleTree' together with the domain ID.
+constructRuleTree :: DomainDefinition -> (DomainId, RuleTree)
+constructRuleTree domain =
+    (domainId, go [] (domainDefinitionDescriptors domain))
   where
-    makeKey :: DescriptorDefinition -> (RuleKey, Maybe RuleValue)
-    makeKey desc = (descriptorDefinitionKey desc, descriptorDefinitionValue desc)
+    domainId :: DomainId
+    domainId = domainDefinitionId domain
 
-    makeBranch :: DescriptorDefinition -> RuleBranch
-    makeBranch (DescriptorDefinitionLeafNode _ _ limit) =
-      RuleLeaf limit
-    makeBranch (DescriptorDefinitionInnerNode _ _ descs) =
-      RuleBranch (definitionsToRuleTree descs)
+    go :: [Text]  -- Current path in the rule tree
+       -> [DescriptorDefinition]
+       -> RuleTree
+    go path descriptors = HM.fromList $ map (makeBranch path) descriptors
 
--- | Convert a domain to a 'RuleTree' together with the domain ID. This is a
--- trivial function but we need it often.
-domainToRuleTree :: DomainDefinition -> (DomainId, RuleTree)
-domainToRuleTree domain =
-  ( domainDefinitionId domain
-  , definitionsToRuleTree (domainDefinitionDescriptors domain)
-  )
+    makeBranch
+        :: [Text]
+        -> DescriptorDefinition
+        -> ((RuleKey, Maybe RuleValue), RuleBranch)
+    makeBranch path desc =
+        let key = (descriptorDefinitionKey desc, descriptorDefinitionValue desc)
+            textKey = case key of
+                (k, Nothing) -> unRuleKey k
+                (k, Just v) -> unRuleKey k <> "_" <> unRuleValue v
+            branch = case desc of
+                DescriptorDefinitionLeafNode _ _ limit ->
+                    RuleBranchLeaf $ RuleLeaf
+                      { ruleLeafStatsKey = StatsKey $
+                          T.intercalate "." $
+                          unDomainId domainId : path ++ [textKey]
+                      , ruleLeafLimit = limit }
+                DescriptorDefinitionInnerNode _ _ descs ->
+                    RuleBranchTree (go (path ++ [textKey]) descs)
+        in (key, branch)
 
--- | In a tree of rules, find the 'RateLimit' that should be applied to a
--- specific descriptor.
-applyRules :: [(RuleKey, RuleValue)] -> RuleTree -> Maybe RateLimit
+-- | In a tree of rules, find the leaf that should be applied to a specific
+-- descriptor.
+applyRules :: [(RuleKey, RuleValue)] -> RuleTree -> Maybe RuleLeaf
 applyRules [] _tree =
     Nothing
 applyRules ((key, value):rest) tree = do
@@ -213,7 +229,7 @@ applyRules ((key, value):rest) tree = do
     -- If we reached the end of the descriptor, we use the current rate
     -- limit. Otherwise we keep going.
     case (null @[] rest, branch) of
-        (True,  RuleLeaf limit)   -> Just limit
-        (True,  RuleBranch _)     -> Nothing
-        (False, RuleLeaf _)       -> Nothing
-        (False, RuleBranch tree') -> applyRules rest tree'
+        (True,  RuleBranchLeaf leaf)  -> Just leaf
+        (True,  RuleBranchTree _)     -> Nothing
+        (False, RuleBranchLeaf _)     -> Nothing
+        (False, RuleBranchTree tree') -> applyRules rest tree'

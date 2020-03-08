@@ -99,7 +99,7 @@ test_serverResponseNoConfigurationDirectory =
           >>= \case
           Left _ -> assertFailure "Failed to not load rules!"
           Right rules -> do
-            atomically (setRules (serverAppState server) (domainToRuleTree <$> rules))
+            setRules (serverAppState server) (constructRuleTree <$> rules)
             withService server $ \service -> do
               let communicationRoundtrip = do
                     response <- Proto.rateLimitServiceShouldRateLimit service $
@@ -121,7 +121,7 @@ test_serverResponseNoRules =
   withResource createServer destroyServer $ \serverIO ->
     testCase "When no rules have been loaded, all responses are OK" $ do
       server <- serverIO
-      atomically (setRules (serverAppState server) []) -- an empty rule list
+      setRules (serverAppState server) [] -- an empty rule list
       withService server $ \service -> do
         let communicationRoundtrip = do
               response <- Proto.rateLimitServiceShouldRateLimit service $
@@ -141,7 +141,7 @@ test_serverResponseEmptyDomain =
   withResource createServer destroyServer $ \serverIO ->
     testCase "Requests with an empty domain name result in an error" $ do
       server <- serverIO
-      atomically (setRules (serverAppState server) rules)
+      setRules (serverAppState server) rules
       withService server $ \service -> do
         response <- Proto.rateLimitServiceShouldRateLimit service $
           Grpc.ClientNormalRequest
@@ -151,7 +151,7 @@ test_serverResponseEmptyDomain =
           response
   where
     rules :: [(DomainId, RuleTree)]
-    rules = [domainToRuleTree domainDefinitionWithoutRules]
+    rules = [constructRuleTree domainDefinitionWithoutRules]
 
 -- | Test that requests with an empty descriptor list result in an error.
 --
@@ -161,7 +161,7 @@ test_serverResponseEmptyDescriptorList =
   withResource createServer destroyServer $ \serverIO ->
     testCase "Requests with an empty descriptor list result in an error" $ do
       server <- serverIO
-      atomically (setRules (serverAppState server) rules)
+      setRules (serverAppState server) rules
       withService server $ \service -> do
         response <- Proto.rateLimitServiceShouldRateLimit service $
           Grpc.ClientNormalRequest
@@ -173,7 +173,7 @@ test_serverResponseEmptyDescriptorList =
           response
   where
     rules :: [(DomainId, RuleTree)]
-    rules = [domainToRuleTree domainDefinitionWithoutRules]
+    rules = [constructRuleTree domainDefinitionWithoutRules]
 
 -- | Test that a request with a non-empty descriptor list results in an
 -- OK response in presence of a configuration file without read
@@ -193,8 +193,7 @@ test_serverResponseReadPermissions =
           >>= \case
           Left _ -> assertFailure "Failed to load a valid domain!"
           Right rules -> do
-            atomically $
-              setRules (serverAppState server) (domainToRuleTree <$> rules)
+            setRules (serverAppState server) (constructRuleTree <$> rules)
             withService server $ \service -> do
               response <- Proto.rateLimitServiceShouldRateLimit service $
                 Grpc.ClientNormalRequest request' 1 mempty
@@ -361,7 +360,8 @@ createServer = do
   serverLogger   <- getLogLevel >>= newLogger (Logger.Path loggerPath)
   serverAppState <- initAppState
   serverPort     <- getUniquePort
-  serverThreadId <- forkIO $ runServerWithPort serverPort serverLogger serverAppState
+  serverThreadId <- forkIO $
+    runServer serverPort serverLogger (#useStatsd False) serverAppState
 
   -- NOTE(md): For reasons unkown, without a delay the delay in the thread makes a
   -- server test failure for 'test_serverResponseRulesNotLoaded' go

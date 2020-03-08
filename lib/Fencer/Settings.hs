@@ -42,6 +42,9 @@ data Settings = Settings
       -- from Go's logrus logging library to a value accepted by
       -- Haskell's tinylog library. The default value is Logger.Debug.
     , settingsLogLevel :: Logger.Level
+      -- | @USE_STATSD@: whether to create statistics for rate
+      -- limits. The default value is @false@.
+    , settingsUseStatsd :: Bool
     }
     deriving (Show)
 
@@ -62,6 +65,11 @@ getSettingsFromEnvironment = do
             Nothing -> error ("Could not parse GRPC_PORT: " ++ show s)
             Just p  -> pure $ Port p
     settingsLogLevel <- getLogLevel
+    settingsUseStatsd <- lookupEnv "USE_STATSD" >>= \case
+      Nothing -> pure False
+      Just s  -> case parseBool s of
+        Just b  -> pure b
+        Nothing -> error ("Could not parse USE_STATSD: " ++ show s)
     pure Settings{..}
 
 -- | Get 'Logger.Level' from the environment variable LOG_LEVEL and

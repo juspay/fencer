@@ -22,6 +22,11 @@ module Fencer.Types
     , TimeUnit(..)
     , timeUnitToSeconds
 
+    -- * Statistics
+    , StatsKey(..)
+    , unStatsKey
+    , Stats(..)
+
     -- * Rate limit rule configs
     , DomainDefinition(..)
     , DescriptorDefinition(..)
@@ -31,6 +36,7 @@ module Fencer.Types
     -- * Rate limit rules in tree form
     , RuleTree
     , RuleBranch(..)
+    , RuleLeaf(..)
 
     -- * Server
     , Port(..)
@@ -43,7 +49,7 @@ import Data.Hashable (Hashable)
 import Data.Text (Text)
 import Data.Aeson (FromJSON(..), (.:), (.:?), (.!=), withObject, withText)
 import Data.HashMap.Strict (HashMap, lookup)
-
+import qualified System.Metrics.Gauge as Gauge
 
 ----------------------------------------------------------------------------
 -- Time units
@@ -69,6 +75,23 @@ timeUnitToSeconds = \case
     Minute -> 60
     Hour -> 3600
     Day -> 86400
+
+----------------------------------------------------------------------------
+-- Counter statistics
+----------------------------------------------------------------------------
+
+newtype StatsKey = StatsKey Text
+    deriving stock (Eq, Ord, Show)
+    deriving newtype (Hashable, FromJSON)
+
+unStatsKey :: StatsKey -> Text
+unStatsKey (StatsKey x) = x
+
+-- | Rule statistics. Can be synchronized to statsd.
+data Stats = Stats
+    { statsOverLimit :: Gauge.Gauge
+    , statsTotalHits :: Gauge.Gauge
+    }
 
 ----------------------------------------------------------------------------
 -- Rate limiting rules
@@ -229,8 +252,16 @@ type RuleTree = HashMap (RuleKey, Maybe RuleValue) RuleBranch
 -- | A single branch in a rule tree, containing several (or perhaps zero)
 -- nested rules.
 data RuleBranch
-  = RuleBranch !RuleTree
-  | RuleLeaf !RateLimit
+  = RuleBranchTree !RuleTree
+  | RuleBranchLeaf !RuleLeaf
+
+-- | A leaf of the rule tree.
+data RuleLeaf = RuleLeaf
+    { -- | Statistics counter key, including the domain
+      ruleLeafStatsKey :: !StatsKey
+    , -- | Current limit
+      ruleLeafLimit :: !RateLimit
+    }
 
 ----------------------------------------------------------------------------
 -- Fencer server

@@ -7,7 +7,6 @@
 -- | The gRPC server definition.
 module Fencer.Server
     ( runServer
-    , runServerWithPort
     )
 where
 
@@ -24,11 +23,12 @@ import qualified Proto3.Suite.Types as ProtoSuite
 import qualified System.Logger as Logger
 import           System.Logger (Logger)
 import           System.Logger.Message ((+++))
+import qualified System.Metrics.Gauge as Gauge
+import           Named ((:!), arg)
 
 import           Fencer.Logic
 import           Fencer.Counter
 import qualified Fencer.Proto as Proto
-import           Fencer.Settings (defaultGRPCPort)
 import           Fencer.Types
 
 ----------------------------------------------------------------------------
@@ -38,10 +38,16 @@ import           Fencer.Types
 -- | Run the gRPC server serving ratelimit requests.
 --
 -- TODO: fail if the port is taken? or does it fail already?
-runServerWithPort :: Port -> Logger -> AppState -> IO ()
-runServerWithPort (Port port) logger appState = do
+runServer
+    :: Port -- | E.g. 'defaultGrpcPort'
+    -> Logger
+    -> "useStatsd" :! Bool
+    -> AppState
+    -> IO ()
+runServer (Port port) logger useStatsd appState = do
     let handlers = Proto.RateLimitService
-            { Proto.rateLimitServiceShouldRateLimit = shouldRateLimit logger appState
+            { Proto.rateLimitServiceShouldRateLimit =
+                  shouldRateLimit logger useStatsd appState
             }
     let options = Grpc.defaultServiceOptions
             { Grpc.serverHost = "0.0.0.0"
@@ -52,11 +58,6 @@ runServerWithPort (Port port) logger appState = do
         Logger.msg (("Starting gRPC server at 0.0.0.0:" :: B.ByteString) +++ port)
     Proto.rateLimitServiceServer handlers options
 
--- | Run the gRPC server serving ratelimit requests on the default
--- port.
-runServer :: Logger -> AppState -> IO ()
-runServer = runServerWithPort defaultGRPCPort
-
 ----------------------------------------------------------------------------
 -- The "should rate limit" method
 ----------------------------------------------------------------------------
@@ -64,10 +65,11 @@ runServer = runServerWithPort defaultGRPCPort
 -- | gRPC handler for the "should rate limit?" method.
 shouldRateLimit
     :: Logger
+    -> "useStatsd" :! Bool
     -> AppState
     -> Grpc.ServerRequest 'Grpc.Normal Proto.RateLimitRequest Proto.RateLimitResponse
     -> IO (Grpc.ServerResponse 'Grpc.Normal Proto.RateLimitResponse)
-shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = do
+shouldRateLimit logger (arg #useStatsd -> useStatsd) appState (Grpc.ServerNormalRequest serverCall request) = do
     -- Decode the protobuf request into our domain types.
     let domain = DomainId (TL.toStrict (Proto.rateLimitRequestDomain request))
     let descriptors :: [[(RuleKey, RuleValue)]]
@@ -116,9 +118,20 @@ shouldRateLimit logger appState (Grpc.ServerNormalRequest serverCall request) = 
     -- ordering of descriptors was "A", "B" in both requests.
     (codes :: [Proto.RateLimitResponse_Code],
      statuses :: [Proto.RateLimitResponse_DescriptorStatus]) <-
-        fmap (unzip . map (maybe ruleNotFoundResponse counterStatusToProto)) $
-        atomically $ forM descriptors $ \descriptor ->
-            updateLimitCounter appState (#hits hits) domain descriptor
+        do results :: [Maybe (RuleLeaf, CounterStatus)] <-
+               atomically $ forM descriptors $ \descriptor ->
+                   updateLimitCounter appState (#hits hits) domain descriptor
+           when useStatsd $
+               forM_ (catMaybes results) $ \(leaf, status) -> do
+                   let key = ruleLeafStatsKey leaf
+                   atomically (getStatsForKey appState key) >>= \case
+                       Nothing -> pure ()
+                       Just stats -> do
+                           Gauge.add (statsTotalHits stats) $
+                               fromIntegral hits
+                           Gauge.add (statsOverLimit stats) $
+                               fromIntegral (counterHitsOverLimit status)
+           pure $ unzip $ map (maybe ruleNotFoundResponse counterStatusToProto) results
 
     -- Return server response.
     let overallCode =
@@ -158,12 +171,11 @@ rateLimitToProto limit = Proto.RateLimit
               Day -> Proto.RateLimit_UnitDAY
     }
 
--- | Convert a 'CounterStatus' with the current counter rate limit to the
--- protobuf representation.
+-- | Convert a 'CounterStatus' to the protobuf representation.
 counterStatusToProto
-    :: (RateLimit, CounterStatus)
+    :: (RuleLeaf, CounterStatus)
     -> (Proto.RateLimitResponse_Code, Proto.RateLimitResponse_DescriptorStatus)
-counterStatusToProto (limit, status) =
+counterStatusToProto (leaf, status) =
     ( code
     , Proto.RateLimitResponse_DescriptorStatus
           { Proto.rateLimitResponse_DescriptorStatusCode =
@@ -175,6 +187,7 @@ counterStatusToProto (limit, status) =
           }
     )
   where
+    limit = ruleLeafLimit leaf
     code = if counterHitsOverLimit status > 0
         then Proto.RateLimitResponse_CodeOVER_LIMIT
         else Proto.RateLimitResponse_CodeOK
