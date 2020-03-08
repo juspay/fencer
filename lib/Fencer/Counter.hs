@@ -94,13 +94,14 @@ updateCounter (arg #now -> now) (arg #hits -> hits) (arg #limit -> limit) counte
     -- Updated counter. If the counter is outdated (as per 'counterExpiry'),
     -- we reset it.
     newCounter :: Counter
-    newCounter = Counter
-        { counterHits =
-              if now > counterExpiry counter
-              then hits
-              else counterHits counter + hits
-        , counterExpiry = newCounterExpiry
-        }
+    newCounter =
+      if now > counterExpiry counter
+        then Counter
+               { counterHits = hits
+               , counterExpiry = newCounterExpiry }
+        else Counter
+               { counterHits = counterHits counter + hits
+               , counterExpiry = counterExpiry counter }
 
     updateStatus :: CounterStatus
     updateStatus =
