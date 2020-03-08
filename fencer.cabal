@@ -83,7 +83,9 @@ library
     directory,
     filepath,
     fsnotify,
-    tinylog >= 0.15.0
+    tinylog >= 0.15.0,
+    ekg-core,
+    ekg-statsd
   hs-source-dirs:
     lib
 

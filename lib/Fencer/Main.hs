@@ -12,11 +12,11 @@ where
 
 import BasePrelude
 
-import Control.Concurrent.STM (atomically)
 import qualified Data.List.NonEmpty as NE
 import System.FilePath ((</>))
 import qualified System.Logger as Logger
 import System.Logger (Logger)
+import qualified System.Remote.Monitoring.Statsd as Statsd
 
 import Fencer.Types
 import Fencer.Logic
@@ -59,8 +59,24 @@ main = do
             --
             -- TODO: clarify the counter removal logic?
             mapM_ (deleteCountersWithExpiry appState) [before .. pred now]
+    -- Set up monitoring
+    when (settingsUseStatsd settings) $ do
+      let statsdOptions = Statsd.StatsdOptions
+            { Statsd.host = "127.0.0.1"
+            , Statsd.port = 8125
+            , Statsd.flushInterval = 5000 -- 5s
+            , Statsd.debug = False
+            , Statsd.prefix = "fencer.service.rate_limit"
+            , Statsd.suffix = "" }
+      Logger.info logger $
+          Logger.msg (Logger.val "Statsd is enabled")
+      void $ Statsd.forkStatsd statsdOptions (getEkgStore appState)
     -- Start the gRPC server
-    runServerWithPort (settingsGRPCPort settings) logger appState
+    runServer
+      (settingsGRPCPort settings)
+      logger
+      (#useStatsd (settingsUseStatsd settings))
+      appState
 
 ----------------------------------------------------------------------------
 -- Load rules
@@ -91,13 +107,9 @@ reloadRules logger settings appState = do
         Logger.info logger $
             Logger.msg ("Parsed rules for domains: " ++
                 show (map (unDomainId . domainDefinitionId) ruleDefinitions))
-
-        -- Recreate 'appStateRules'
-        --
-        -- There is no need to remove old rate limiting rules
-        atomically $
-            -- See the documentation of 'setRules' for details on what
-            -- happens with counters during rule reloading.
-            setRules appState (map domainToRuleTree ruleDefinitions)
+        -- Recreate 'appStateRules'. There is no need to remove old rate
+        -- limiting rules. See the documentation of 'setRules' for
+        -- details on what happens with counters during rule reloading.
+        setRules appState (map constructRuleTree ruleDefinitions)
         Logger.info logger $
             Logger.msg (Logger.val "Applied new rules")

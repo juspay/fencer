@@ -113,22 +113,38 @@ cachix use fencer
 There are environment variables that can be optionally set, which can
 have an effect on Fencer execution.
 
-For logging there is one environment variable:
-
 - `LOG_LEVEL` - The logging level. It can be one of the following:
   trace, debug, info, warn, error and fatal. The default value is
   debug.
 
-Fencer-specific environment variables are:
+- `USE_STATSD` - A flag indicating whether to log statistics for rate
+  limits. The default value is `False`.
 
 - `RUNTIME_ROOT` - Symlink to a directory containing the settings
   subdirectory. The default value is `/srv/runtime_data/current`.
+
 - `RUNTIME_SUBDIRECTORY` - The directory with Fencer settings.
+
 - `RUNTIME_IGNOREDOTFILES` - A flag indicating whether to ignore files
   and directories with names starting with a dot (hidden files on
   Linux-based systems and macOS). It can be `True` or `False`. The
   default value is `False`.
+
 - `GRPC_PORT` - The port to run the gRPC server on. Default is 8081.
+
+## Monitoring
+
+With `USE_STATSD` enabled, Fencer will output statsd metrics, assuming
+statsd is running at `localhost:8125`.
+
+```
+fencer.service.rate_limit.messaging.to_number.over_limit: 0
+fencer.service.rate_limit.messaging.to_number.total_hits: 90
+fencer.service.rate_limit.messaging.message_type_marketing.to_number.over_limit: 1
+fencer.service.rate_limit.messaging.message_type_marketing.to_number.total_hits: 6
+```
+
+`near_limit` is not yet supported.
 
 ## Developing
 

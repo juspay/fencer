@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -8,9 +9,11 @@ module Fencer.Logic
     , initAppState
 
     -- * Methods for working with 'AppState'
-    , getLimit
+    , getLeaf
     , setRules
     , getAppStateRulesLoaded
+    , getStatsForKey
+    , getEkgStore
     , updateCurrentTime
     , deleteCountersWithExpiry
     , updateLimitCounter
@@ -26,6 +29,7 @@ import qualified ListT as ListT
 import Named ((:!), arg)
 import qualified Focus as Focus
 import Control.Monad.Trans.Class (lift)
+import qualified System.Metrics as Ekg
 
 import Fencer.Counter
 import Fencer.Rules
@@ -70,6 +74,10 @@ data AppState = AppState
     , appStateCounters :: !(StmMap.Map CounterKey Counter)
       -- | All counters, indexed by expiry date.
     , appStateCounterExpiry :: !(StmMultimap.Multimap Timestamp CounterKey)
+      -- | Stats counters, indexed by key. Never removed.
+    , appStateStats :: !(StmMap.Map StatsKey Stats)
+      -- | EKG store.
+    , appStateEkgStore :: !Ekg.Store
     }
 
 -- | Initialize the environment.
@@ -84,6 +92,8 @@ initAppState = do
     appStateCurrentTime <- newTVarIO =<< getTimestamp
     appStateCounters <- StmMap.newIO
     appStateCounterExpiry <- StmMultimap.newIO
+    appStateStats <- StmMap.newIO
+    appStateEkgStore <- Ekg.newStore
     pure AppState{..}
 
 -- | Apply hits to a counter.
@@ -142,20 +152,26 @@ recordHits appState (arg #hits -> hits) (arg #limit -> limit) counterKey = do
         Focus.insert newCounter
         pure (mbOldCounter, newCounter, status)
 
--- | Fetch the current limit for a descriptor.
-getLimit
+-- | Fetch the rule tree leaf corresponding to the descriptor.
+getLeaf
     :: AppState
     -> DomainId
     -> [(RuleKey, RuleValue)]
-    -> STM (Maybe RateLimit)
-getLimit appState domain descriptor =
+    -> STM (Maybe RuleLeaf)
+getLeaf appState domain descriptor =
     StmMap.lookup domain (appStateRules appState) >>= \case
         Nothing -> pure Nothing
         Just ruleTree -> pure (applyRules descriptor ruleTree)
 
+getEkgStore :: AppState -> Ekg.Store
+getEkgStore = appStateEkgStore
+
+getStatsForKey :: AppState -> StatsKey -> STM (Maybe Stats)
+getStatsForKey appState key = StmMap.lookup key (appStateStats appState)
+
 -- | Handle a single descriptor in a 'shouldRateLimit' request.
 --
--- Returns the current limit and response.
+-- Returns the rule tree leaf and response.
 --
 -- 'updateLimitCounter' will create a new counter if the counter does
 -- not exist, or update an existing counter otherwise. The counter will be
@@ -165,20 +181,22 @@ updateLimitCounter
     -> "hits" :! Word
     -> DomainId
     -> [(RuleKey, RuleValue)]
-    -> STM (Maybe (RateLimit, CounterStatus))
+    -> STM (Maybe (RuleLeaf, CounterStatus))
 updateLimitCounter appState (arg #hits -> hits) domain descriptor =
-    getLimit appState domain descriptor >>= \case
+    getLeaf appState domain descriptor >>= \case
         Nothing -> pure Nothing
-        Just limit -> do
+        Just leaf -> do
+            let limit = ruleLeafLimit leaf
             let counterKey :: CounterKey
                 counterKey = CounterKey
                   { counterKeyDomain = domain
                   , counterKeyDescriptor = descriptor
                   , counterKeyUnit = rateLimitUnit limit }
             status <- recordHits appState (#hits hits) (#limit limit) counterKey
-            pure (Just (limit, status))
+            pure (Just (leaf, status))
 
--- | Set 'appStateRules' and 'appStateRulesLoaded'.
+-- | Set 'appStateRules' and 'appStateRulesLoaded', and create new counters
+-- in 'appStateStats'.
 --
 -- The 'appStateCounters' field stays unchanged. This is in accordance
 -- with the behavior of @lyft/ratelimit@.
@@ -189,12 +207,34 @@ updateLimitCounter appState (arg #hits -> hits) domain descriptor =
 -- made. This is as expected. However, if there is a change in the
 -- rate limit time unit, a new counter will be created, regardless of
 -- how many requests the previous counter had used up.
-setRules :: AppState -> [(DomainId, RuleTree)] -> STM ()
+setRules :: AppState -> [(DomainId, RuleTree)] -> IO ()
 setRules appState rules = do
-    writeTVar (appStateRulesLoaded appState) True
-    StmMap.reset (appStateRules appState)
-    forM_ rules $ \(domain, tree) ->
-        StmMap.insert tree domain (appStateRules appState)
+    forM_ (concatMap (getAllLeaves . snd) rules) $ \leaf -> do
+        let key = ruleLeafStatsKey leaf
+        atomically (StmMap.lookup key (appStateStats appState)) >>= \case
+            Just _ -> pure ()
+            Nothing -> do
+                stats <- makeStats key
+                atomically (StmMap.insert stats key (appStateStats appState))
+    atomically $ do
+        writeTVar (appStateRulesLoaded appState) True
+        StmMap.reset (appStateRules appState)
+        forM_ rules $ \(domain, tree) ->
+            StmMap.insert tree domain (appStateRules appState)
+  where
+    getAllLeaves :: RuleTree -> [RuleLeaf]
+    getAllLeaves = concatMap go . toList
+      where
+        go (RuleBranchTree t) = getAllLeaves t
+        go (RuleBranchLeaf l) = [l]
+
+    makeStats :: StatsKey -> IO Stats
+    makeStats (StatsKey key) = do
+        statsOverLimit <-
+            Ekg.createGauge (key <> ".over_limit") (appStateEkgStore appState)
+        statsTotalHits <-
+            Ekg.createGauge (key <> ".total_hits") (appStateEkgStore appState)
+        pure Stats{..}
 
 -- | Get 'appStateRulesLoaded'.
 getAppStateRulesLoaded :: AppState -> STM Bool
