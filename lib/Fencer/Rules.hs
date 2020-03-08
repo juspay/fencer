@@ -1,6 +1,4 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE TypeApplications #-}
@@ -146,7 +144,7 @@ validatePotentialDomains res = case partitionEithers res of
     let dupDomains =
           filter (\ds -> length @[] ds > 1) $
           groupWith domainDefinitionId domains
-    unless (null dupDomains) $
+    unless (null @[] dupDomains) $
       Left $ NE.fromList
         [LoadRulesDuplicateDomain (domainDefinitionId dupDomain)
           | dupDomain <- map head dupDomains]
@@ -163,7 +161,7 @@ validatePotentialDomains res = case partitionEithers res of
           filter (\ds -> length @[] ds > 1) $
           groupWith (\x -> (descriptorDefinitionKey x, descriptorDefinitionValue x)) $
           descriptorsOf d
-    unless (null dupDescs) $
+    unless (null @[] dupDescs) $
       Left $ NE.fromList
         [LoadRulesDuplicateRule
            domId
